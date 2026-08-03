@@ -47,6 +47,10 @@ All notable changes to this project are documented in this file.
   (`C:/Development/CS2/Server` / `C:/Development/CS2/Manager`), matching the repo's
   actual layout described in the README's Project Structure section.
 
+- `.env.example`'s `CS2_SERVERNAME` default is no longer a personal name; it ships
+  blank like the other credential fields so the template stays generic for any
+  operator.
+
 - The panel's `3 · SERVER CONFIG` card is now per-mode, driven by a new optional
   `server_config` boolean in `mode.json` (defaults to `true`, so FaceIt, GunGame and
   Retake are unaffected). `manager/modes/superheroes/mode.json` sets it to `false`,
