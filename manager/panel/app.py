@@ -1406,7 +1406,7 @@ def api_mode_switch():
 
 
 # --------------------------------------------------------------------------- #
-# Superheroes: HeroShift skill roster + plugin config (skillsInfo.json / config.json)
+# HeroShift: skill roster + plugin config (skillsInfo.json / config.json)
 # Safe-edit only. HeroShift is the stock Juzlus plugin — it does NOT expose the
 # per-player hero query/force console protocol the old bespoke HeroRound fork had,
 # so the panel manages the skill roster + a few config toggles and issues
@@ -1440,22 +1440,22 @@ def mode_config_path(mode: str, name: str) -> Path:
     return mode_defs.mount_source_path(entry, mode_dir(mode), SHARED_DIR)
 
 
-def superheroes_skills_path() -> Path:
-    return mode_config_path("superheroes", "skillsInfo.json")
+def heroshift_skills_path() -> Path:
+    return mode_config_path("heroshift", "skillsInfo.json")
 
 
-def superheroes_hsconfig_path() -> Path:
-    return mode_config_path("superheroes", "config.json")
+def heroshift_hsconfig_path() -> Path:
+    return mode_config_path("heroshift", "config.json")
 
 
 def read_skills_config() -> list:
     """Read skillsInfo.json (raises FileNotFoundError / JSONDecodeError on failure)."""
-    return json.loads(superheroes_skills_path().read_text(encoding="utf-8"))
+    return json.loads(heroshift_skills_path().read_text(encoding="utf-8"))
 
 
 def read_hs_config() -> dict:
     """Read HeroShift config.json (raises FileNotFoundError / JSONDecodeError)."""
-    return json.loads(superheroes_hsconfig_path().read_text(encoding="utf-8"))
+    return json.loads(heroshift_hsconfig_path().read_text(encoding="utf-8"))
 
 
 def _skills_view(skills: list, cfg: dict) -> dict:
@@ -1514,9 +1514,9 @@ def _apply_skill_edits(skills: list, cfg: dict, payload: dict) -> None:
             skill["MaxPerServer"] = mps
 
 
-def _superheroes_active():
+def _heroshift_active():
     active = active_container()
-    return active if active and active["mode"] == "superheroes" else None
+    return active if active and active["mode"] == "heroshift" else None
 
 
 def _backup_and_write(path: Path, data) -> str | None:
@@ -1536,7 +1536,7 @@ def _backup_and_write(path: Path, data) -> str | None:
     return backup.name if backup else None
 
 
-@app.get("/api/v3/modes/superheroes/skills")
+@app.get("/api/v3/modes/heroshift/skills")
 @require_auth
 def api_skill_roster():
     try:
@@ -1546,7 +1546,7 @@ def api_skill_roster():
     return jsonify({"ok": True, **_skills_view(skills, cfg)})
 
 
-@app.put("/api/v3/modes/superheroes/skills")
+@app.put("/api/v3/modes/heroshift/skills")
 @require_auth
 def api_skill_roster_save():
     payload = request.get_json(silent=True) or {}
@@ -1560,47 +1560,47 @@ def api_skill_roster_save():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
     try:
-        skills_bak = _backup_and_write(superheroes_skills_path(), skills)
-        _backup_and_write(superheroes_hsconfig_path(), cfg)
+        skills_bak = _backup_and_write(heroshift_skills_path(), skills)
+        _backup_and_write(heroshift_hsconfig_path(), cfg)
     except OSError as exc:
         return jsonify({"ok": False, "error": f"Backup/write failed: {exc}"}), 500
 
     reloaded = False
-    active = _superheroes_active()
+    active = _heroshift_active()
     if active and rcon_reachable(active["name"]):
         try:
             rcon_command(active["name"], "css_reload", timeout=6.0)
             reloaded = True
         except (OSError, RuntimeError, ValueError, PermissionError) as exc:
             app.logger.warning("HeroShift reload failed: %s", exc)
-    audit("superheroes.roster.save", "ok",
-          f"skills={len(payload.get('skills') or [])} reloaded={reloaded}", target="superheroes")
+    audit("heroshift.roster.save", "ok",
+          f"skills={len(payload.get('skills') or [])} reloaded={reloaded}", target="heroshift")
     return jsonify({"ok": True, "reloaded": reloaded, "backup": skills_bak,
                     **_skills_view(skills, cfg)})
 
 
-@app.post("/api/v3/modes/superheroes/skills/reload")
+@app.post("/api/v3/modes/heroshift/skills/reload")
 @require_auth
 def api_skill_reload():
-    active = _superheroes_active()
+    active = _heroshift_active()
     if not active:
-        return jsonify({"ok": False, "error": "Superheroes is not the active mode"}), 409
+        return jsonify({"ok": False, "error": "HeroShift is not the active mode"}), 409
     if not RCON_PASSWORD:
         return jsonify({"ok": False, "error": "CS2_RCON_PASSWORD is not configured"}), 500
     try:
         out = rcon_command(active["name"], "css_reload", timeout=6.0)
-        audit("superheroes.roster.reload", "ok", target="superheroes")
+        audit("heroshift.roster.reload", "ok", target="heroshift")
         return jsonify({"ok": True, "output": redact(out)})
     except (OSError, RuntimeError, ValueError, PermissionError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 502
 
 
-@app.get("/api/v3/modes/superheroes/diag")
+@app.get("/api/v3/modes/heroshift/diag")
 @require_auth
 def api_hero_diag():
     """HeroShift has no bespoke diag protocol, so report load state from the
     plugin listing plus the enabled-skill count from skillsInfo.json."""
-    active = _superheroes_active()
+    active = _heroshift_active()
     # Skill counts come from the file and are always available.
     counts = {"active_count": None, "total": None}
     try:
@@ -1612,7 +1612,7 @@ def api_hero_diag():
 
     if not active:
         return jsonify({"ok": True, "loaded": False, "active": False,
-                        "diag": counts, "note": "Superheroes is not the active mode"})
+                        "diag": counts, "note": "HeroShift is not the active mode"})
     if not rcon_reachable(active["name"]):
         return jsonify({"ok": True, "loaded": False, "active": True,
                         "diag": counts, "note": "RCON not reachable yet"})

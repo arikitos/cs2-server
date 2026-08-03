@@ -67,7 +67,7 @@ existed only for the allocator and are wrong for plain retakes play.
 docker compose create cs2-retakes
 
 # Only one game server may own port 27015 — stop the others first.
-docker compose stop cs2-faceit cs2-superheroes
+docker compose stop cs2-faceit cs2-heroshift
 docker compose up -d cs2-retakes
 
 docker logs -f cs2-retakes   # expect RetakesPlugin and Instadefuse load lines

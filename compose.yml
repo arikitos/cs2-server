@@ -154,24 +154,24 @@ services:
         source: ./manager/modes/retake/config/RetakesPlugin.json
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/configs/plugins/RetakesPlugin/RetakesPlugin.json
 
-  # -------------------------------------------------------------- Superheroes
-  # User-facing "Superheroes", powered by the HeroShift plugin (Juzlus stock
-  # release). Isolated mode: mounts ONLY superheroes-specific config + HeroShift
+  # ---------------------------------------------------------------- HeroShift
+  # User-facing "HeroShift", powered by the HeroShift plugin (Juzlus stock
+  # release). Isolated mode: mounts ONLY heroshift-specific config + HeroShift
   # + its RayTrace dependency. Deliberately does NOT mount MatchZy, AutoReady,
   # Retakes or Instadefuse. Uses the shared no-SteamCMD runtime image like every
   # other mode (normal start never updates).
   # RayTrace (native Metamod module + RayTraceImpl/RayTraceApi) is built from
-  # Juzlus/Ray-Trace and staged under modes/superheroes/utils/RayTrace/addons.
-  cs2-superheroes:
+  # Juzlus/Ray-Trace and staged under modes/heroshift/utils/RayTrace/addons.
+  cs2-heroshift:
     <<: *cs2-runtime
-    container_name: cs2-superheroes
+    container_name: cs2-heroshift
 
     environment:
       <<: *cs2-env
-      CS2_SERVERNAME: "${CS2_SERVERNAME} SuperHero Server"
+      CS2_SERVERNAME: "${CS2_SERVERNAME} HeroShift Server"
       CS2_GAMEALIAS: competitive
-      CS2_MAXPLAYERS: ${SUPERHEROES_CAPACITY:-10}
-      CS2_ADDITIONAL_ARGS: "+exec mode_superheroes.cfg +exec panel_runtime.cfg"
+      CS2_MAXPLAYERS: ${HEROSHIFT_CAPACITY:-10}
+      CS2_ADDITIONAL_ARGS: "+exec mode_heroshift.cfg +exec panel_runtime.cfg"
 
     volumes:
       - type: bind
@@ -185,56 +185,49 @@ services:
         target: /home/steam/cs2-dedicated/game/csgo/cfg/server.cfg
 
       - type: bind
-        source: ./manager/modes/superheroes/cfg/mode_superheroes.cfg
-        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_superheroes.cfg
+        source: ./manager/modes/heroshift/cfg/mode_heroshift.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_heroshift.cfg
 
       - type: bind
-        source: ./manager/modes/superheroes/cfg/panel_runtime.cfg
+        source: ./manager/modes/heroshift/cfg/panel_runtime.cfg
         target: /home/steam/cs2-dedicated/game/csgo/cfg/panel_runtime.cfg
 
       - type: bind
         source: ./manager/shared/plugins/PanelBridge
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/PanelBridge
 
-      # HeroShift plugin (stock Juzlus release, DLLs + languages + packages).
+      # HeroShift plugin (stock Juzlus release: DLLs + languages + configs).
+      # This one directory mount also carries configs/{config,skillsInfo}.json —
+      # the editable roster the panel writes — so they need no mount of their own.
       - type: bind
-        source: ./manager/modes/superheroes/plugins/HeroShift
+        source: ./manager/modes/heroshift/plugins/HeroShift
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/HeroShift
 
       # HeroShift gamedata (signatures) — required alongside the plugin.
       - type: bind
-        source: ./manager/modes/superheroes/gamedata/HeroShift.gamedata.json
+        source: ./manager/modes/heroshift/gamedata/HeroShift.gamedata.json
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/gamedata/HeroShift.gamedata.json
-
-      # Editable skill roster + plugin config, mounted on top of the shipped
-      # defaults (single source of truth the panel edits).
-      - type: bind
-        source: ./manager/modes/superheroes/config/skillsInfo.json
-        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/HeroShift/configs/skillsInfo.json
-      - type: bind
-        source: ./manager/modes/superheroes/config/config.json
-        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/HeroShift/configs/config.json
 
       # RayTrace dependency — native Metamod module + CSS impl/shared API.
       # Mounted ONLY here so other modes stay free of it (isolation preserved).
       - type: bind
-        source: ./manager/modes/superheroes/utils/RayTrace/addons/metamod/RayTrace.vdf
+        source: ./manager/modes/heroshift/utils/RayTrace/addons/metamod/RayTrace.vdf
         target: /home/steam/cs2-dedicated/game/csgo/addons/metamod/RayTrace.vdf
       - type: bind
-        source: ./manager/modes/superheroes/utils/RayTrace/addons/RayTrace
+        source: ./manager/modes/heroshift/utils/RayTrace/addons/RayTrace
         target: /home/steam/cs2-dedicated/game/csgo/addons/RayTrace
       # This CS2 image's engine returns an empty GetGameDir() at Metamod load,
       # so RayTrace's native module resolves its gamedata to the absolute path
       # /addons/RayTrace/gamedata.json. Satisfy exactly that path (libs are found
       # in-memory by name, so only gamedata needs this).
       - type: bind
-        source: ./manager/modes/superheroes/utils/RayTrace/addons/RayTrace/gamedata.json
+        source: ./manager/modes/heroshift/utils/RayTrace/addons/RayTrace/gamedata.json
         target: /addons/RayTrace/gamedata.json
       - type: bind
-        source: ./manager/modes/superheroes/utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl
+        source: ./manager/modes/heroshift/utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/RayTraceImpl
       - type: bind
-        source: ./manager/modes/superheroes/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi
+        source: ./manager/modes/heroshift/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/shared/RayTraceApi
 
   # ------------------------------------------------------------------ Updater

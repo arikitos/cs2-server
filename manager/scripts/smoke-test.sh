@@ -26,15 +26,15 @@ call -X POST "$BASE/api/v3/server/restart" >/dev/null
 sleep 16
 [ "$(steamcmd_count cs2-faceit)" = "0" ] && ok "restart: 0 SteamCMD" || bad "restart ran SteamCMD"
 
-echo "== switch to superheroes (no SteamCMD, no MatchZy) =="
-call -X POST "$BASE/api/v3/modes/switch" -H 'Content-Type: application/json' -d '{"mode":"superheroes"}' >/dev/null
+echo "== switch to heroshift (no SteamCMD, no MatchZy) =="
+call -X POST "$BASE/api/v3/modes/switch" -H 'Content-Type: application/json' -d '{"mode":"heroshift"}' >/dev/null
 sleep 16
-[ "$(steamcmd_count cs2-superheroes)" = "0" ] && ok "switch: 0 SteamCMD" || bad "switch ran SteamCMD"
-[ "$(docker logs cs2-superheroes 2>&1 | grep -ic MatchZy)" = "0" ] && ok "superheroes: MatchZy not loaded" || bad "superheroes loaded MatchZy"
+[ "$(steamcmd_count cs2-heroshift)" = "0" ] && ok "switch: 0 SteamCMD" || bad "switch ran SteamCMD"
+[ "$(docker logs cs2-heroshift 2>&1 | grep -ic MatchZy)" = "0" ] && ok "heroshift: MatchZy not loaded" || bad "heroshift loaded MatchZy"
 
 echo "== capacity validation =="
-code=$(curl -s -o /dev/null -w '%{http_code}' -u "$AUTH" -X PUT "$BASE/api/v3/modes/superheroes/settings" -H 'Content-Type: application/json' -d '{"capacity":20}')
-[ "$code" = "400" ] && ok "superheroes capacity 20 rejected" || bad "capacity 20 accepted ($code)"
+code=$(curl -s -o /dev/null -w '%{http_code}' -u "$AUTH" -X PUT "$BASE/api/v3/modes/heroshift/settings" -H 'Content-Type: application/json' -d '{"capacity":20}')
+[ "$code" = "400" ] && ok "heroshift capacity 20 rejected" || bad "capacity 20 accepted ($code)"
 code=$(curl -s -o /dev/null -w '%{http_code}' -u "$AUTH" -X PUT "$BASE/api/v3/modes/retake/settings" -H 'Content-Type: application/json' -d '{"active_players":6}')
 [ "$code" = "400" ] && ok "retake even active rejected" || bad "retake even accepted ($code)"
 

@@ -38,7 +38,7 @@ docker compose build
 docker compose --profile maintenance build cs2-updater
 
 # --- 4. Create game services (stopped), start the panel ---
-docker compose create cs2-faceit cs2-retakes cs2-superheroes
+docker compose create cs2-faceit cs2-retakes cs2-heroshift
 docker compose up -d panel
 
 Write-Host "Migration complete. Panel at http://127.0.0.1:$((Get-Content .env | Select-String '^PANEL_PORT=' ) -replace 'PANEL_PORT=','')" -ForegroundColor Green

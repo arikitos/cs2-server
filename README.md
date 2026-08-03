@@ -1,7 +1,7 @@
 # CS2 Manager
 
 A Docker Compose stack that runs a Counter-Strike 2 dedicated server in one of
-four game modes, controlled entirely from a local web panel — start/stop/restart,
+three game modes, controlled entirely from a local web panel — start/stop/restart,
 switch modes, edit the server config, manage the password, run RCON, view
 players, and read separated logs. The panel is the single control plane; it never
 exposes a host shell or arbitrary Docker access to the browser.
@@ -22,7 +22,7 @@ under `manager/`. `server/` is the host's CS2 dedicated-server install
 
 | Path | Responsible for |
 |---|---|
-| `compose.yml` | Defines the three game services (`cs2-faceit`, `cs2-retakes`, `cs2-superheroes`), the maintenance-only `cs2-updater` and the `panel`, all under Compose project `cs2-server`. |
+| `compose.yml` | Defines the three game services (`cs2-faceit`, `cs2-retakes`, `cs2-heroshift`), the maintenance-only `cs2-updater` and the `panel`, all under Compose project `cs2-server`. |
 | `.env.example` / `.env` | Host paths, secrets (GSLT, RCON password, panel credentials), and per-mode capacities. |
 | `setup.ps1` | Quick Windows entry point: create the game containers (stopped) and start the panel. |
 | `manager/runtime/` | The custom, no-SteamCMD runtime image (`Dockerfile` + `runtime-launcher.sh`) every game service builds from. |
@@ -44,7 +44,7 @@ below is a summary of those files, which are the source of truth.
 |---|---|---|---|---|
 | FaceIt | `faceit` | MatchZy + AutoReady | `cs2-faceit` | 2–10 (default 10) |
 | Retake | `retake` | Retakes + Instadefuse, RetakesPluginShared | `cs2-retakes` | 3–10 (default 9) |
-| HeroShift | `superheroes` | HeroShift + RayTrace (random skill each round) | `cs2-superheroes` | 2–10 (default 10) |
+| HeroShift | `heroshift` | HeroShift + RayTrace (random skill each round) | `cs2-heroshift` | 2–10 (default 10) |
 
 `PanelBridge` is a util of every mode (one shared copy, see the table above).
 
@@ -73,7 +73,7 @@ the earlier "Retakes V2 alongside Retake" split is gone. See
 Only one game service runs at a time; the panel enforces the port-27015 handoff.
 HeroShift's skill roster **is** editable from the panel — per skill you can toggle
 `Active`, set `Rarity` and cap `MaxPerServer`; skill mechanics ship with the plugin
-build. See [manager/modes/superheroes/README.md](manager/modes/superheroes/README.md)
+build. See [manager/modes/heroshift/README.md](manager/modes/heroshift/README.md)
 for the full roster/balance notes.
 
 ### Mode definitions (`mode.json`)

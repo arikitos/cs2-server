@@ -15,9 +15,19 @@ All notable changes to this project are documented in this file.
   `rollback.ps1`, the `GunGame` / `GUNGAME` keys in the panel's plugin-log filter
   (`HeroShift` added in their place, which was missing), and every mention in
   `README.md` and `manager/modes/retake/README.md`. The stack is now three game
-  services: `cs2-faceit`, `cs2-retakes`, `cs2-superheroes`. Earlier `Unreleased`
+  services: `cs2-faceit`, `cs2-retakes`, `cs2-heroshift`. Earlier `Unreleased`
   entries below that mention GunGame are left as written — they record what those
   changes did at the time.
+
+- The duplicate `manager/modes/heroshift/config/` directory. HeroShift's
+  `config.json` and `skillsInfo.json` now live only where the upstream release ships
+  them, `manager/modes/heroshift/plugins/HeroShift/configs/`. The two copies were
+  byte-identical and the README asked for every edit to be hand-mirrored into both,
+  which the panel quietly broke on each roster save. Because `compose.yml` already
+  bind-mounts the whole `plugins/HeroShift` directory, the configs travel with it,
+  so the two per-file bind mounts that pointed at the old `config/` path were
+  dropped as redundant and `mode.json`'s `configs` sources now name the upstream
+  location. No file contents changed.
 
 - `RetakesAllocator` from the Retake mode. Retake is now RetakesPlugin +
   Instadefuse only, with `GameSettings.EnableFallbackAllocation` back to its stock
@@ -60,10 +70,42 @@ All notable changes to this project are documented in this file.
 - Panel Rebuild now validates the live mode manifests before building and refuses
   to apply a candidate while a `mode.json` is invalid.
 
+### Fixed
+
+- HeroShift's `mode.json` declared a `config/heroes.json` that does not exist,
+  while the two config files that do exist and are bind-mounted in `compose.yml`
+  (`config/skillsInfo.json` and `config/config.json`) were not declared at all.
+  This broke two things: Verify mounts always reported a missing source, and the
+  panel's skill-roster API (`GET`/`PUT /api/v3/modes/heroshift/skills`, the
+  reload and diag routes) returned HTTP 500, because `mode_config_path()` resolves
+  those files *by their manifest entry* and raised `FileNotFoundError` for both.
+  The manifest now declares the real pair, with targets matching the compose
+  mounts exactly. Pre-existing bug, surfaced while renaming the mode.
+
 ### Changed
 
+- **The `superheroes` mode is renamed to `heroshift`**, matching the plugin and the
+  user-facing label it always had. Renamed together: the mode id (`superheroes` →
+  `heroshift`), the service and container (`cs2-superheroes` → `cs2-heroshift`),
+  the mode directory (`manager/modes/superheroes/` → `manager/modes/heroshift/`),
+  its base cfg (`mode_superheroes.cfg` → `mode_heroshift.cfg`), the panel state file
+  (`manager/data/modes/superheroes.json` → `heroshift.json`), the capacity env var
+  (`SUPERHEROES_CAPACITY` → `HEROSHIFT_CAPACITY`), the server name suffix
+  (`SuperHero Server` → `HeroShift Server`), the panel's roster API routes
+  (`/api/v3/modes/superheroes/*` → `/api/v3/modes/heroshift/*`), its audit keys
+  (`superheroes.roster.*` → `heroshift.roster.*`) and helper names, plus every
+  reference in the scripts and docs. `data/server.json`'s `last_mode` was migrated
+  in place. The HeroShift plugin, RayTrace and both config files are byte-identical
+  — only names moved.
+
+  Operator note: this is not a hot change. Remove the old container
+  (`docker rm -f cs2-superheroes`) and recreate the services, and replace
+  `SUPERHEROES_CAPACITY` with `HEROSHIFT_CAPACITY` in any existing `.env`. Earlier
+  `Unreleased` entries below that say `superheroes` are left as written — they
+  record what those changes did at the time.
+
 - Every mode now runs the same server config. `mode_faceit.cfg`,
-  `mode_retake.cfg` and `mode_superheroes.cfg` were reduced to `exec server.cfg`
+  `mode_retake.cfg` and `mode_heroshift.cfg` were reduced to `exec server.cfg`
   plus only what that mode's plugin genuinely needs: FaceIt keeps `tv_enable 1`
   (GOTV), Retake keeps `mp_warmuptime 30`, HeroShift keeps `mp_roundtime 1.55` and
   `mp_warmuptime 20`. Everything else — the competitive ruleset, `bot_quota 0`,
@@ -81,7 +123,7 @@ All notable changes to this project are documented in this file.
 
 - **Player capacity is now the only per-mode difference.** Retake holds 9 (was 7),
   FaceIt and HeroShift hold 10 — set in `RETAKE_CAPACITY` / `FACEIT_CAPACITY` /
-  `SUPERHEROES_CAPACITY` in `.env` and `.env.example`, and in each `mode.json`'s
+  `HEROSHIFT_CAPACITY` in `.env` and `.env.example`, and in each `mode.json`'s
   `settings.defaults.capacity`. Retake's `config/RetakesPlugin.json`
   `GameSettings.MaxPlayers` was already 9 and is unchanged.
 

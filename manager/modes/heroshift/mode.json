@@ -1,15 +1,15 @@
 {
-  "id": "superheroes",
+  "id": "heroshift",
   "label": "HeroShift",
   "implementation": "Random skill every round (HeroShift)",
   "order": 40,
-  "container": "cs2-superheroes",
-  "capacity_env": "SUPERHEROES_CAPACITY",
+  "container": "cs2-heroshift",
+  "capacity_env": "HEROSHIFT_CAPACITY",
   "server_config": false,
 
   "startup": {
     "game_alias": "competitive",
-    "mode_cfg": "mode_superheroes.cfg",
+    "mode_cfg": "mode_heroshift.cfg",
     "runtime_cfg": "panel_runtime.cfg"
   },
 
@@ -91,24 +91,31 @@
   "configs": [
     {
       "name": "server.cfg",
-      "note": "Shared base profile in manager/shared/cfg/server.cfg, mounted into every mode and exec'd first by mode_superheroes.cfg. Mode files carry only their own convars on top of it.",
+      "note": "Shared base profile in manager/shared/cfg/server.cfg, mounted into every mode and exec'd first by mode_heroshift.cfg. Mode files carry only their own convars on top of it.",
       "source": "cfg/server.cfg",
       "shared": true,
       "kind": "file",
       "target": "cfg/server.cfg"
     },
     {
-      "name": "heroes.json",
-      "note": "Editable hero roster, mounted on top of the shipped embedded default. Single source of truth the panel edits.",
-      "source": "config/heroes.json",
+      "name": "skillsInfo.json",
+      "note": "Editable skill roster the panel writes (/api/v3/modes/heroshift/skills). Lives where the upstream release ships it, inside the plugin folder, and reaches the container through the HeroShift plugin directory mount — it needs no mount of its own.",
+      "source": "plugins/HeroShift/configs/skillsInfo.json",
       "kind": "file",
-      "target": "addons/counterstrikesharp/plugins/HeroShift/config/heroes.json"
+      "target": "addons/counterstrikesharp/plugins/HeroShift/configs/skillsInfo.json"
+    },
+    {
+      "name": "config.json",
+      "note": "HeroShift plugin config (HUD, chat, commands, timings). Same story as skillsInfo.json: upstream location, carried by the plugin directory mount. The panel edits a whitelisted subset of its toggles.",
+      "source": "plugins/HeroShift/configs/config.json",
+      "kind": "file",
+      "target": "addons/counterstrikesharp/plugins/HeroShift/configs/config.json"
     }
   ],
 
   "actions": [
     { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config",
-      "description": "Reloads HeroShift config/heroes.json; the container stays running.", "confirm": false },
+      "description": "Reloads HeroShift's skillsInfo.json / config.json; the container stays running.", "confirm": false },
     { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round",
       "description": "Resets the in-game match after one second. The container stays running.", "confirm": true },
     { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase",

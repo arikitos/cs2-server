@@ -48,7 +48,7 @@ SETTING_FIELDS = ("map", "capacity", "max_rounds", "freezetime", "friendly_fire"
 GAME_ALIASES = ("competitive", "casual", "wingman", "deathmatch")
 
 # Bind-mount targets are relative to the container's game/csgo directory, with one
-# documented exception (RayTrace's absolute /addons path, see the superheroes
+# documented exception (RayTrace's absolute /addons path, see the heroshift
 # manifest), which must be declared with "absolute": true.
 TARGET_PREFIXES = ("addons/", "cfg/")
 ABSOLUTE_TARGET_PREFIX = "/addons/"
