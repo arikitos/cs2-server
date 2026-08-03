@@ -85,7 +85,8 @@ values = {
 for key, value in values.items():
     text = text.replace("{{" + key + "}}", value)
 tmp = path.with_suffix(path.suffix + ".tmp")
-tmp.write_text(text, encoding="utf-8", newline="\n")
+with tmp.open("w", encoding="utf-8", newline="\n") as handle:
+    handle.write(text)
 tmp.replace(path)
 PY
 fi

@@ -5,7 +5,8 @@ FROM ${CS2_BASE_IMAGE}
 USER root
 COPY runtime-launcher.sh /usr/local/bin/runtime-launcher.sh
 COPY mode_applier.py /usr/local/bin/mode-applier
-RUN chmod +x /usr/local/bin/runtime-launcher.sh /usr/local/bin/mode-applier \
+RUN sed -i 's/\r$//' /usr/local/bin/runtime-launcher.sh /usr/local/bin/mode-applier \
+    && chmod +x /usr/local/bin/runtime-launcher.sh /usr/local/bin/mode-applier \
     && mkdir -p /addons \
     && chown 1000:1000 /addons
 

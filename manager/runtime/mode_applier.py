@@ -9,6 +9,7 @@ copied, inventoried and removed on the next switch.
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -357,6 +358,65 @@ def _remove(path: Path) -> None:
         shutil.rmtree(path)
 
 
+def _copy_path(source: Path, destination: Path) -> None:
+    if source.is_symlink():
+        destination.symlink_to(
+            os.readlink(source),
+            target_is_directory=source.is_dir(),
+        )
+    elif source.is_file():
+        shutil.copy2(source, destination)
+    elif source.is_dir():
+        shutil.copytree(source, destination, symlinks=True)
+    else:
+        raise ApplyError(f"Cannot move unsupported path: {source}")
+
+
+def _move_path(source: Path, destination: Path) -> None:
+    """Move a path atomically at the destination, including across filesystems."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    if destination.exists() or destination.is_symlink():
+        raise ApplyError(f"Move destination already exists: {destination}")
+
+    try:
+        source.rename(destination)
+        return
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+
+    if source.is_dir() and not source.is_symlink():
+        temporary = Path(
+            tempfile.mkdtemp(
+                prefix=f".{destination.name}.move-",
+                dir=destination.parent,
+            )
+        )
+        shutil.rmtree(temporary)
+    else:
+        fd, temporary_name = tempfile.mkstemp(
+            prefix=f".{destination.name}.move-",
+            dir=destination.parent,
+        )
+        os.close(fd)
+        temporary = Path(temporary_name)
+        temporary.unlink()
+
+    try:
+        _copy_path(source, temporary)
+        temporary.rename(destination)
+
+        try:
+            _remove(source)
+        except Exception:
+            _remove(destination)
+            raise
+    except Exception:
+        _remove(temporary)
+        raise
+
+
 def _validate_source_tree(entry: Entry) -> None:
     if entry.source.is_symlink():
         raise ApplyError(f"Symlink sources are not allowed for {entry.owner}: {entry.source}")
@@ -399,7 +459,7 @@ def _backup_previous(
             continue
         backup = transaction_root / "previous" / str(index)
         backup.parent.mkdir(parents=True, exist_ok=True)
-        target.rename(backup)
+        _move_path(target, backup)
         backups.append((row, target, backup))
     return backups
 
@@ -429,17 +489,22 @@ def _backup_new_conflicts(
             continue
         backup = transaction_root / "adopted" / str(index)
         backup.parent.mkdir(parents=True, exist_ok=True)
-        entry.target.rename(backup)
+        _move_path(entry.target, backup)
         backups.append((entry.inventory_row(), entry.target, backup))
     return backups
 
 
 def _install_staging(entries: list[Entry], staged: list[Path]) -> list[Path]:
+    if len(entries) != len(staged):
+        raise ApplyError(
+            f"Internal staging count mismatch: {len(entries)} entries, "
+            f"{len(staged)} staged paths"
+        )
     installed: list[Path] = []
-    for entry, staging in zip(entries, staged, strict=True):
+    for entry, staging in zip(entries, staged):
         entry.target.parent.mkdir(parents=True, exist_ok=True)
         _remove(entry.target)
-        staging.rename(entry.target)
+        _move_path(staging, entry.target)
         installed.append(entry.target)
     return installed
 
@@ -487,7 +552,8 @@ def _write_env(path: Path, *, mode: str, manifest: dict, settings: dict) -> None
     path.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(f"{key}={value}\n" for key, value in values.items())
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
+    with tmp.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
     os.replace(tmp, path)
 
 
@@ -561,11 +627,11 @@ def apply_mode(
             for _row, target, backup in reversed(adopted):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 _remove(target)
-                backup.rename(target)
+                _move_path(backup, target)
             for _row, target, backup in reversed(backups):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 _remove(target)
-                backup.rename(target)
+                _move_path(backup, target)
             _atomic_json(inventory_path, previous)
             if isinstance(exc, ApplyError):
                 raise
@@ -608,7 +674,7 @@ def cleanup_managed(
             for _row, target, backup in reversed(backups):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 _remove(target)
-                backup.rename(target)
+                _move_path(backup, target)
             _atomic_json(inventory_path, previous)
             if isinstance(exc, ApplyError):
                 raise
@@ -673,12 +739,12 @@ def sync_config(
         had_previous = entry.target.exists() or entry.target.is_symlink()
         try:
             if had_previous:
-                entry.target.rename(backup)
-            staged.rename(entry.target)
+                _move_path(entry.target, backup)
+            _move_path(staged, entry.target)
         except Exception as exc:
             _remove(entry.target)
             if had_previous and backup.exists():
-                backup.rename(entry.target)
+                _move_path(backup, entry.target)
             raise ApplyError(f"Config sync failed and was rolled back: {exc}") from exc
     return {"mode": mode, "config": name, "target": entry.target_key}
 

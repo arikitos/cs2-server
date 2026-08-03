@@ -32,6 +32,8 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- The single-runtime deployment now handles transactional targets across filesystem boundaries, including `/addons`; normalizes Windows CRLF line endings for its Linux runtime files; and avoids Python 3.10-only APIs, preserving compatibility with Python 3.9 in the pinned CS2 base image.
+
 - Leaving HeroShift now removes every managed RayTrace path, including the native
   Metamod entry and its absolute `/addons/RayTrace/gamedata.json`, before another
   mode starts.

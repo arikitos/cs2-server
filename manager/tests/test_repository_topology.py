@@ -44,6 +44,45 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertNotIn("app_update", launcher)
         self.assertNotIn("steamcmd.sh", launcher.lower())
 
+    def test_runtime_applier_avoids_python_310_only_zip_strict(self) -> None:
+        applier = (MANAGER / "runtime/mode_applier.py").read_text(encoding="utf-8")
+        self.assertNotIn("strict=True", applier)
+
+    def test_runtime_applier_avoids_python_310_path_write_text_newline(
+        self,
+    ) -> None:
+        applier = (MANAGER / "runtime/mode_applier.py").read_text(
+            encoding="utf-8"
+        )
+        unsupported = re.compile(
+            r"\.write_text\([^)]*\bnewline\s*=",
+            re.DOTALL,
+        )
+        self.assertNotRegex(applier, unsupported)
+
+    def test_runtime_image_normalizes_windows_line_endings(self) -> None:
+        dockerfile = (MANAGER / "runtime/Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "sed -i 's/\\r$//' "
+            "/usr/local/bin/runtime-launcher.sh "
+            "/usr/local/bin/mode-applier",
+            dockerfile,
+        )
+
+    def test_runtime_launcher_avoids_python_310_path_write_text_newline(
+        self,
+    ) -> None:
+        launcher = (MANAGER / "runtime/runtime-launcher.sh").read_text(
+            encoding="utf-8"
+        )
+        unsupported = re.compile(
+            r"\.write_text\([^)]*\bnewline\s*=",
+            re.DOTALL,
+        )
+        self.assertNotRegex(launcher, unsupported)
+
 
 if __name__ == "__main__":
     unittest.main()

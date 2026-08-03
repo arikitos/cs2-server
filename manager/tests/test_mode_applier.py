@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import sys
 import tempfile
@@ -445,6 +446,64 @@ class ModeApplierTests(unittest.TestCase):
             self.skipTest("symlinks are unavailable")
         with self.assertRaises(ApplyError):
             self.apply("faceit")
+
+    def test_cross_device_absolute_target_supports_apply_and_switch(
+        self,
+    ) -> None:
+        self.make_mode("heroshift", "HeroShift", raytrace=True)
+        self.make_mode("faceit", "MatchZy")
+
+        absolute_target = (
+            self.absolute / "addons/RayTrace/gamedata.json"
+        )
+        absolute_target.parent.mkdir(parents=True)
+        absolute_target.write_text("legacy")
+
+        original_rename = Path.rename
+
+        def simulate_cross_device(path: Path, target: Path):
+            source = Path(path)
+            destination = Path(target)
+
+            source_is_absolute = (
+                source == self.absolute
+                or self.absolute in source.parents
+            )
+            destination_is_absolute = (
+                destination == self.absolute
+                or self.absolute in destination.parents
+            )
+
+            if source_is_absolute != destination_is_absolute:
+                raise OSError(
+                    errno.EXDEV,
+                    "Invalid cross-device link",
+                )
+
+            return original_rename(path, target)
+
+        with patch(
+            "pathlib.Path.rename",
+            autospec=True,
+            side_effect=simulate_cross_device,
+        ):
+            self.apply("heroshift")
+            self.assertEqual(
+                absolute_target.read_text(),
+                "{}",
+            )
+
+            self.apply("faceit")
+
+        self.assertFalse(absolute_target.exists())
+
+        inventory = json.loads(
+            (
+                self.data
+                / "runtime/managed-files.json"
+            ).read_text()
+        )
+        self.assertEqual(inventory["mode"], "faceit")
 
 
 if __name__ == "__main__":
