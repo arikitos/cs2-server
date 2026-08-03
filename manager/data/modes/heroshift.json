@@ -1,8 +1,19 @@
 {
+  "format": "5v5",
+  "map_pool": [
+    "de_dust2",
+    "de_inferno",
+    "de_mirage"
+  ],
   "map": "de_dust2",
   "capacity": 10,
+  "game_alias": "competitive",
   "max_rounds": 24,
-  "freezetime": 15,
-  "bot_quota": 0,
-  "friendly_fire": false
+  "freezetime": 10,
+  "warmup_time": 20,
+  "round_time": 1.55,
+  "bot_quota": 1,
+  "friendly_fire": "off",
+  "overtime": false,
+  "overtime_max_rounds": 6
 }

@@ -19,6 +19,7 @@ downloads/
 manager/panel-data/*.tmp
 manager/data/*.tmp
 manager/data/audit/
+manager/data/runtime/
 manager/data/secrets.json
 manager/data/console_history.json
 

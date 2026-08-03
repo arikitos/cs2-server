@@ -1,11 +1,5 @@
-# CS2 Manager V3 — rollback script (Windows / Docker Desktop)
-# ==========================================================
-# Restores compose.yml / .env / panel / modes / data from a backup folder
-# created by migrate.ps1, then rebuilds and restarts the panel. Because the
-# persistent game install and plugin mounts are untouched, rollback is config-only.
-#
-# Usage:  .\manager\scripts\rollback.ps1 -Backup manager\backups\pre-v3-YYYYMMDD-HHMMSS
-
+# Restores a backup created by migrate.ps1 and recreates the service topology
+# described by that backup's compose.yml. This changes Docker container state.
 param(
     [Parameter(Mandatory = $true)][string]$Backup
 )
@@ -14,14 +8,40 @@ Set-Location (Join-Path $PSScriptRoot "../..")
 
 if (-not (Test-Path $Backup)) { throw "Backup folder not found: $Backup" }
 
-Write-Host "Stopping game services and panel..." -ForegroundColor Yellow
-docker compose stop cs2-faceit cs2-retakes cs2-heroshift panel 2>$null
-
-foreach ($item in @("compose.yml", ".env")) {
-    $src = Join-Path $Backup $item
-    if (Test-Path $src) { Copy-Item $src $item -Force; Write-Host "restored $item" }
+# Stop the single runtime before touching its deployed mode layer. Clean only
+# paths recorded in the manager inventory; removing cs2-game then discards the
+# container-local absolute /addons path used by RayTrace.
+docker container inspect cs2-game *> $null
+if ($LASTEXITCODE -eq 0) {
+    docker stop --time 20 cs2-game *> $null
+    docker run --rm --volumes-from cs2-game `
+        --entrypoint /usr/local/bin/mode-applier `
+        cs2-manager-runtime:pinned `
+        --server-root /home/steam/cs2-dedicated `
+        --inventory /home/steam/cs2-dedicated/.cs2-manager/managed-files.json `
+        cleanup
+    if ($LASTEXITCODE -ne 0) {
+        throw "Managed mode cleanup failed; refusing to restore the old topology"
+    }
 }
-foreach ($dir in @("panel", "modes", "data")) {
+
+foreach ($name in @("cs2-game", "cs2-faceit", "cs2-retakes", "cs2-heroshift", "cs2-panel")) {
+    docker container inspect $name *> $null
+    if ($LASTEXITCODE -eq 0) {
+        docker stop --time 20 $name *> $null
+        docker rm $name *> $null
+    }
+}
+
+foreach ($item in @("compose.yml", ".env", ".env.example", "CHANGELOG.md", "README.md", "versions.json")) {
+    $src = Join-Path $Backup $item
+    if (Test-Path $src) {
+        $dest = if ($item -eq "versions.json") { "manager/versions.json" } else { $item }
+        Copy-Item $src $dest -Force
+        Write-Host "restored $dest"
+    }
+}
+foreach ($dir in @("panel", "modes", "data", "runtime", "updater", "shared")) {
     $src = Join-Path $Backup $dir
     $dest = "manager/$dir"
     if (Test-Path $src) {
@@ -31,8 +51,9 @@ foreach ($dir in @("panel", "modes", "data")) {
     }
 }
 
-Write-Host "Rebuilding panel and recreating game services from restored config..." -ForegroundColor Cyan
-docker compose build panel
-docker compose create cs2-faceit cs2-retakes 2>$null
+docker compose config --quiet
+if ($LASTEXITCODE -ne 0) { throw "Restored compose.yml is invalid" }
+docker compose build
+docker compose create
 docker compose up -d panel
-Write-Host "Rollback complete from $Backup" -ForegroundColor Green
+Write-Host "Rollback complete from $Backup. Start the restored game service from the panel." -ForegroundColor Green

@@ -3,79 +3,99 @@
   "label": "HeroShift",
   "implementation": "Random skill every round (HeroShift)",
   "order": 40,
-  "container": "cs2-heroshift",
-  "capacity_env": "HEROSHIFT_CAPACITY",
-  "server_config": false,
-
+  "requires": {
+    "metamod": "2.0.0-git1410",
+    "counterstrikesharp": "1.0.371"
+  },
   "startup": {
     "game_alias": "competitive",
     "mode_cfg": "mode_heroshift.cfg",
     "runtime_cfg": "panel_runtime.cfg"
   },
-
   "settings": {
-    "capacity": { "min": 2, "max": 10 },
+    "formats": [
+      {
+        "key": "5v5",
+        "label": "5v5",
+        "detail": "10 players",
+        "capacity": 10,
+        "team_size": 5,
+        "game_alias": "competitive",
+        "default": true
+      },
+      {
+        "key": "2v2",
+        "label": "2v2",
+        "detail": "4 players - Wingman",
+        "capacity": 4,
+        "team_size": 2,
+        "game_alias": "wingman"
+      },
+      {
+        "key": "1v1",
+        "label": "1v1",
+        "detail": "2 players",
+        "capacity": 2,
+        "team_size": 1,
+        "game_alias": "competitive"
+      }
+    ],
     "defaults": {
-      "note": "Identical to the FaceIt defaults; every mode but Retake holds 10 players.",
-      "map": "de_dust2",
-      "capacity": 10,
+      "format": "5v5",
+      "map_pool": [
+        "de_dust2",
+        "de_mirage",
+        "de_inferno",
+        "de_nuke",
+        "de_ancient",
+        "de_anubis",
+        "de_overpass"
+      ],
       "max_rounds": 24,
       "freezetime": 15,
-      "friendly_fire": false,
-      "bot_quota": 0
+      "warmup_time": 20,
+      "round_time": 1.55,
+      "bot_quota": 0,
+      "friendly_fire": "off",
+      "overtime": false,
+      "overtime_max_rounds": 6
     },
     "extra_cfg": []
   },
-
   "plugins": [
     {
       "name": "HeroShift",
       "role": "plugin",
-      "note": "cs2-hero-shift build: single self-contained DLL (CounterStrikeSharp.API is PrivateAssets, no bundled dependency DLLs, no gamedata/languages).",
       "verify": { "required": true, "aliases": ["heroshift", "hero shift"] },
       "mounts": [
+        { "source": "plugins/HeroShift", "target": "addons/counterstrikesharp/plugins/HeroShift" },
         {
-          "source": "plugins/HeroShift",
-          "target": "addons/counterstrikesharp/plugins/HeroShift"
+          "source": "gamedata/HeroShift.gamedata.json",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/gamedata/HeroShift.gamedata.json"
         }
       ]
     },
     {
       "name": "RayTrace",
       "role": "util",
-      "note": "Built from Juzlus/Ray-Trace. Two layers: the native Metamod module and the CSS RayTraceImpl plugin + RayTraceApi shared assembly. Mounted only in this mode so other modes stay free of it.",
       "verify": { "required": true, "aliases": ["raytrace", "ray trace"] },
       "mounts": [
-        {
-          "source": "utils/RayTrace/addons/metamod/RayTrace.vdf",
-          "kind": "file",
-          "target": "addons/metamod/RayTrace.vdf"
-        },
-        {
-          "source": "utils/RayTrace/addons/RayTrace",
-          "target": "addons/RayTrace"
-        },
+        { "source": "utils/RayTrace/addons/metamod/RayTrace.vdf", "kind": "file", "target": "addons/metamod/RayTrace.vdf" },
+        { "source": "utils/RayTrace/addons/RayTrace", "target": "addons/RayTrace" },
         {
           "source": "utils/RayTrace/addons/RayTrace/gamedata.json",
           "kind": "file",
           "absolute": true,
-          "note": "This CS2 image's engine returns an empty GetGameDir() at Metamod load, so RayTrace's native module resolves its gamedata to the absolute path /addons/RayTrace/gamedata.json. Libs are still found in-memory by name, so only gamedata needs this.",
           "target": "/addons/RayTrace/gamedata.json"
         },
-        {
-          "source": "utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl",
-          "target": "addons/counterstrikesharp/plugins/RayTraceImpl"
-        },
-        {
-          "source": "utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi",
-          "target": "addons/counterstrikesharp/shared/RayTraceApi"
-        }
+        { "source": "utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl", "target": "addons/counterstrikesharp/plugins/RayTraceImpl" },
+        { "source": "utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi", "target": "addons/counterstrikesharp/shared/RayTraceApi" }
       ]
     },
     {
       "name": "PanelBridge",
       "role": "util",
-      "note": "Shared single copy in manager/shared/plugins/PanelBridge, built from the project below. Exposes SteamID64 player data over RCON for the panel.",
       "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
       "build": { "project": "plugins-src/PanelBridge", "shared": true },
       "mounts": [
@@ -87,11 +107,9 @@
       ]
     }
   ],
-
   "configs": [
     {
       "name": "server.cfg",
-      "note": "Shared base profile in manager/shared/cfg/server.cfg, mounted into every mode and exec'd first by mode_heroshift.cfg. Mode files carry only their own convars on top of it.",
       "source": "cfg/server.cfg",
       "shared": true,
       "kind": "file",
@@ -99,28 +117,21 @@
     },
     {
       "name": "skillsInfo.json",
-      "note": "Editable skill roster the panel writes (/api/v3/modes/heroshift/skills). Lives where the upstream release ships it, inside the plugin folder, and reaches the container through the HeroShift plugin directory mount — it needs no mount of its own.",
       "source": "plugins/HeroShift/configs/skillsInfo.json",
       "kind": "file",
       "target": "addons/counterstrikesharp/plugins/HeroShift/configs/skillsInfo.json"
     },
     {
       "name": "config.json",
-      "note": "HeroShift plugin config (HUD, chat, commands, timings). Same story as skillsInfo.json: upstream location, carried by the plugin directory mount. The panel edits a whitelisted subset of its toggles.",
       "source": "plugins/HeroShift/configs/config.json",
       "kind": "file",
       "target": "addons/counterstrikesharp/plugins/HeroShift/configs/config.json"
     }
   ],
-
   "actions": [
-    { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config",
-      "description": "Reloads HeroShift's skillsInfo.json / config.json; the container stays running.", "confirm": false },
-    { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round",
-      "description": "Resets the in-game match after one second. The container stays running.", "confirm": true },
-    { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase",
-      "description": "Ends warmup and starts normal round flow.", "confirm": true },
-    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players",
-      "description": "Removes every bot from the active game.", "confirm": true }
+    { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config", "description": "Reloads HeroShift config files.", "confirm": false, "group": "plugin" },
+    { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round", "description": "Restarts the game after one second.", "confirm": true, "group": "match" },
+    { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase", "description": "Ends warmup.", "confirm": true, "group": "match" },
+    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players", "description": "Removes all bots.", "confirm": true, "group": "bots" }
   ]
 }

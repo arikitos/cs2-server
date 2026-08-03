@@ -3,58 +3,89 @@
   "label": "FaceIt",
   "implementation": "Powered by MatchZy",
   "order": 10,
-  "container": "cs2-faceit",
-  "capacity_env": "FACEIT_CAPACITY",
-
+  "requires": {
+    "metamod": "2.0.0-git1410",
+    "counterstrikesharp": "1.0.371"
+  },
   "startup": {
     "game_alias": "competitive",
     "mode_cfg": "mode_faceit.cfg",
     "runtime_cfg": "panel_runtime.cfg"
   },
-
   "settings": {
-    "capacity": { "min": 2, "max": 10 },
+    "formats": [
+      {
+        "key": "5v5",
+        "label": "5v5",
+        "detail": "10 players",
+        "capacity": 10,
+        "team_size": 5,
+        "game_alias": "competitive",
+        "default": true,
+        "cfg": ["matchzy_minimum_ready_required 10"]
+      },
+      {
+        "key": "2v2",
+        "label": "2v2",
+        "detail": "4 players - Wingman",
+        "capacity": 4,
+        "team_size": 2,
+        "game_alias": "wingman",
+        "cfg": ["matchzy_minimum_ready_required 4"]
+      },
+      {
+        "key": "1v1",
+        "label": "1v1",
+        "detail": "2 players",
+        "capacity": 2,
+        "team_size": 1,
+        "game_alias": "competitive",
+        "cfg": ["matchzy_minimum_ready_required 2"]
+      }
+    ],
     "defaults": {
-      "note": "The default command set every mode follows; only Retake's capacity (9) differs.",
-      "map": "de_dust2",
-      "capacity": 10,
+      "format": "5v5",
+      "map_pool": [
+        "de_dust2",
+        "de_mirage",
+        "de_inferno",
+        "de_nuke",
+        "de_ancient",
+        "de_anubis",
+        "de_overpass"
+      ],
       "max_rounds": 24,
       "freezetime": 15,
-      "friendly_fire": false,
-      "bot_quota": 0
+      "warmup_time": 60,
+      "round_time": 1.55,
+      "bot_quota": 0,
+      "friendly_fire": "off",
+      "overtime": true,
+      "overtime_max_rounds": 6
     },
     "extra_cfg": ["matchzy_autostart_mode 1"]
   },
-
   "plugins": [
     {
       "name": "MatchZy",
       "role": "plugin",
       "verify": { "required": true, "aliases": ["matchzy"] },
       "mounts": [
-        {
-          "source": "plugins/MatchZy",
-          "target": "addons/counterstrikesharp/plugins/MatchZy"
-        }
+        { "source": "plugins/MatchZy", "target": "addons/counterstrikesharp/plugins/MatchZy" }
       ]
     },
     {
       "name": "AutoReady",
       "role": "util",
-      "note": "FaceIt warmup automation, built in-house from the project below.",
       "verify": { "required": true, "aliases": ["auto ready", "autoready"] },
       "build": { "project": "utils/AutoReady.src" },
       "mounts": [
-        {
-          "source": "utils/AutoReady",
-          "target": "addons/counterstrikesharp/plugins/AutoReady"
-        }
+        { "source": "utils/AutoReady", "target": "addons/counterstrikesharp/plugins/AutoReady" }
       ]
     },
     {
       "name": "PanelBridge",
       "role": "util",
-      "note": "Shared single copy in manager/shared/plugins/PanelBridge, built from the project below. Exposes SteamID64 player data over RCON for the panel.",
       "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
       "build": { "project": "plugins-src/PanelBridge", "shared": true },
       "mounts": [
@@ -66,11 +97,9 @@
       ]
     }
   ],
-
   "configs": [
     {
       "name": "server.cfg",
-      "note": "Shared base profile in manager/shared/cfg/server.cfg, mounted into every mode and exec'd first by mode_faceit.cfg. Mode files carry only their own convars on top of it.",
       "source": "cfg/server.cfg",
       "shared": true,
       "kind": "file",
@@ -82,29 +111,28 @@
       "target": "cfg/MatchZy"
     }
   ],
-
   "actions": [
-    { "key": "start", "label": "Start Match", "cmd": "css_start", "impact": "In-game match",
-      "description": "Starts the MatchZy match flow. The game container stays running.", "confirm": true },
-    { "key": "force_start", "label": "Force Start Match", "cmd": "css_forcestart", "impact": "In-game match",
-      "description": "Starts the MatchZy match immediately, bypassing normal readiness.", "confirm": true },
-    { "key": "restart", "label": "Restart Match", "cmd": "css_restart", "impact": "In-game match",
-      "description": "Resets the current MatchZy match. This does not restart the container.", "confirm": true },
-    { "key": "end", "label": "End Match", "cmd": "css_endmatch", "impact": "In-game match",
-      "description": "Ends the active MatchZy match and records the result state.", "confirm": true },
-    { "key": "pause", "label": "Pause Match", "cmd": "css_pause", "impact": "In-game match",
-      "description": "Requests the normal MatchZy tactical pause.", "confirm": false },
-    { "key": "unpause", "label": "Unpause Match", "cmd": "css_unpause", "impact": "In-game match",
-      "description": "Requests MatchZy to resume a normally paused match.", "confirm": false },
-    { "key": "force_pause", "label": "Force Pause", "cmd": "css_forcepause", "impact": "In-game match",
-      "description": "Immediately pauses the MatchZy match, ignoring normal pause rules.", "confirm": true },
-    { "key": "force_unpause", "label": "Force Unpause", "cmd": "css_forceunpause", "impact": "In-game match",
-      "description": "Immediately resumes the MatchZy match, ignoring normal pause rules.", "confirm": true },
-    { "key": "knife", "label": "Toggle Knife Round", "cmd": "css_roundknife", "impact": "In-game setting",
-      "description": "Toggles MatchZy's knife-round setting; it does not restart the server.", "confirm": false },
-    { "key": "skip_veto", "label": "Skip Veto", "cmd": "css_skipveto", "impact": "In-game match",
-      "description": "Skips the current map-veto phase and advances the match flow.", "confirm": true },
-    { "key": "settings", "label": "Show Match Settings", "cmd": "css_settings", "impact": "Read only",
-      "description": "Prints MatchZy settings to the console without changing server state.", "confirm": false }
+    { "key": "start", "label": "Start Match", "cmd": "css_start", "impact": "In-game match", "description": "Starts the MatchZy match flow.", "confirm": true, "group": "match" },
+    { "key": "force_start", "label": "Force Start Match", "cmd": "css_forcestart", "impact": "In-game match", "description": "Starts the match immediately.", "confirm": true, "group": "match" },
+    { "key": "restart", "label": "Restart Match", "cmd": "css_restart", "impact": "In-game match", "description": "Resets the current MatchZy match.", "confirm": true, "group": "match" },
+    { "key": "end", "label": "End Match", "cmd": "css_endmatch", "impact": "In-game match", "description": "Ends the active MatchZy match.", "confirm": true, "group": "match" },
+    { "key": "pause", "label": "Pause Match", "cmd": "css_pause", "impact": "In-game match", "description": "Requests a tactical pause.", "confirm": false, "group": "match" },
+    { "key": "unpause", "label": "Unpause Match", "cmd": "css_unpause", "impact": "In-game match", "description": "Resumes a paused match.", "confirm": false, "group": "match" },
+    { "key": "force_pause", "label": "Force Pause", "cmd": "css_forcepause", "impact": "In-game match", "description": "Immediately pauses the match.", "confirm": true, "group": "match" },
+    { "key": "force_unpause", "label": "Force Unpause", "cmd": "css_forceunpause", "impact": "In-game match", "description": "Immediately resumes the match.", "confirm": true, "group": "match" },
+    { "key": "tech_pause", "label": "Technical Pause", "cmd": "css_tech", "impact": "In-game match", "description": "Starts a technical pause.", "confirm": true, "group": "match" },
+    { "key": "force_ready", "label": "Force All Ready", "cmd": "css_forceready", "impact": "In-game match", "description": "Marks every connected player as ready.", "confirm": true, "group": "match" },
+    { "key": "knife", "label": "Toggle Knife Round", "cmd": "css_roundknife", "impact": "In-game setting", "description": "Toggles the knife round.", "confirm": false, "group": "match" },
+    { "key": "playout", "label": "Toggle Playout", "cmd": "css_playout", "impact": "In-game setting", "description": "Toggles playing out all rounds instead of stopping at the clinch.", "confirm": false, "group": "match" },
+    { "key": "skip_veto", "label": "Skip Veto", "cmd": "css_skipveto", "impact": "In-game match", "description": "Skips the current veto phase.", "confirm": true, "group": "match" },
+    { "key": "whitelist", "label": "Toggle Whitelist", "cmd": "css_whitelist", "impact": "Player access", "description": "Toggles the MatchZy player whitelist.", "confirm": true, "group": "teams" },
+    { "key": "team1", "label": "Set Team 1 Name", "cmd": "css_team1", "impact": "In-game match", "description": "Sets the name of team 1. Append the team name.", "confirm": false, "group": "teams", "arg_hint": "<team name>" },
+    { "key": "team2", "label": "Set Team 2 Name", "cmd": "css_team2", "impact": "In-game match", "description": "Sets the name of team 2. Append the team name.", "confirm": false, "group": "teams", "arg_hint": "<team name>" },
+    { "key": "match_map", "label": "Set Match Map", "cmd": "css_map", "impact": "Map reload", "description": "Loads a map into the MatchZy match. Append the map name.", "confirm": true, "group": "map", "arg_hint": "<map>" },
+    { "key": "prac", "label": "Practice Mode", "cmd": "css_prac", "impact": "In-game mode", "description": "Switches the server into MatchZy practice mode.", "confirm": true, "group": "practice" },
+    { "key": "exit_prac", "label": "Exit Practice Mode", "cmd": "css_exitprac", "impact": "In-game mode", "description": "Leaves practice mode and returns to match mode.", "confirm": true, "group": "practice" },
+    { "key": "dry_run", "label": "Toggle Dry Run", "cmd": "css_dryrun", "impact": "In-game mode", "description": "Toggles a dry run (match flow without stats).", "confirm": true, "group": "practice" },
+    { "key": "asay", "label": "Admin Say", "cmd": "css_asay", "impact": "Chat only", "description": "Sends an admin chat message. Append the message.", "confirm": false, "group": "server", "arg_hint": "<message>" },
+    { "key": "settings", "label": "Show Match Settings", "cmd": "css_settings", "impact": "Read only", "description": "Prints MatchZy settings.", "confirm": false, "group": "readonly" }
   ]
 }
