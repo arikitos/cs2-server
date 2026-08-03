@@ -4,6 +4,49 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- A transactional single-runtime mode applier (`manager/runtime/mode_applier.py`)
+  that stages a complete mode, removes only paths owned by the previous managed
+  inventory, atomically records the new inventory, and restores the previous
+  deployment on failure. Regression tests cover mode isolation, rollback,
+  unmanaged plugin preservation, overlapping config declarations, config-sync
+  rollback, managed cleanup and RayTrace removal outside HeroShift.
+- `manager/versions.json` and per-mode `requires` declarations for one pinned
+  Metamod/CounterStrikeSharp runtime pair. Normal mode deployment now refuses a
+  manifest whose framework requirements differ from the manager version set.
+
+### Changed
+
+- Replaced the three per-mode game services with one `cs2-game` service. Mode
+  selection now writes an atomic active-mode state and restarts the same game
+  container; its launcher deploys the selected manifest before starting CS2.
+- `mode.json` is now the complete deployment specification rather than a companion
+  to hand-maintained Compose bind mounts. `container` and `capacity_env` were
+  removed from the schema, and HeroShift's gamedata file is now declared in the
+  manifest alongside its plugin and RayTrace dependencies.
+- Metamod and CounterStrikeSharp installation now resolves exact versions from
+  `manager/versions.json` instead of following `latest`.
+- Setup, migration, rollback, stop and smoke-test scripts now target one game
+  service. The panel preserves its existing API while operating on `cs2-game`.
+
+### Fixed
+
+- Leaving HeroShift now removes every managed RayTrace path, including the native
+  Metamod entry and its absolute `/addons/RayTrace/gamedata.json`, before another
+  mode starts.
+- Saving HeroShift configuration while it is active now copies only the declared
+  config files into the live mode layer before issuing `css_heroshift_reload`.
+
+### Security
+
+- Mode switches and topology rollback no longer use broad plugin-directory cleanup. Target paths are
+  validated, staged before mutation, and deleted only when present in the prior
+  manager-owned inventory; unrelated server plugins are preserved.
+- RCON command chaining with `;` is rejected, and server passwords are validated
+  before they can be written to a cfg or interpolated into an RCON command.
+
+
 ### Removed
 
 - The **GunGame** mode, in full. Gone: the `cs2-gungame` service and every bind

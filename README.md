@@ -1,254 +1,303 @@
 # CS2 Manager
 
-A Docker Compose stack that runs a Counter-Strike 2 dedicated server in one of
-three game modes, controlled entirely from a local web panel — start/stop/restart,
-switch modes, edit the server config, manage the password, run RCON, view
-players, and read separated logs. The panel is the single control plane; it never
-exposes a host shell or arbitrary Docker access to the browser.
+A Docker Compose stack for one Counter-Strike 2 dedicated server that runs one
+of three game modes at a time. A local web panel controls start, stop, restart,
+mode switching, server settings, passwords, RCON, players, logs and maintenance.
+The browser is never given a host shell or arbitrary Docker access.
 
-**Architecture principle:** normal operation (start / stop / restart / switch mode)
-and game updates are strictly separated. Every game service runs from a pinned,
-custom runtime image whose entrypoint (`manager/runtime/runtime-launcher.sh`)
-**never invokes SteamCMD** — a boot can no longer clobber `gameinfo.gi` or the
-Metamod search path. SteamCMD only ever runs inside the dedicated `cs2-updater`
-service, which is off by default, requires an explicit confirmation phrase, and
-is triggered as its own maintenance action from the panel.
+## Architecture
 
-## Project Structure
+Normal game operation and game updates are strictly separated:
 
-The repo root holds Compose orchestration; everything the stack manages lives
-under `manager/`. `server/` is the host's CS2 dedicated-server install
-(`CS2_DATA_PATH`) — gitignored, not part of the repo's managed content.
+- `cs2-game` is the only game service and always starts the existing CS2 install.
+  Its runtime image never invokes SteamCMD.
+- `cs2-updater` is maintenance-only and is the only service allowed to run
+  SteamCMD.
+- Metamod and CounterStrikeSharp are installed once into the persistent CS2
+  installation and are shared by every mode.
+- A mode switch transactionally deploys only the selected mode layer and then
+  restarts the same `cs2-game` container.
 
-| Path | Responsible for |
+The persistent installation has three logical layers:
+
+1. **Base layer** — CS2, Metamod and CounterStrikeSharp.
+2. **Shared manager layer** — shared files such as `server.cfg` and
+   `PanelBridge`.
+3. **Active mode layer** — the exact files declared by the selected
+   `manager/modes/<mode>/mode.json`.
+
+`manager/runtime/mode_applier.py` stages the complete next layer before touching
+the live tree. It removes only paths listed in the prior manager-owned inventory,
+installs the next layer, and atomically records the result. A failed deployment
+restores the previous layer. Unmanaged server plugins are not deleted.
+
+The inventory is stored inside the persistent server installation:
+
+```text
+.cs2-manager/managed-files.json
+```
+
+## Project structure
+
+| Path | Responsibility |
 |---|---|
-| `compose.yml` | Defines the three game services (`cs2-faceit`, `cs2-retakes`, `cs2-heroshift`), the maintenance-only `cs2-updater` and the `panel`, all under Compose project `cs2-server`. |
-| `.env.example` / `.env` | Host paths, secrets (GSLT, RCON password, panel credentials), and per-mode capacities. |
-| `setup.ps1` | Quick Windows entry point: create the game containers (stopped) and start the panel. |
-| `manager/runtime/` | The custom, no-SteamCMD runtime image (`Dockerfile` + `runtime-launcher.sh`) every game service builds from. |
-| `manager/updater/` | The isolated SteamCMD image (`Dockerfile` + `updater.sh`) — the only place that touches Steam. |
-| `manager/panel/` | The Flask control-plane app (`app.py`, `mode_defs.py`, templates, static assets, its own `Dockerfile`). Talks to Docker over the mounted socket, generates per-mode configs, and speaks RCON to the running game container. `mode_defs.py` loads and validates the `mode.json` manifests, so the panel hard-codes no mode, plugin or action list. |
-| `manager/shared/plugins/PanelBridge` + `manager/shared/plugins-src/PanelBridge` | The compiled `PanelBridge` plugin and its C# source. One copy, bind-mounted into **every** mode and declared as a util in every `mode.json` (`"shared": true`, with `build.project` pointing at the source). It exposes connected players with their SteamID64 over RCON (`css_panel_players`) — data the stock `status` command lacks — which is how the panel builds its player list and kick/ban actions. |
-| `manager/shared/cfg/server.cfg` | The shared base server profile: one command set every mode follows. Bind-mounted into every game service as `csgo/cfg/server.cfg`, exec'd first by each `mode_<id>.cfg`, and declared as a shared config in every `mode.json`. |
-| `manager/modes/<mode-id>/` | One self-contained folder per mode: `mode.json` (the definition the panel reads), `cfg/` (`mode_<id>.cfg` + panel-generated `panel_runtime.cfg`), `config/` (plugin config the panel edits), `plugins/<Main>/` (the plugin that defines the mode) and `utils/<Helper>/` (every supporting plugin or shared library of that mode — Instadefuse, AutoReady, RetakesPluginShared, RayTrace). Modes stay isolated — no mode mounts another mode's plugins. |
-| `manager/data/` | Panel state: `server.json` (active mode), `modes/*.json` (per-mode settings), `secrets.json` (gitignored), `audit/` (gitignored action log). |
-| `manager/scripts/` | `migrate.ps1` (backup + build + first run), `rollback.ps1` (restore a config backup), `start.sh` / `stop.sh` (Linux/macOS equivalents of the Windows scripts), `smoke-test.sh` (panel API smoke test), `install-mods-linux.sh` (fetches Metamod/CounterStrikeSharp for a fresh host install; run via the `cs2-modinstaller` maintenance service). |
-| `manager/backups/` | Timestamped pre-change backups written by `migrate.ps1` — config only, never the 60+ GB game install. |
+| `compose.yml` | Defines `cs2-game`, maintenance-only `cs2-updater` and `cs2-modinstaller`, plus the panel. |
+| `.env.example` / `.env` | Host paths, GSLT, RCON password, panel credentials, ports and pinned runtime image. |
+| `manager/runtime/` | No-SteamCMD runtime launcher and transactional mode applier. |
+| `manager/updater/` | Isolated SteamCMD update/validate/Metamod-repair service. |
+| `manager/panel/` | Flask control plane, manifest loading, lifecycle, RCON, players, logs and maintenance. |
+| `manager/versions.json` | Pinned Metamod and CounterStrikeSharp runtime versions. |
+| `manager/shared/` | Files deployed for every mode, currently `server.cfg` and `PanelBridge`. |
+| `manager/modes/<id>/` | One self-contained manifest, cfg set, main plugin, utilities and editable configs per mode. |
+| `manager/data/` | Server state, per-mode settings, active-mode state, secrets and audit logs. |
+| `manager/scripts/` | Setup, migration, rollback, stop, smoke test and framework installer scripts. |
+| `manager/backups/` | Timestamped configuration backups; never the full game install. |
+| `server/` | Host CS2 installation (`CS2_DATA_PATH`), gitignored and persistent. |
 
 ## Modes
 
-Every mode is defined by its own `manager/modes/<mode-id>/mode.json`; the table
-below is a summary of those files, which are the source of truth.
+| UI name | Mode id | Main plugin | Mode-only utilities | Capacity |
+|---|---|---|---|---:|
+| FaceIt | `faceit` | MatchZy | AutoReady | 2–10, default 10 |
+| Retake | `retake` | RetakesPlugin | Instadefuse, RetakesPluginShared | 3–10, default 9 |
+| HeroShift | `heroshift` | HeroShift | RayTrace native module, RayTraceImpl, RayTraceApi | 2–10, default 10 |
 
-| UI name | Mode id / folder | Main plugin + utils | Service | Capacity |
-|---|---|---|---|---|
-| FaceIt | `faceit` | MatchZy + AutoReady | `cs2-faceit` | 2–10 (default 10) |
-| Retake | `retake` | Retakes + Instadefuse, RetakesPluginShared | `cs2-retakes` | 3–10 (default 9) |
-| HeroShift | `heroshift` | HeroShift + RayTrace (random skill each round) | `cs2-heroshift` | 2–10 (default 10) |
+All three modes run in `cs2-game`. `PanelBridge` is declared as a shared utility
+by every mode. RayTrace is declared only by HeroShift and is removed from the
+managed tree before another mode starts.
 
-`PanelBridge` is a util of every mode (one shared copy, see the table above).
+### Framework compatibility
+
+Every mode declares the same installed Metamod/CounterStrikeSharp runtime pair.
+`manager/versions.json` is the manager-wide source of truth, and normal startup
+refuses to deploy a mode if either its manifest or the installed-version marker
+disagrees.
+
+This is a runtime compatibility contract, not a claim that every plugin DLL was
+compiled against the same CounterStrikeSharp API package. The checked-in MatchZy
+build references API `1.0.342`, while RayTraceImpl references API `1.0.371`.
+The post-deployment smoke test is therefore still required to prove that the
+complete pinned binary set loads together on the current CS2 build.
 
 ### Shared server config
 
-Every mode runs the same command set. It lives once in
-[manager/shared/cfg/server.cfg](manager/shared/cfg/server.cfg), is bind-mounted
-into each game service as `csgo/cfg/server.cfg`, and each `mode_<id>.cfg` execs it
-before adding its own handful of mode-specific convars (FaceIt enables GOTV,
-Retake and HeroShift set their warmup/round length). FaceIt is the default the
-shared profile is modelled on.
+Every mode deploys the same `manager/shared/cfg/server.cfg` and executes it first.
+The mode cfg then adds only mode-specific convars, and the generated
+`panel_runtime.cfg` executes last so panel-managed hot settings win.
 
-The one intentional difference between modes is player capacity: Retake holds 9,
-FaceIt and HeroShift hold 10. That is owned by `<MODE>_CAPACITY` in `.env` and the
-matching `settings.defaults.capacity` in each `mode.json` — never by a cfg file.
+Exec order:
 
-Layering, in exec order: `server.cfg` (shared base) → `mode_<id>.cfg`
-(mode extras) → `panel_runtime.cfg` (the panel's hot convars, so the panel always
-wins).
+```text
+server.cfg -> mode_<id>.cfg -> panel_runtime.cfg
+```
 
-Retake runs RetakesPlugin + Instadefuse, with RetakesPlugin doing its own weapon
-allocation (`EnableFallbackAllocation` true) — no allocator plugin is installed, and
-the earlier "Retakes V2 alongside Retake" split is gone. See
-[manager/modes/retake/README.md](manager/modes/retake/README.md).
+Capacity is owned by each manifest's `settings.defaults.capacity`; it is no
+longer duplicated as a per-service environment variable.
 
-Only one game service runs at a time; the panel enforces the port-27015 handoff.
-HeroShift's skill roster **is** editable from the panel — per skill you can toggle
-`Active`, set `Rarity` and cap `MaxPerServer`; skill mechanics ship with the plugin
-build. See [manager/modes/heroshift/README.md](manager/modes/heroshift/README.md)
-for the full roster/balance notes.
+## Mode manifests
 
-### Mode definitions (`mode.json`)
-
-A mode owns everything it needs in one folder, and declares it in one manifest:
+A mode owns everything it needs:
 
 ```text
 manager/modes/<mode-id>/
-├── mode.json            the definition: container, startup cfgs, capacity range,
-│                        settings defaults, plugin/util mounts, RCON quick actions
-├── cfg/                 mode_<id>.cfg (base ruleset) + panel_runtime.cfg (generated)
-├── config/              plugin config files the panel edits
-├── plugins/<Main>/      the plugin that defines the mode
-├── utils/<Helper>/      every supporting plugin or shared library of that mode
-└── utils/<Helper>.src/  C# source of a helper built in-house (FaceIt's AutoReady),
-                         declared as that plugin's `build.project`
+├── mode.json
+├── cfg/
+├── config/              # where applicable
+├── plugins/<Main>/
+├── gamedata/            # where applicable
+└── utils/<Helper>/
 ```
 
-An in-house helper's source sits *next to* the folder that is bind-mounted as the
-live plugin, never inside it, so `bin/`/`obj/` build output never lands in the
-server's plugin directory. `PanelBridge` is the exception every mode shares: one
-build and one source tree in `manager/shared/`, declared with `"shared": true`.
+The manifest declares:
 
-The panel reads these manifests at boot (`manager/panel/mode_defs.py`) and derives
-the mode list and order, each mode's labels, container, capacity range, config
-defaults, extra convars, required-plugin health checks and whitelisted RCON quick
-actions from them. There is no mode, plugin or action list in the panel code.
+- installed framework requirements;
+- startup alias and cfg files;
+- capacity range and settings defaults;
+- plugin, utility, shared-library, gamedata and config deployment targets;
+- required-plugin health aliases;
+- whitelisted RCON quick actions.
 
-Every mount is validated: sources must be relative paths inside the mode folder
-(or `manager/shared/` when marked `"shared": true`, which is how each mode declares
-the single `PanelBridge` copy), targets must sit under `addons/` or `cfg/` relative
-to `game/csgo`, and generated cfg lines / action commands must be plain
-`convar value` text — no quotes, semicolons or newlines can reach a cfg or RCON.
+Sources must remain inside the mode folder or `manager/shared/`. Relative targets
+are restricted to `addons/` and `cfg/` under `game/csgo`. Explicit absolute
+targets are restricted to `/addons/`, which is required by RayTrace's native
+gamedata lookup. Traversal, symlink sources, reserved framework roots,
+conflicting targets and unsafe cfg/RCON commands are rejected.
 
-**To add a plugin to a mode:** drop it in that mode's `plugins/` (a main plugin) or
-`utils/` (a helper or shared library), add an entry to `mode.json` with its mount
-source and target, add the matching bind mount to that mode's service in
-`compose.yml`, then recreate the container and restart the panel. Maintenance →
-**Verify mounts** lists every declared source and whether it exists, and an invalid
-`mode.json` is reported there and refused by Panel Rebuild instead of loading
-half a mode.
+To add a plugin, place it under the mode's `plugins/` or `utils/` directory and
+add its source/target entry to `mode.json`. No Compose mount is added. Restart the
+panel so it reloads the manifest, verify mounts, then restart/switch the mode.
 
-## How it works end to end
+## Mode switch flow
 
-1. **Provision.** `migrate.ps1` (or `start.sh`) copies `.env.example` → `.env` if
-   missing, backs up existing config to `manager/backups/`, builds the runtime,
-   updater and panel images, `docker compose create`s the four game services
-   (stopped, no SteamCMD involved), and starts the panel.
-2. **Panel boots.** The Flask app (`manager/panel/app.py`) authenticates every
-   request with Basic Auth, mounts the host Docker socket, and mounts
-   `manager/data`, `manager/modes`, the whole project (rw, for backups/rebuild)
-   and the CS2 install (ro, for inspection).
-3. **Start / switch a mode.** The panel stops any other running game service to
-   free port 27015, writes a fresh `panel_runtime.cfg` for the target mode from
-   `manager/data/modes/<mode>.json`, then starts that mode's container via the
-   Docker API.
-4. **Container boot (no SteamCMD).** `runtime-launcher.sh` runs read-only health
-   checks (game files present, Metamod search path intact — repair is a separate
-   maintenance action, never automatic), templates `server.cfg`, and execs
-   `cs2.sh` with `+exec mode_<mode>.cfg +exec panel_runtime.cfg`, which load the
-   mode's base ruleset and the panel's current settings in that order.
-5. **Live control.** The panel talks to the running container over Source RCON:
-   `PanelBridge` (mounted in every mode) answers `css_panel_players` with
-   SteamID64-tagged player data for the Players view; the RCON Console sends
-   admin/whitelisted commands (risk-classified server-side); "Apply live" pushes
-   hot convars (`max rounds`, `freeze time`, `friendly fire`, `bots`) without a
-   map reload, while `capacity`/`map` changes apply on the next start/restart.
-6. **Update CS2 (maintenance only).** The Owner triggers the `cs2-updater`
-   service with a confirmation phrase. It runs SteamCMD `app_update`, repairs the
-   Metamod search path, verifies the install, and exits — the panel then restarts
-   whichever mode was active. Runtime containers never take this path.
-7. **Rollback.** `rollback.ps1` restores a `manager/backups/pre-v3-*` snapshot
-   (config only); the persistent game install and plugin mounts are untouched.
+1. The panel validates saved mode settings and writes
+   `manager/data/runtime/active-mode.json` atomically.
+2. The same `cs2-game` container is started or restarted.
+3. The launcher verifies the base game and installed framework marker.
+4. The mode applier validates all sources and stages the complete next layer.
+5. Only prior inventory-owned targets are moved out of the live tree.
+6. The staged layer is installed and the inventory is atomically replaced.
+7. The launcher templates `server.cfg` and starts CS2 with the selected alias,
+   capacity, map and cfg files.
+8. The panel waits for RCON and verifies required plugins.
+9. If a switched-to mode does not become ready, the panel restores the previous
+   active-mode state and restarts the previous mode.
+
+Mode switching always restarts the game process. Native modules such as RayTrace
+are never hot-unloaded.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and edit values (`SRCDS_TOKEN`, `CS2_RCON_PASSWORD`,
-   `PANEL_USERNAME`/`PANEL_PASSWORD`, `CS2_DATA_PATH`). The pinned `CS2_BASE_IMAGE`
-   and per-mode capacities have sane defaults.
-2. Migrate / first run (Windows): `./manager/scripts/migrate.ps1` (or `./setup.ps1`).
-   Linux/macOS: `manager/scripts/start.sh`.
-3. Open the panel at `http://127.0.0.1:8080`.
+1. Copy `.env.example` to `.env` and configure:
+   `SRCDS_TOKEN`, `CS2_RCON_PASSWORD`, `PANEL_USERNAME`, `PANEL_PASSWORD`,
+   `CS2_DATA_PATH` and `MANAGER_PATH`.
+2. Install/update base CS2 with the maintenance updater.
+3. Install the pinned Metamod and CounterStrikeSharp pair:
 
-## Prerequisites
+   ```bash
+   docker compose --profile maintenance run --rm cs2-modinstaller
+   ```
 
-- Docker Desktop with the Compose plugin (WSL 2 backend on Windows).
-- A CS2 dedicated-server install on the host (`game/`, `bin/`, …) at
-  `CS2_DATA_PATH`. Not included in this repo. Install/update it via the maintenance
-  updater, not on normal boot — see
-  [Bootstrapping an empty `CS2_DATA_PATH`](#bootstrapping-an-empty-cs2_data_path)
-  if the directory is empty.
-- A Steam Game Server Login Token (GSLT) for a public server.
+4. Repair and validate the Metamod search path.
+5. Create the stopped game container and start the panel:
+
+   ```bash
+   manager/scripts/start.sh
+   ```
+
+   On Windows:
+
+   ```powershell
+   ./setup.ps1
+   ```
+
+6. Open the panel at `http://127.0.0.1:8080`, select a mode and start it.
+
+### Prerequisites
+
+- Docker Desktop or Docker Engine with the Compose plugin.
+- A writable CS2 dedicated-server installation at `CS2_DATA_PATH`.
+- A Steam Game Server Login Token for a public server.
+- Metamod and CounterStrikeSharp installed by the pinned installer before the
+  first mode start.
 
 ## Operating
 
-The panel is organised into five sections:
+The panel exposes five areas:
 
-1. **Status** — operational state, active mode, endpoint, per-container run state,
-   plugin health, and the top-level Start / Stop / Restart / Refresh controls.
-2. **Game Mode** — the four modes with the active one marked; select one to edit
-   and start / switch to it.
-3. **Server Config** — a unified set of fields for the selected mode:
-   `map`, `capacity`, `max rounds`, `freeze time`, `friendly fire`, `bots`, plus the
-   server `password`. Defaults match each mode's official cfg (HeroShift =
-   Competitive), with friendly fire **off** by default and the password disabled.
-   On FaceIt, MatchZy governs max rounds / freeze time / friendly fire during a live
-   match, so those apply to warmup / non-match play.
-4. **RCON Console** — players (left), console (center), and the active mode's
-   whitelisted commands (right); clicking a command drops it into the input to send.
-   Live, redacted, source-separated logs sit below.
-5. **Maintenance** (owner) — verify mounts, backup, repair Metamod, update / validate
-   CS2, restart / rebuild panel, each labelled with when to run it.
+1. **Status** — `cs2-game` state, active mode, endpoint, resource use and health.
+2. **Game Mode** — select and start/switch FaceIt, Retake or HeroShift.
+3. **Server Config** — map, capacity, max rounds, freeze time, friendly fire,
+   bots and password where supported by the mode.
+4. **RCON Console** — player list, guarded console and manifest-defined quick
+   actions.
+5. **Maintenance** — verify sources/versions, backup, update/validate CS2,
+   repair Metamod and restart/rebuild the panel.
 
-- **Start / Stop / Restart** a mode and **switch** modes — none run SteamCMD.
-- **Apply live** hot-applies `max rounds` / `freeze time` / `friendly fire` / `bots`
-  over RCON with no map reload; `capacity` and `map` take effect on the next start /
-  restart. Old on-disk settings collapse to the unified fields automatically.
-- **Password** is enabled/disabled/changed from Server Config and is never returned by
-  the API or written to logs/audit.
+Hot convars can be applied without a container restart. Capacity applies on the
+next start. A map change uses `changelevel`. Switching the selected mode restarts
+`cs2-game` and disconnects players.
 
-## Updating CS2 (maintenance only)
+HeroShift's roster editor writes only whitelisted fields, keeps timestamped
+backups, synchronizes the declared live config files transactionally, and issues
+`css_heroshift_reload` when HeroShift is active.
 
-SteamCMD runs **only** in `cs2-updater`, which is stopped by default and requires a
-confirmation phrase:
+## Updating CS2 and frameworks
+
+SteamCMD runs only in `cs2-updater` and requires the exact confirmation phrase:
 
 ```bash
-# update + Metamod repair + verification, then exits:
-CS2_UPDATER_CONFIRM="UPDATE CS2" docker compose --profile maintenance run --rm cs2-updater
-# other modes: CS2_UPDATER_MODE=validate | repair-metamod
+CS2_UPDATER_CONFIRM="UPDATE CS2" \
+  docker compose --profile maintenance run --rm cs2-updater
 ```
 
-Always take a backup first (config backup is automatic in `migrate.ps1`).
+Other updater modes are `validate` and `repair-metamod`.
 
-### Bootstrapping an empty `CS2_DATA_PATH`
+`manager/scripts/install-mods-linux.sh` resolves the exact framework versions
+from `manager/versions.json`; it never follows a `latest` release. After
+installation it writes:
 
-SteamCMD delivers only the base game, so a fresh (or wiped) install needs three
-maintenance steps in order. `cs2-updater` detects the empty install and downgrades
-its Metamod / CounterStrikeSharp checks to warnings for that first run, so the
-download is not reported as a failed update:
+```text
+game/csgo/addons/.cs2-manager-versions.json
+```
+
+Changing framework versions is a deliberate compatibility operation: update
+`manager/versions.json`, every mode's `requires` block, rebuild/retest in-house
+plugins, and run the full live smoke test.
+
+### Bootstrapping an empty installation
 
 ```bash
-# 1. Base game (long download, tens of GB).
-CS2_UPDATER_CONFIRM="UPDATE CS2" docker compose --profile maintenance run --rm cs2-updater
+# 1. Install base CS2.
+CS2_UPDATER_CONFIRM="UPDATE CS2" \
+  docker compose --profile maintenance run --rm cs2-updater
 
-# 2. Metamod:Source + CounterStrikeSharp into the persistent install.
+# 2. Install pinned Metamod + CounterStrikeSharp.
 docker compose --profile maintenance run --rm cs2-modinstaller
 
-# 3. Restore the gameinfo.gi Metamod search path and verify for real.
+# 3. Restore the Metamod gameinfo.gi search path and validate.
 CS2_UPDATER_MODE=repair-metamod CS2_UPDATER_CONFIRM="UPDATE CS2" \
   docker compose --profile maintenance run --rm cs2-updater
 ```
 
-Step 3 must pass before starting a mode; on an already-populated install the addon
-checks stay strictly required, so a later update that wipes them still fails loudly.
-Mode definitions and plugins live in `manager/modes/` (tracked in git) and are not
-affected by any of this — `cs2-modinstaller` leaves them alone unless you pass
-`--with-mode-plugins` to re-download the Retakes / MatchZy plugins.
+## Migration and rollback
 
-## Rollback
+Migrate from the old three-container topology only after reviewing the diff:
 
 ```powershell
-./manager/scripts/rollback.ps1 -Backup manager\backups\pre-v3-YYYYMMDD-HHMMSS
+./manager/scripts/migrate.ps1
 ```
 
-Config-only: the persistent install and plugin mounts are untouched.
+The migration creates a timestamped configuration backup, removes only the known
+old game containers, builds `cs2-game`, creates it stopped and recreates the
+panel. It does not delete the persistent CS2 installation.
+
+Rollback:
+
+```powershell
+./manager/scripts/rollback.ps1 `
+  -Backup manager\backups\pre-single-runtime-YYYYMMDD-HHMMSS
+```
+
+Before restoring the old topology, rollback stops `cs2-game` and invokes the
+mode applier's transactional `cleanup` operation. Only inventory-owned paths are
+removed; unmanaged plugins remain. Removing the container also discards the
+container-local absolute RayTrace `/addons` path.
+
+## Verification
+
+Repository checks:
+
+```bash
+python -m unittest discover -s manager/tests -v
+python -m py_compile \
+  manager/panel/app.py \
+  manager/panel/mode_defs.py \
+  manager/runtime/mode_applier.py
+bash -n manager/runtime/runtime-launcher.sh
+bash -n manager/scripts/start.sh
+bash -n manager/scripts/stop.sh
+bash -n manager/scripts/install-mods-linux.sh
+bash -n manager/scripts/smoke-test.sh
+```
+
+After deployment on a real server:
+
+```bash
+manager/scripts/smoke-test.sh
+```
+
+The smoke test checks one game container, no SteamCMD during normal operation,
+mode isolation, RayTrace deployment/removal, capacity validation and manifest/
+framework health.
 
 ## Security notes
 
-- Panel binds to `127.0.0.1:8080` by default. For remote access use a private VPN
-  (WireGuard/Tailscale) or a secured reverse proxy — do not expose it directly.
-- The browser never gets a host shell or arbitrary Docker/PowerShell access; only
-  known service names and validated operations.
-- RCON console commands are risk-classified server-side (ReadOnly / Normal /
-  Disruptive / Dangerous / Blocked); `quit`/`exit` are blocked.
-- Secrets (GSLT, RCON/server passwords, tokens) are redacted from logs and never
-  returned by the API. Auth is currently Basic Auth over localhost; session auth,
-  roles and CSRF protection are not yet implemented — do not expose the panel
-  directly to an untrusted network.
+- The panel binds to `127.0.0.1` by default. Use a VPN or secured reverse proxy
+  for remote access; do not expose Basic Auth directly to an untrusted network.
+- The browser receives no arbitrary shell or Docker command surface.
+- RCON commands are classified and blocked/confirmed according to impact.
+- GSLT, RCON and server passwords are redacted and never returned by the API.
+- Only inventory-owned mode targets are removed.
+- Base Metamod and CounterStrikeSharp directories are reserved and cannot be
+  claimed by a mode manifest.
+- SteamCMD remains an explicit maintenance-only path.

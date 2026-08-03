@@ -2,8 +2,7 @@
 
 A random skill every round, powered by the **HeroShift** plugin (the
 `arikitos/hero-shift` fork of jRandomSkills, currently **v1.0.0**). Mode id
-`heroshift`, container `cs2-heroshift`, capacity env `HEROSHIFT_CAPACITY`, mode dir
-`manager/modes/heroshift`.
+`heroshift`, runtime `cs2-game`, mode dir `manager/modes/heroshift`.
 
 The mode is isolated: it does **not** load MatchZy, AutoReady, Retakes or
 Instadefuse, and normal start/restart/switch never runs SteamCMD. It **does**
@@ -25,7 +24,7 @@ skills, end-of-round summary, bot skills, disable-skills-on-round-end, and the
 `SkillTimeBeforeStart` / `SkillDescriptionDuration` timings (both now **10s**, up
 from 7s, so the skill draw and its description line up with the 10s freeze time).
 Skill mechanics, colors and permissions stay as shipped. Saves are validated, backed up
-(`*.bak-*`, last 10 kept), written atomically and live-reloaded (`css_reload`)
+(`*.bak-*`, last 10 kept), written atomically and live-reloaded (`css_heroshift_reload`)
 when the mode is running.
 
 ## Roster & config
@@ -44,9 +43,8 @@ panel resolves them — along with this mode's plugin list (HeroShift + the RayT
 util), capacity range, defaults and RCON quick actions.
 
 **There is exactly one copy of each file, and it sits where the upstream release
-puts it** — inside the plugin folder. Because `compose.yml` bind-mounts the whole
-`plugins/HeroShift` directory into the container, those configs travel with it and
-need no mount of their own. Edit them in place (or through the panel); an upgrade
+puts it** — inside the plugin folder. Because the manifest deploys the whole `plugins/HeroShift` directory, those
+configs travel with it and need no separate deployment entry. Edit them in place (or through the panel); an upgrade
 merges the release's `configs/` over the same path.
 
 **Version numbering:** the fork restarted its releases at **v1.0.0** (2026-07-26),
@@ -127,9 +125,9 @@ hand.
 
 Some skills need **RayTrace** (Juzlus/Ray-Trace): a native Metamod module plus
 `RayTraceImpl` (CSS plugin) and `RayTraceApi` (CSS shared). It is staged under
-`modes/heroshift/utils/RayTrace/addons/` and mounted **only** into this mode so
+`modes/heroshift/utils/RayTrace/addons/` and deployed **only** for this mode so
 the others stay clean. This CS2 image reports an empty game dir at Metamod load,
-so compose also mounts the gamedata at the absolute path `/addons/RayTrace/gamedata.json`
+so the manifest also deploys the gamedata to the absolute path `/addons/RayTrace/gamedata.json`
 — do not remove that mount or RayTrace fails to load. Confirm with `meta list`
 (native module) and `css_plugins list` (`RayTraceImpl`).
 
@@ -139,14 +137,14 @@ HeroShift is a prebuilt drop-in release (no build script). To update, unzip the
 new release over the mode tree, merging:
 
 - `plugins/HeroShift/*` → `modes/heroshift/plugins/HeroShift/` — DLLs,
-  `languages/`, `packages/` (the whole directory is bind-mounted, so new files and
+  `languages/`, `packages/` (the whole directory is deployed, so new files and
   new subdirectories need no compose change)
 - `gamedata/HeroShift.gamedata.json` → `modes/heroshift/gamedata/`
 - `configs/config.json` + `configs/skillsInfo.json` land in that same plugin
   folder — **merge, do not overwrite** (see the rules below), since these are the
   live tuned files
 
-Then recreate the game container so the new DLL loads (`css_reload` only reloads
+Then restart/switch the mode so the new DLL loads (`css_reload` only reloads
 config, not the native binary).
 
 A release ships upstream defaults, so **do not copy its `skillsInfo.json` over the
@@ -170,16 +168,11 @@ the panel reads them with a strict `utf-8` decode and a BOM makes it 500.
 ## Build and run
 
 ```powershell
-# Create the service without running SteamCMD.
-docker compose create cs2-heroshift
+# Create the single stopped runtime without running SteamCMD.
+docker compose create cs2-game
 
-# Only one game server may own port 27015 — stop the others first.
-docker compose stop cs2-faceit cs2-retakes
-docker compose up -d cs2-heroshift
-
-# Confirm HeroShift + RayTrace loaded and the roster came up.
-docker logs -f cs2-heroshift   # expect "RayTrace MetaMod [OK]" and a "Skills loaded" line
-                                 # (124 of 125 active — Planter is intentionally off)
+# Select HeroShift in the panel and start/switch it.
+docker logs -f cs2-game   # confirm HeroShift + RayTrace and the roster load
 ```
 
 ## Commands
@@ -202,12 +195,8 @@ The panel drives HeroShift through `css_reload` and `css_next_skill`.
 
 ## Rollback
 
-```powershell
-docker compose stop cs2-heroshift
-docker compose rm -f cs2-heroshift
-```
-
-Restore the previous roster/config from the panel's automatic backups, written
-next to the files themselves as
+Restore the previous roster/config from the panel's automatic backups,
+written next to the files themselves as
 `modes/heroshift/plugins/HeroShift/configs/{skillsInfo,config}.json.bak-*`, then
-recreate the mode. The shared CS2 installation remains untouched.
+restart/switch HeroShift. Switching away removes every inventory-owned HeroShift
+and RayTrace path; the shared CS2 installation remains untouched.

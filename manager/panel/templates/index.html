@@ -149,7 +149,7 @@
   <!-- ======================= 5 · MAINTENANCE =========================== -->
   <details class="panel-card collapsible">
     <summary><span class="eyebrow">5 · MAINTENANCE · OWNER</span></summary>
-    <p class="section-help">Owner operations. Each says when to run it. “Game outage” items stop the active game container while the job runs; every step is backed up first.</p>
+    <p class="section-help">Owner operations. Each says when to run it. “Game outage” items stop cs2-game while the job runs; every step is backed up first.</p>
     <div class="maint-grid">
       <div class="maint-item">
         <button class="btn" onclick="verifyMounts()">Verify mounts</button>
@@ -413,7 +413,7 @@ async function applyAndRestart() {
 async function startSelected() {
   const active = STATE && STATE.active;
   if (active && active.mode !== selectedMode && !confirmImpact(
-      `Start ${STATE.mode_meta[selectedMode].label}?`, 'Game containers',
+      `Start ${STATE.mode_meta[selectedMode].label}?`, 'CS2 game runtime',
       `Stops ${STATE.mode_meta[active.mode].label} (disconnecting its players), then starts ${STATE.mode_meta[selectedMode].label}.`)) return;
   setBusy(true);
   try {
@@ -452,7 +452,7 @@ async function startServer() {
   if (!mode) { show('Select a game mode first.', 'error'); return; }
   const active = STATE && STATE.active;
   if (active && active.mode !== mode && !confirmImpact(
-      `Switch to ${STATE.mode_meta[mode].label}?`, 'Game containers',
+      `Switch to ${STATE.mode_meta[mode].label}?`, 'CS2 game runtime',
       `Stops ${STATE.mode_meta[active.mode].label}, disconnects its players, and starts ${STATE.mode_meta[mode].label}.`)) return;
   setBusy(true);
   try {
