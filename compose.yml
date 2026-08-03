@@ -66,6 +66,12 @@ services:
         source: ${CS2_DATA_PATH}
         target: /home/steam/cs2-dedicated
 
+      # Shared base profile — one command set for every mode. Each mode_<id>.cfg
+      # execs it first, then adds only its own mode-specific convars.
+      - type: bind
+        source: ./manager/shared/cfg/server.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/server.cfg
+
       - type: bind
         source: ./manager/modes/faceit/cfg/mode_faceit.cfg
         target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_faceit.cfg
@@ -93,8 +99,8 @@ services:
   # ------------------------------------------------------------------- Retake
   # User-facing "Retake", powered by the Retakes plugin + Instadefuse.
   # RetakesPlugin owns weapon allocation itself (EnableFallbackAllocation true);
-  # no allocator plugin is installed. Isolated: no MatchZy, AutoReady, HeroShift,
-  # RayTrace or GG2.
+  # no allocator plugin is installed. Isolated: no MatchZy, AutoReady, HeroShift
+  # or RayTrace.
   cs2-retakes:
     <<: *cs2-runtime
     container_name: cs2-retakes
@@ -110,6 +116,12 @@ services:
       - type: bind
         source: ${CS2_DATA_PATH}
         target: /home/steam/cs2-dedicated
+
+      # Shared base profile — one command set for every mode. Each mode_<id>.cfg
+      # execs it first, then adds only its own mode-specific convars.
+      - type: bind
+        source: ./manager/shared/cfg/server.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/server.cfg
 
       - type: bind
         source: ./manager/modes/retake/cfg/mode_retake.cfg
@@ -166,6 +178,12 @@ services:
         source: ${CS2_DATA_PATH}
         target: /home/steam/cs2-dedicated
 
+      # Shared base profile — one command set for every mode. Each mode_<id>.cfg
+      # execs it first, then adds only its own mode-specific convars.
+      - type: bind
+        source: ./manager/shared/cfg/server.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/server.cfg
+
       - type: bind
         source: ./manager/modes/superheroes/cfg/mode_superheroes.cfg
         target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_superheroes.cfg
@@ -218,58 +236,6 @@ services:
       - type: bind
         source: ./manager/modes/superheroes/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi
         target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/shared/RayTraceApi
-
-  # ----------------------------------------------------------------- GunGame
-  # User-facing "GunGame", powered by the GG2 plugin (ssypchenko/cs2-gungame
-  # v1.2.4) plus its GunGameAPI shared library. Isolated mode: mounts ONLY the
-  # gungame profile config + GG2. Deliberately does NOT mount MatchZy, AutoReady,
-  # Retakes, Instadefuse, HeroShift or RayTrace. Uses the shared no-SteamCMD
-  # runtime image like every other mode (normal start never updates).
-  # GG2's FAQ requires game_type 0 / game_mode 0, so this mode runs Casual.
-  cs2-gungame:
-    <<: *cs2-runtime
-    container_name: cs2-gungame
-
-    environment:
-      <<: *cs2-env
-      CS2_SERVERNAME: "${CS2_SERVERNAME} GunGame Server"
-      CS2_GAMEALIAS: casual
-      CS2_MAXPLAYERS: ${GUNGAME_CAPACITY:-10}
-      CS2_ADDITIONAL_ARGS: "+exec mode_gungame.cfg +exec panel_runtime.cfg"
-
-    volumes:
-      - type: bind
-        source: ${CS2_DATA_PATH}
-        target: /home/steam/cs2-dedicated
-
-      - type: bind
-        source: ./manager/modes/gungame/cfg/mode_gungame.cfg
-        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_gungame.cfg
-
-      - type: bind
-        source: ./manager/modes/gungame/cfg/panel_runtime.cfg
-        target: /home/steam/cs2-dedicated/game/csgo/cfg/panel_runtime.cfg
-
-      - type: bind
-        source: ./manager/shared/plugins/PanelBridge
-        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/PanelBridge
-
-      # GG2 plugin (stock release: DLLs + languages).
-      - type: bind
-        source: ./manager/modes/gungame/plugins/GG2
-        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/GG2
-
-      # GunGameAPI shared library — required alongside the plugin.
-      - type: bind
-        source: ./manager/modes/gungame/utils/GunGameAPI
-        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/shared/GunGameAPI
-
-      # GG2 reads all of its settings from csgo/cfg/gungame (gungame.json,
-      # weapons.json, gungame_weapons.json + the .cfg hooks it execs). Editable on
-      # the host; reload in-game with "gg_config gungame".
-      - type: bind
-        source: ./manager/modes/gungame/cfg/gungame
-        target: /home/steam/cs2-dedicated/game/csgo/cfg/gungame
 
   # ------------------------------------------------------------------ Updater
   # The ONLY service that runs SteamCMD. Stopped by default (maintenance profile),

@@ -15,10 +15,11 @@
   "settings": {
     "capacity": { "min": 3, "max": 10 },
     "defaults": {
+      "note": "Identical to the FaceIt defaults except capacity: Retake holds 9 players, every other mode 10.",
       "map": "de_dust2",
-      "capacity": 7,
-      "max_rounds": 30,
-      "freezetime": 5,
+      "capacity": 9,
+      "max_rounds": 24,
+      "freezetime": 15,
       "friendly_fire": false,
       "bot_quota": 0
     },
@@ -77,6 +78,14 @@
   ],
 
   "configs": [
+    {
+      "name": "server.cfg",
+      "note": "Shared base profile in manager/shared/cfg/server.cfg, mounted into every mode and exec'd first by mode_retake.cfg. Mode files carry only their own convars on top of it.",
+      "source": "cfg/server.cfg",
+      "shared": true,
+      "kind": "file",
+      "target": "cfg/server.cfg"
+    },
     {
       "name": "RetakesPlugin.json",
       "note": "Mounted over the plugin's auto-generated copy so the panel owns it. EnableFallbackAllocation stays true: RetakesPlugin does its own weapon allocation here, since no allocator plugin is installed. MaxPlayers matches settings.defaults.capacity.",

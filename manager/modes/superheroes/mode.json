@@ -16,6 +16,7 @@
   "settings": {
     "capacity": { "min": 2, "max": 10 },
     "defaults": {
+      "note": "Identical to the FaceIt defaults; every mode but Retake holds 10 players.",
       "map": "de_dust2",
       "capacity": 10,
       "max_rounds": 24,
@@ -23,7 +24,7 @@
       "friendly_fire": false,
       "bot_quota": 0
     },
-    "extra_cfg": ["mp_overtime_enable 1"]
+    "extra_cfg": []
   },
 
   "plugins": [
@@ -88,6 +89,14 @@
   ],
 
   "configs": [
+    {
+      "name": "server.cfg",
+      "note": "Shared base profile in manager/shared/cfg/server.cfg, mounted into every mode and exec'd first by mode_superheroes.cfg. Mode files carry only their own convars on top of it.",
+      "source": "cfg/server.cfg",
+      "shared": true,
+      "kind": "file",
+      "target": "cfg/server.cfg"
+    },
     {
       "name": "heroes.json",
       "note": "Editable hero roster, mounted on top of the shipped embedded default. Single source of truth the panel edits.",

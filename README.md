@@ -22,14 +22,15 @@ under `manager/`. `server/` is the host's CS2 dedicated-server install
 
 | Path | Responsible for |
 |---|---|
-| `compose.yml` | Defines the four game services (`cs2-faceit`, `cs2-retakes`, `cs2-superheroes`, `cs2-gungame`), the maintenance-only `cs2-updater` and the `panel`, all under Compose project `cs2-server`. |
+| `compose.yml` | Defines the three game services (`cs2-faceit`, `cs2-retakes`, `cs2-superheroes`), the maintenance-only `cs2-updater` and the `panel`, all under Compose project `cs2-server`. |
 | `.env.example` / `.env` | Host paths, secrets (GSLT, RCON password, panel credentials), and per-mode capacities. |
-| `start-windows.ps1` / `stop-windows.ps1` | Quick Windows entry points: create the game containers (stopped) and start/stop the panel. |
+| `setup.ps1` | Quick Windows entry point: create the game containers (stopped) and start the panel. |
 | `manager/runtime/` | The custom, no-SteamCMD runtime image (`Dockerfile` + `runtime-launcher.sh`) every game service builds from. |
 | `manager/updater/` | The isolated SteamCMD image (`Dockerfile` + `updater.sh`) — the only place that touches Steam. |
 | `manager/panel/` | The Flask control-plane app (`app.py`, `mode_defs.py`, templates, static assets, its own `Dockerfile`). Talks to Docker over the mounted socket, generates per-mode configs, and speaks RCON to the running game container. `mode_defs.py` loads and validates the `mode.json` manifests, so the panel hard-codes no mode, plugin or action list. |
 | `manager/shared/plugins/PanelBridge` + `manager/shared/plugins-src/PanelBridge` | The compiled `PanelBridge` plugin and its C# source. One copy, bind-mounted into **every** mode and declared as a util in every `mode.json` (`"shared": true`, with `build.project` pointing at the source). It exposes connected players with their SteamID64 over RCON (`css_panel_players`) — data the stock `status` command lacks — which is how the panel builds its player list and kick/ban actions. |
-| `manager/modes/<mode-id>/` | One self-contained folder per mode: `mode.json` (the definition the panel reads), `cfg/` (`mode_<id>.cfg` + panel-generated `panel_runtime.cfg`), `config/` (plugin config the panel edits), `plugins/<Main>/` (the plugin that defines the mode) and `utils/<Helper>/` (every supporting plugin or shared library of that mode — Instadefuse, AutoReady, RetakesPluginShared, GunGameAPI, RayTrace). Modes stay isolated — no mode mounts another mode's plugins. |
+| `manager/shared/cfg/server.cfg` | The shared base server profile: one command set every mode follows. Bind-mounted into every game service as `csgo/cfg/server.cfg`, exec'd first by each `mode_<id>.cfg`, and declared as a shared config in every `mode.json`. |
+| `manager/modes/<mode-id>/` | One self-contained folder per mode: `mode.json` (the definition the panel reads), `cfg/` (`mode_<id>.cfg` + panel-generated `panel_runtime.cfg`), `config/` (plugin config the panel edits), `plugins/<Main>/` (the plugin that defines the mode) and `utils/<Helper>/` (every supporting plugin or shared library of that mode — Instadefuse, AutoReady, RetakesPluginShared, RayTrace). Modes stay isolated — no mode mounts another mode's plugins. |
 | `manager/data/` | Panel state: `server.json` (active mode), `modes/*.json` (per-mode settings), `secrets.json` (gitignored), `audit/` (gitignored action log). |
 | `manager/scripts/` | `migrate.ps1` (backup + build + first run), `rollback.ps1` (restore a config backup), `start.sh` / `stop.sh` (Linux/macOS equivalents of the Windows scripts), `smoke-test.sh` (panel API smoke test), `install-mods-linux.sh` (fetches Metamod/CounterStrikeSharp for a fresh host install; run via the `cs2-modinstaller` maintenance service). |
 | `manager/backups/` | Timestamped pre-change backups written by `migrate.ps1` — config only, never the 60+ GB game install. |
@@ -41,12 +42,28 @@ below is a summary of those files, which are the source of truth.
 
 | UI name | Mode id / folder | Main plugin + utils | Service | Capacity |
 |---|---|---|---|---|
-| FaceIt | `faceit` | MatchZy + AutoReady | `cs2-faceit` | 2–10 |
-| Retake | `retake` | Retakes + Instadefuse, RetakesPluginShared | `cs2-retakes` | 3–10 |
-| HeroShift | `superheroes` | HeroShift + RayTrace (random skill each round) | `cs2-superheroes` | 2–10 |
-| GunGame | `gungame` | GG2 weapon ladder + GunGameAPI | `cs2-gungame` | 2–10 |
+| FaceIt | `faceit` | MatchZy + AutoReady | `cs2-faceit` | 2–10 (default 10) |
+| Retake | `retake` | Retakes + Instadefuse, RetakesPluginShared | `cs2-retakes` | 3–10 (default 9) |
+| HeroShift | `superheroes` | HeroShift + RayTrace (random skill each round) | `cs2-superheroes` | 2–10 (default 10) |
 
 `PanelBridge` is a util of every mode (one shared copy, see the table above).
+
+### Shared server config
+
+Every mode runs the same command set. It lives once in
+[manager/shared/cfg/server.cfg](manager/shared/cfg/server.cfg), is bind-mounted
+into each game service as `csgo/cfg/server.cfg`, and each `mode_<id>.cfg` execs it
+before adding its own handful of mode-specific convars (FaceIt enables GOTV,
+Retake and HeroShift set their warmup/round length). FaceIt is the default the
+shared profile is modelled on.
+
+The one intentional difference between modes is player capacity: Retake holds 9,
+FaceIt and HeroShift hold 10. That is owned by `<MODE>_CAPACITY` in `.env` and the
+matching `settings.defaults.capacity` in each `mode.json` — never by a cfg file.
+
+Layering, in exec order: `server.cfg` (shared base) → `mode_<id>.cfg`
+(mode extras) → `panel_runtime.cfg` (the panel's hot convars, so the panel always
+wins).
 
 Retake runs RetakesPlugin + Instadefuse, with RetakesPlugin doing its own weapon
 allocation (`EnableFallbackAllocation` true) — no allocator plugin is installed, and
@@ -58,14 +75,6 @@ HeroShift's skill roster **is** editable from the panel — per skill you can to
 `Active`, set `Rarity` and cap `MaxPerServer`; skill mechanics ship with the plugin
 build. See [manager/modes/superheroes/README.md](manager/modes/superheroes/README.md)
 for the full roster/balance notes.
-
-GunGame is the only mode that runs Casual (`game_type 0` / `game_mode 0`, as GG2
-requires). Its ladder settings are files, not panel fields: edit
-`manager/modes/gungame/cfg/gungame/*.json` on the host and reload live with the
-`gg_config gungame` mode command. See
-[manager/modes/gungame/README.md](manager/modes/gungame/README.md) for the
-weapon order, the two documented deviations from the stock release, and why
-`!rank` / `!top` are off.
 
 ### Mode definitions (`mode.json`)
 
@@ -144,7 +153,7 @@ half a mode.
 1. Copy `.env.example` to `.env` and edit values (`SRCDS_TOKEN`, `CS2_RCON_PASSWORD`,
    `PANEL_USERNAME`/`PANEL_PASSWORD`, `CS2_DATA_PATH`). The pinned `CS2_BASE_IMAGE`
    and per-mode capacities have sane defaults.
-2. Migrate / first run (Windows): `./manager/scripts/migrate.ps1` (or `./start-windows.ps1`).
+2. Migrate / first run (Windows): `./manager/scripts/migrate.ps1` (or `./setup.ps1`).
    Linux/macOS: `manager/scripts/start.sh`.
 3. Open the panel at `http://127.0.0.1:8080`.
 

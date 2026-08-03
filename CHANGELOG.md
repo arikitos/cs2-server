@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ### Removed
 
+- The **GunGame** mode, in full. Gone: the `cs2-gungame` service and every bind
+  mount it declared in `compose.yml`, the whole `manager/modes/gungame/` tree (GG2
+  plugin, `GunGameAPI` shared library, the `cfg/gungame/` ladder configs and the
+  mode README), `manager/data/modes/gungame.json`, `GUNGAME_CAPACITY` from `.env`
+  and `.env.example`, the container name in the Windows entry-point script and
+  `manager/scripts/start.sh`, `stop.sh`, `migrate.ps1` and
+  `rollback.ps1`, the `GunGame` / `GUNGAME` keys in the panel's plugin-log filter
+  (`HeroShift` added in their place, which was missing), and every mention in
+  `README.md` and `manager/modes/retake/README.md`. The stack is now three game
+  services: `cs2-faceit`, `cs2-retakes`, `cs2-superheroes`. Earlier `Unreleased`
+  entries below that mention GunGame are left as written — they record what those
+  changes did at the time.
+
 - `RetakesAllocator` from the Retake mode. Retake is now RetakesPlugin +
   Instadefuse only, with `GameSettings.EnableFallbackAllocation` back to its stock
   `true` so RetakesPlugin allocates weapons itself — with the allocator gone and
@@ -27,6 +40,13 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- A shared base server profile, `manager/shared/cfg/server.cfg`: one command set
+  every mode runs, modelled on the FaceIt profile. It is bind-mounted into all
+  three game services as `csgo/cfg/server.cfg` and declared as a shared `configs`
+  entry (`"shared": true`, `"kind": "file"`) in every `mode.json`, so Verify mounts
+  covers it. Exec order is `server.cfg` → `mode_<id>.cfg` → `panel_runtime.cfg`, so
+  the panel's hot convars still win.
+
 - Declarative mode definitions: every mode now owns a validated
   `manager/modes/<mode-id>/mode.json` naming its container, startup cfgs, capacity
   range, settings defaults, extra convars, plugin/util bind mounts and whitelisted
@@ -41,6 +61,29 @@ All notable changes to this project are documented in this file.
   to apply a candidate while a `mode.json` is invalid.
 
 ### Changed
+
+- Every mode now runs the same server config. `mode_faceit.cfg`,
+  `mode_retake.cfg` and `mode_superheroes.cfg` were reduced to `exec server.cfg`
+  plus only what that mode's plugin genuinely needs: FaceIt keeps `tv_enable 1`
+  (GOTV), Retake keeps `mp_warmuptime 30`, HeroShift keeps `mp_roundtime 1.55` and
+  `mp_warmuptime 20`. Everything else — the competitive ruleset, `bot_quota 0`,
+  `mp_autoteambalance 0`, `mp_limitteams 0`, `mp_friendlyfire 0`, `mp_maxrounds 24`,
+  `mp_freezetime 15`, `sv_pausable 1`, `sv_cheats 0`, `sv_hibernate_when_empty 0`,
+  `mp_restartgame 1` — moved into the shared profile. Note this changes how Retake
+  and HeroShift play: both had `mp_autoteambalance 1` and shorter rounds before.
+
+- Panel defaults are aligned to the FaceIt defaults across all modes. Retake goes
+  from `max_rounds` 30 / `freezetime` 5 to 24 / 15, HeroShift's `freezetime` from
+  10 to 15, in both `mode.json` (`settings.defaults`) and the live
+  `manager/data/modes/*.json`. HeroShift's `mp_overtime_enable 1` `extra_cfg` line
+  was dropped so its generated `panel_runtime.cfg` matches the others; FaceIt's
+  `matchzy_autostart_mode 1` stays, as MatchZy is only mounted there.
+
+- **Player capacity is now the only per-mode difference.** Retake holds 9 (was 7),
+  FaceIt and HeroShift hold 10 — set in `RETAKE_CAPACITY` / `FACEIT_CAPACITY` /
+  `SUPERHEROES_CAPACITY` in `.env` and `.env.example`, and in each `mode.json`'s
+  `settings.defaults.capacity`. Retake's `config/RetakesPlugin.json`
+  `GameSettings.MaxPlayers` was already 9 and is unchanged.
 
 - `.env.example`'s `CS2_DATA_PATH` and `MANAGER_PATH` now default to `./server` and
   `./manager` (relative to the project root) instead of an external static host path

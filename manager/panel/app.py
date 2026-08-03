@@ -393,7 +393,8 @@ def generate_runtime_cfg(mode: str, settings: dict, password_line: str) -> str:
         *hot_convar_lines(settings),
     ]
     # Per-mode convars come from the mode manifest (settings.extra_cfg), e.g.
-    # MatchZy's autostart on FaceIt or the overtime rule GunGame needs off.
+    # MatchZy's autostart on FaceIt. Everything modes share lives in the shared
+    # base profile (manager/shared/cfg/server.cfg) instead.
     lines.extend(MODE_DEFS[mode]["extra_cfg"])
     lines.append(f"changelevel {settings['map']}")
     return "\n".join(lines) + "\n"
@@ -1912,7 +1913,7 @@ def api_logs():
         out = redact(out)
         if source == "plugin":
             keep = ("MatchZy", "Metamod", "MM:", "CounterStrikeSharp", "CSSharp",
-                    "AutoReady", "RetakesPlugin", "Instadefuse", "GunGame", "GUNGAME",
+                    "AutoReady", "RetakesPlugin", "Instadefuse", "HeroShift",
                     "[CS2 Manager]")
             out = "\n".join(l for l in out.splitlines() if any(k in l for k in keep))
         return jsonify({"ok": True, "source": source, "container": container,

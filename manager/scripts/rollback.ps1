@@ -15,7 +15,7 @@ Set-Location (Join-Path $PSScriptRoot "../..")
 if (-not (Test-Path $Backup)) { throw "Backup folder not found: $Backup" }
 
 Write-Host "Stopping game services and panel..." -ForegroundColor Yellow
-docker compose stop cs2-faceit cs2-retakes cs2-superheroes cs2-gungame panel 2>$null
+docker compose stop cs2-faceit cs2-retakes cs2-superheroes panel 2>$null
 
 foreach ($item in @("compose.yml", ".env")) {
     $src = Join-Path $Backup $item

@@ -109,11 +109,17 @@ against a fresh HeroShift release, expect these to differ on purpose:
 
 ## Round settings
 
-Freeze time is **10s** (was 15s) and is set in three places that must agree:
-`data/modes/superheroes.json`, the panel-generated
-`modes/superheroes/cfg/panel_runtime.cfg`, and the `!start` vote's `StartParams`
-in `config.json`. The panel's Server Config writes the first two; edit the third by
-hand. `max_rounds` 24, `bot_quota` 0, friendly fire off, `de_dust2`.
+HeroShift runs the shared base profile like every other mode:
+`mode_superheroes.cfg` execs `manager/shared/cfg/server.cfg` and then adds only the
+two convars this mode needs on top of it — `mp_roundtime 1.55` and
+`mp_warmuptime 20`. Change a shared value in `server.cfg`, not here.
+
+Panel settings match the other modes: `max_rounds` 24, freeze time **15s**,
+`bot_quota` 0, friendly fire off, `de_dust2`, capacity 10. Freeze time is set in
+three places that must agree: `data/modes/superheroes.json`, the panel-generated
+`modes/superheroes/cfg/panel_runtime.cfg`, and the `!start` vote's `StartParams` in
+`config.json`. The panel's Server Config writes the first two; edit the third by
+hand.
 
 ## RayTrace dependency
 
@@ -153,7 +159,7 @@ tuned one** — merge instead, in this order:
 
 `config.json` is the same story — start from the release copy and re-apply the three
 local deviations (`SkillTimeBeforeStart` 10, `SkillDescriptionDuration` 10, and
-`mp_freezetime 10` inside the `!start` `StartParams`) so new blocks like
+`mp_freezetime 15` inside the `!start` `StartParams`) so new blocks like
 `LanguageSystem` are picked up verbatim. Write both JSONs as UTF-8 **without a BOM**:
 the panel reads them with a strict `utf-8` decode and a BOM makes it 500.
 `playersLanguage.json` is generated state; there is nothing to merge.
