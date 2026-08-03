@@ -1,0 +1,93 @@
+{
+  "id": "gungame",
+  "label": "GunGame",
+  "implementation": "Weapon ladder (GG2)",
+  "order": 50,
+  "container": "cs2-gungame",
+  "capacity_env": "GUNGAME_CAPACITY",
+
+  "startup": {
+    "game_alias": "casual",
+    "mode_cfg": "mode_gungame.cfg",
+    "runtime_cfg": "panel_runtime.cfg",
+    "note": "GG2's FAQ requires game_type 0 / game_mode 0, so this is the only mode that runs Casual."
+  },
+
+  "settings": {
+    "capacity": { "min": 2, "max": 10 },
+    "defaults": {
+      "map": "de_dust2",
+      "capacity": 10,
+      "max_rounds": 120,
+      "freezetime": 3,
+      "friendly_fire": false,
+      "bot_quota": 0
+    },
+    "extra_cfg": ["mp_overtime_enable 0"]
+  },
+
+  "plugins": [
+    {
+      "name": "GunGame",
+      "role": "plugin",
+      "note": "ssypchenko/cs2-gungame v1.2.4, ships as the GG2 plugin folder.",
+      "verify": { "required": true, "aliases": ["gungame", "gun game", "gg2"] },
+      "mounts": [
+        {
+          "source": "plugins/GG2",
+          "target": "addons/counterstrikesharp/plugins/GG2"
+        }
+      ]
+    },
+    {
+      "name": "GunGameAPI",
+      "role": "util",
+      "note": "Shared library GG2 links against; loads from the CSS shared/ path, not plugins/.",
+      "verify": { "required": false, "aliases": [] },
+      "mounts": [
+        {
+          "source": "utils/GunGameAPI",
+          "target": "addons/counterstrikesharp/shared/GunGameAPI"
+        }
+      ]
+    },
+    {
+      "name": "PanelBridge",
+      "role": "util",
+      "note": "Shared single copy in manager/shared/plugins/PanelBridge, built from the project below. Exposes SteamID64 player data over RCON for the panel.",
+      "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
+      "build": { "project": "plugins-src/PanelBridge", "shared": true },
+      "mounts": [
+        {
+          "source": "plugins/PanelBridge",
+          "shared": true,
+          "target": "addons/counterstrikesharp/plugins/PanelBridge"
+        }
+      ]
+    }
+  ],
+
+  "configs": [
+    {
+      "name": "gungame cfg",
+      "note": "GG2 reads every setting from csgo/cfg/gungame (gungame.json, weapons.json, gungame_weapons.json + the .cfg hooks it execs). Reload live with 'gg_config gungame'.",
+      "source": "cfg/gungame",
+      "target": "cfg/gungame"
+    }
+  ],
+
+  "actions": [
+    { "key": "gg_restart", "label": "Restart GunGame", "cmd": "gg_restart", "impact": "Players",
+      "description": "Restarts the GunGame round and resets every player to level 1. The container stays running.", "confirm": true },
+    { "key": "gg_config", "label": "Reload GunGame Config", "cmd": "gg_config gungame", "impact": "Plugin config",
+      "description": "Re-reads gungame.json / weapons.json / gungame_weapons.json from csgo/cfg/gungame.", "confirm": false },
+    { "key": "gg_version", "label": "Show GunGame Version", "cmd": "gg_version", "impact": "Read only",
+      "description": "Prints the GG2 plugin version to the console.", "confirm": false },
+    { "key": "gg_enable", "label": "Enable GunGame", "cmd": "gg_enable", "impact": "Game mode",
+      "description": "Turns the GG2 weapon ladder back on without restarting the container.", "confirm": true },
+    { "key": "gg_disable", "label": "Disable GunGame", "cmd": "gg_disable", "impact": "Game mode",
+      "description": "Turns the GG2 weapon ladder off; the server falls back to plain casual play.", "confirm": true },
+    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players",
+      "description": "Removes every bot from the active game.", "confirm": true }
+  ]
+}

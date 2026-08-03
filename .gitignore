@@ -1,0 +1,29 @@
+.env
+manager/steamcmd/cs2-dedicated/
+manager/backups/*
+!manager/backups/.gitkeep
+
+# Build artifacts of the in-house plugins. Their C# projects live next to the
+# plugin they build: manager/modes/<mode>/utils/<Name>.src (mode-owned) and
+# manager/shared/plugins-src/<Name> (shared across every mode).
+manager/modes/**/*.src/bin/
+manager/modes/**/*.src/obj/
+manager/shared/plugins-src/**/bin/
+manager/shared/plugins-src/**/obj/
+manager/shared/plugins/**/*.pdb
+
+# Leftover download/extraction scratch
+downloads/
+
+# Panel runtime state (generated)
+manager/panel-data/*.tmp
+manager/data/*.tmp
+manager/data/audit/
+manager/data/secrets.json
+manager/data/console_history.json
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+server/

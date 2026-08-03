@@ -1,0 +1,101 @@
+{
+  "id": "retake",
+  "label": "Retake",
+  "implementation": "Powered by Retakes plugin + Instadefuse",
+  "order": 20,
+  "container": "cs2-retakes",
+  "capacity_env": "RETAKE_CAPACITY",
+
+  "startup": {
+    "game_alias": "competitive",
+    "mode_cfg": "mode_retake.cfg",
+    "runtime_cfg": "panel_runtime.cfg"
+  },
+
+  "settings": {
+    "capacity": { "min": 3, "max": 10 },
+    "defaults": {
+      "map": "de_dust2",
+      "capacity": 7,
+      "max_rounds": 30,
+      "freezetime": 5,
+      "friendly_fire": false,
+      "bot_quota": 0
+    },
+    "extra_cfg": []
+  },
+
+  "plugins": [
+    {
+      "name": "RetakesPlugin",
+      "role": "plugin",
+      "verify": { "required": true, "aliases": ["retake"] },
+      "mounts": [
+        {
+          "source": "plugins/RetakesPlugin",
+          "target": "addons/counterstrikesharp/plugins/RetakesPlugin"
+        }
+      ]
+    },
+    {
+      "name": "RetakesPluginShared",
+      "role": "util",
+      "note": "Shared API library RetakesPlugin links against; loads from the CSS shared/ path, not plugins/.",
+      "verify": { "required": false, "aliases": [] },
+      "mounts": [
+        {
+          "source": "utils/RetakesPluginShared",
+          "target": "addons/counterstrikesharp/shared/RetakesPluginShared"
+        }
+      ]
+    },
+    {
+      "name": "Instadefuse",
+      "role": "util",
+      "verify": { "required": true, "aliases": ["instadefuse", "insta defuse"] },
+      "mounts": [
+        {
+          "source": "utils/InstadefusePlugin",
+          "target": "addons/counterstrikesharp/plugins/InstadefusePlugin"
+        }
+      ]
+    },
+    {
+      "name": "PanelBridge",
+      "role": "util",
+      "note": "Shared single copy in manager/shared/plugins/PanelBridge, built from the project below. Exposes SteamID64 player data over RCON for the panel.",
+      "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
+      "build": { "project": "plugins-src/PanelBridge", "shared": true },
+      "mounts": [
+        {
+          "source": "plugins/PanelBridge",
+          "shared": true,
+          "target": "addons/counterstrikesharp/plugins/PanelBridge"
+        }
+      ]
+    }
+  ],
+
+  "configs": [
+    {
+      "name": "RetakesPlugin.json",
+      "note": "Mounted over the plugin's auto-generated copy so the panel owns it. EnableFallbackAllocation stays true: RetakesPlugin does its own weapon allocation here, since no allocator plugin is installed. MaxPlayers matches settings.defaults.capacity.",
+      "source": "config/RetakesPlugin.json",
+      "kind": "file",
+      "target": "addons/counterstrikesharp/configs/plugins/RetakesPlugin/RetakesPlugin.json"
+    }
+  ],
+
+  "actions": [
+    { "key": "force_a", "label": "Force Bombsite A", "cmd": "css_forcebombsite A", "impact": "Next rounds",
+      "description": "Forces future retake rounds to use bombsite A.", "confirm": false },
+    { "key": "force_b", "label": "Force Bombsite B", "cmd": "css_forcebombsite B", "impact": "Next rounds",
+      "description": "Forces future retake rounds to use bombsite B.", "confirm": false },
+    { "key": "force_auto", "label": "Restore Automatic Bombsite", "cmd": "css_forcebombsitestop", "impact": "Next rounds",
+      "description": "Returns bombsite selection to the Retakes plugin.", "confirm": false },
+    { "key": "scramble", "label": "Scramble Teams", "cmd": "css_scramble", "impact": "Players",
+      "description": "Reassigns connected players between retake teams.", "confirm": true },
+    { "key": "show_queue", "label": "Show Retake Queue", "cmd": "css_debugqueues", "impact": "Read only",
+      "description": "Prints the current retake queue to the console.", "confirm": false }
+  ]
+}

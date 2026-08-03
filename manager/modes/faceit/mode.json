@@ -1,0 +1,101 @@
+{
+  "id": "faceit",
+  "label": "FaceIt",
+  "implementation": "Powered by MatchZy",
+  "order": 10,
+  "container": "cs2-faceit",
+  "capacity_env": "FACEIT_CAPACITY",
+
+  "startup": {
+    "game_alias": "competitive",
+    "mode_cfg": "mode_faceit.cfg",
+    "runtime_cfg": "panel_runtime.cfg"
+  },
+
+  "settings": {
+    "capacity": { "min": 2, "max": 10 },
+    "defaults": {
+      "map": "de_dust2",
+      "capacity": 10,
+      "max_rounds": 24,
+      "freezetime": 15,
+      "friendly_fire": false,
+      "bot_quota": 0
+    },
+    "extra_cfg": ["matchzy_autostart_mode 1"]
+  },
+
+  "plugins": [
+    {
+      "name": "MatchZy",
+      "role": "plugin",
+      "verify": { "required": true, "aliases": ["matchzy"] },
+      "mounts": [
+        {
+          "source": "plugins/MatchZy",
+          "target": "addons/counterstrikesharp/plugins/MatchZy"
+        }
+      ]
+    },
+    {
+      "name": "AutoReady",
+      "role": "util",
+      "note": "FaceIt warmup automation, built in-house from the project below.",
+      "verify": { "required": true, "aliases": ["auto ready", "autoready"] },
+      "build": { "project": "utils/AutoReady.src" },
+      "mounts": [
+        {
+          "source": "utils/AutoReady",
+          "target": "addons/counterstrikesharp/plugins/AutoReady"
+        }
+      ]
+    },
+    {
+      "name": "PanelBridge",
+      "role": "util",
+      "note": "Shared single copy in manager/shared/plugins/PanelBridge, built from the project below. Exposes SteamID64 player data over RCON for the panel.",
+      "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
+      "build": { "project": "plugins-src/PanelBridge", "shared": true },
+      "mounts": [
+        {
+          "source": "plugins/PanelBridge",
+          "shared": true,
+          "target": "addons/counterstrikesharp/plugins/PanelBridge"
+        }
+      ]
+    }
+  ],
+
+  "configs": [
+    {
+      "name": "MatchZy cfg",
+      "source": "cfg/MatchZy",
+      "target": "cfg/MatchZy"
+    }
+  ],
+
+  "actions": [
+    { "key": "start", "label": "Start Match", "cmd": "css_start", "impact": "In-game match",
+      "description": "Starts the MatchZy match flow. The game container stays running.", "confirm": true },
+    { "key": "force_start", "label": "Force Start Match", "cmd": "css_forcestart", "impact": "In-game match",
+      "description": "Starts the MatchZy match immediately, bypassing normal readiness.", "confirm": true },
+    { "key": "restart", "label": "Restart Match", "cmd": "css_restart", "impact": "In-game match",
+      "description": "Resets the current MatchZy match. This does not restart the container.", "confirm": true },
+    { "key": "end", "label": "End Match", "cmd": "css_endmatch", "impact": "In-game match",
+      "description": "Ends the active MatchZy match and records the result state.", "confirm": true },
+    { "key": "pause", "label": "Pause Match", "cmd": "css_pause", "impact": "In-game match",
+      "description": "Requests the normal MatchZy tactical pause.", "confirm": false },
+    { "key": "unpause", "label": "Unpause Match", "cmd": "css_unpause", "impact": "In-game match",
+      "description": "Requests MatchZy to resume a normally paused match.", "confirm": false },
+    { "key": "force_pause", "label": "Force Pause", "cmd": "css_forcepause", "impact": "In-game match",
+      "description": "Immediately pauses the MatchZy match, ignoring normal pause rules.", "confirm": true },
+    { "key": "force_unpause", "label": "Force Unpause", "cmd": "css_forceunpause", "impact": "In-game match",
+      "description": "Immediately resumes the MatchZy match, ignoring normal pause rules.", "confirm": true },
+    { "key": "knife", "label": "Toggle Knife Round", "cmd": "css_roundknife", "impact": "In-game setting",
+      "description": "Toggles MatchZy's knife-round setting; it does not restart the server.", "confirm": false },
+    { "key": "skip_veto", "label": "Skip Veto", "cmd": "css_skipveto", "impact": "In-game match",
+      "description": "Skips the current map-veto phase and advances the match flow.", "confirm": true },
+    { "key": "settings", "label": "Show Match Settings", "cmd": "css_settings", "impact": "Read only",
+      "description": "Prints MatchZy settings to the console without changing server state.", "confirm": false }
+  ]
+}

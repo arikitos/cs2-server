@@ -1,0 +1,13 @@
+{
+  "hostname": "Arik's Server",
+  "lan": false,
+  "port": 27015,
+  "rcon_port": 27015,
+  "friendly_fire": false,
+  "cheats": false,
+  "hibernate": false,
+  "logging_level": "on",
+  "access_mode": "public",
+  "last_mode": "superheroes",
+  "password_policy": "global"
+}

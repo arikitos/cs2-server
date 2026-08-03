@@ -1,0 +1,33 @@
+{
+  "WeaponOrder": {
+    "1": "glock",
+    "2": "usp_silencer",
+    "3": "p250",
+    "4": "deagle",
+    "5": "fiveseven",
+    "6": "elite",
+    "7": "nova",
+    "8": "xm1014",
+    "9": "mp9",
+    "10": "mac10",
+    "11": "mp5sd",
+    "12": "ump45",
+    "13": "p90",
+    "14": "galilar",
+    "15": "famas",
+    "16": "ak47",
+    "17": "ssg08",
+    "18": "m4a1_silencer",
+    "19": "sg556",
+    "20": "aug",
+    "21": "m249",
+    "22": "hegrenade",
+    "23": "knife"
+  },
+  "MultipleKillsPerLevel": {
+    "22": "1",
+    "23": "1"
+  },
+  "RandomWeaponReserveLevels": "22,23",
+  "RandomWeaponOrder": false
+}

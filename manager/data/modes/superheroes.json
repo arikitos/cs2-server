@@ -1,0 +1,8 @@
+{
+  "map": "de_dust2",
+  "capacity": 10,
+  "max_rounds": 24,
+  "freezetime": 10,
+  "bot_quota": 0,
+  "friendly_fire": false
+}

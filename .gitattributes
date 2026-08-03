@@ -1,0 +1,5 @@
+# Ensure scripts that run inside Linux containers always keep LF endings,
+# regardless of the checkout platform's core.autocrlf setting. CRLF endings
+# here break `exec` in Docker (shebang becomes "/bin/bash\r", which doesn't exist).
+*.sh text eol=lf
+Dockerfile text eol=lf

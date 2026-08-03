@@ -1,0 +1,110 @@
+{
+  "id": "superheroes",
+  "label": "HeroShift",
+  "implementation": "Random skill every round (HeroShift)",
+  "order": 40,
+  "container": "cs2-superheroes",
+  "capacity_env": "SUPERHEROES_CAPACITY",
+  "server_config": false,
+
+  "startup": {
+    "game_alias": "competitive",
+    "mode_cfg": "mode_superheroes.cfg",
+    "runtime_cfg": "panel_runtime.cfg"
+  },
+
+  "settings": {
+    "capacity": { "min": 2, "max": 10 },
+    "defaults": {
+      "map": "de_dust2",
+      "capacity": 10,
+      "max_rounds": 24,
+      "freezetime": 15,
+      "friendly_fire": false,
+      "bot_quota": 0
+    },
+    "extra_cfg": ["mp_overtime_enable 1"]
+  },
+
+  "plugins": [
+    {
+      "name": "HeroShift",
+      "role": "plugin",
+      "note": "cs2-hero-shift build: single self-contained DLL (CounterStrikeSharp.API is PrivateAssets, no bundled dependency DLLs, no gamedata/languages).",
+      "verify": { "required": true, "aliases": ["heroshift", "hero shift"] },
+      "mounts": [
+        {
+          "source": "plugins/HeroShift",
+          "target": "addons/counterstrikesharp/plugins/HeroShift"
+        }
+      ]
+    },
+    {
+      "name": "RayTrace",
+      "role": "util",
+      "note": "Built from Juzlus/Ray-Trace. Two layers: the native Metamod module and the CSS RayTraceImpl plugin + RayTraceApi shared assembly. Mounted only in this mode so other modes stay free of it.",
+      "verify": { "required": true, "aliases": ["raytrace", "ray trace"] },
+      "mounts": [
+        {
+          "source": "utils/RayTrace/addons/metamod/RayTrace.vdf",
+          "kind": "file",
+          "target": "addons/metamod/RayTrace.vdf"
+        },
+        {
+          "source": "utils/RayTrace/addons/RayTrace",
+          "target": "addons/RayTrace"
+        },
+        {
+          "source": "utils/RayTrace/addons/RayTrace/gamedata.json",
+          "kind": "file",
+          "absolute": true,
+          "note": "This CS2 image's engine returns an empty GetGameDir() at Metamod load, so RayTrace's native module resolves its gamedata to the absolute path /addons/RayTrace/gamedata.json. Libs are still found in-memory by name, so only gamedata needs this.",
+          "target": "/addons/RayTrace/gamedata.json"
+        },
+        {
+          "source": "utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl",
+          "target": "addons/counterstrikesharp/plugins/RayTraceImpl"
+        },
+        {
+          "source": "utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi",
+          "target": "addons/counterstrikesharp/shared/RayTraceApi"
+        }
+      ]
+    },
+    {
+      "name": "PanelBridge",
+      "role": "util",
+      "note": "Shared single copy in manager/shared/plugins/PanelBridge, built from the project below. Exposes SteamID64 player data over RCON for the panel.",
+      "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
+      "build": { "project": "plugins-src/PanelBridge", "shared": true },
+      "mounts": [
+        {
+          "source": "plugins/PanelBridge",
+          "shared": true,
+          "target": "addons/counterstrikesharp/plugins/PanelBridge"
+        }
+      ]
+    }
+  ],
+
+  "configs": [
+    {
+      "name": "heroes.json",
+      "note": "Editable hero roster, mounted on top of the shipped embedded default. Single source of truth the panel edits.",
+      "source": "config/heroes.json",
+      "kind": "file",
+      "target": "addons/counterstrikesharp/plugins/HeroShift/config/heroes.json"
+    }
+  ],
+
+  "actions": [
+    { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config",
+      "description": "Reloads HeroShift config/heroes.json; the container stays running.", "confirm": false },
+    { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round",
+      "description": "Resets the in-game match after one second. The container stays running.", "confirm": true },
+    { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase",
+      "description": "Ends warmup and starts normal round flow.", "confirm": true },
+    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players",
+      "description": "Removes every bot from the active game.", "confirm": true }
+  ]
+}

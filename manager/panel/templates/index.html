@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CS2 Manager Panel</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">LOCAL SERVER CONTROL · 127.0.0.1</p>
+      <h1>CS2 Manager</h1>
+    </div>
+    <div id="stateBadge" class="state-badge">—</div>
+  </header>
+
+  <!-- ============================ 1 · STATUS ============================ -->
+  <section class="panel-card">
+    <div class="section-heading compact">
+      <p class="eyebrow">1 · STATUS</p>
+      <div class="control-row">
+        <button class="btn small primary" data-action onclick="startServer()">Start</button>
+        <button class="btn small danger" data-action onclick="stopGameServer()">Stop</button>
+        <button class="btn small danger" data-action onclick="restartGameContainer()">Restart</button>
+        <button class="btn small ghost" onclick="refresh(); loadLogs(true)">Refresh</button>
+      </div>
+    </div>
+    <div class="info-grid" id="infoGrid"><!-- filled by JS --></div>
+    <div class="status-split">
+      <div>
+        <p class="mini-label">CONTAINERS</p>
+        <div id="containerList" class="container-list"><span class="muted">—</span></div>
+      </div>
+      <div>
+        <p class="mini-label">HEALTH</p>
+        <div id="pluginHealth" class="health-chips"><span class="muted">Server stopped.</span></div>
+      </div>
+    </div>
+    <p id="message" class="message" aria-live="polite"></p>
+  </section>
+
+  <!-- ========================= 2 · GAME MODE =========================== -->
+  <section class="panel-card">
+    <p class="eyebrow">2 · GAME MODE</p>
+    <p class="section-help">The active mode is marked. Click a mode to edit its config below; use “Start / switch” to run it.</p>
+    <div class="mode-row" id="modeRow"><!-- mode cards filled by JS --></div>
+    <div class="control-row" style="margin-top:12px">
+      <button class="btn primary" data-action onclick="startSelected()">Start / switch to selected mode</button>
+      <span id="modeSwitchHint" class="hint" style="margin:0;align-self:center"></span>
+    </div>
+  </section>
+
+  <!-- ======================= 3 · SERVER CONFIG ========================= -->
+  <section class="panel-card" id="configSection">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">3 · SERVER CONFIG</p>
+        <h2 id="configTitle">—</h2>
+      </div>
+      <span id="unsavedFlag" class="chip" hidden>Unsaved changes</span>
+    </div>
+    <p class="section-help">Server settings for the selected mode. Defaults match each mode’s official cfg (HeroShift = Competitive). Friendly fire is off by default.</p>
+
+    <div id="configForm" class="workspace"><!-- 7 fields filled by JS --></div>
+    <p id="configNote" class="hint" hidden></p>
+    <p id="validationMsg" class="validation" aria-live="polite"></p>
+
+    <div class="pw-block">
+      <p class="mini-label">SERVER PASSWORD</p>
+      <label class="switch-label">
+        <input type="checkbox" id="pwEnabled" title="Enable or disable the join password live; no container restart." onchange="togglePassword()">
+        <span>Password enabled (off by default)</span>
+      </label>
+      <div class="pw-row">
+        <input type="password" id="pwValue" placeholder="Set / change password" autocomplete="off">
+        <button class="btn small" onclick="setPassword()">Set &amp; enable</button>
+        <button class="btn small ghost" onclick="generatePassword()">Generate &amp; enable</button>
+      </div>
+      <p class="hint">Applied live over RCON; masked and never returned by the API.</p>
+    </div>
+
+    <div id="changePreview" class="change-preview" hidden>
+      <p class="eyebrow">PENDING CHANGES</p>
+      <table class="preview-table"><tbody id="previewBody"></tbody></table>
+    </div>
+
+    <div class="control-row" style="margin-top:14px">
+      <button class="btn primary" data-action onclick="saveAndApply()">Save &amp; apply live</button>
+      <button class="btn danger" data-action onclick="applyAndRestart()">Save &amp; restart container</button>
+      <button class="btn ghost" onclick="resetDefaults()">Reset to defaults</button>
+      <button class="btn ghost" onclick="loadSelectedMode()">Discard changes</button>
+    </div>
+    <p class="hint">“Apply live” hot-applies rounds / freeze time / friendly fire / bots over RCON. Capacity and map changes take effect on the next container start / restart.</p>
+  </section>
+
+  <!-- ====================== 4 · RCON CONSOLE =========================== -->
+  <section class="panel-card">
+    <p class="eyebrow">4 · RCON CONSOLE</p>
+    <p class="section-help">Players (left) · console (center) · the active mode’s commands (right). Click a command to drop it into the input, then Send.</p>
+    <div class="console-layout">
+      <div class="cl-players">
+        <div class="section-heading compact">
+          <p class="mini-label">PLAYERS</p>
+          <span id="playerCount" class="chip">0</span>
+        </div>
+        <table class="players-table">
+          <thead><tr><th>Name</th><th>Team</th><th>Ping</th><th></th></tr></thead>
+          <tbody id="playersBody"><tr><td colspan="4" class="muted">No active server.</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="cl-console">
+        <div class="section-heading compact">
+          <p class="mini-label">CONSOLE</p>
+          <span id="consoleTarget" class="chip">—</span>
+        </div>
+        <pre id="consoleHistory" class="console-history"></pre>
+        <div class="console-input-row">
+          <input id="consoleInput" class="console-input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="status / changelevel de_mirage / css_pause">
+          <button class="btn primary" id="consoleSend" onclick="sendConsole()">Send</button>
+        </div>
+        <p class="hint">Sent over RCON to the active server. Secrets are redacted; a few commands are blocked server-side.</p>
+      </div>
+
+      <div class="cl-commands">
+        <div class="section-heading compact">
+          <p class="mini-label">MODE COMMANDS</p>
+          <span id="cmdTarget" class="chip">—</span>
+        </div>
+        <div id="modeCommands" class="cmd-list"><span class="muted">Start a mode to see its commands.</span></div>
+      </div>
+    </div>
+
+    <div class="logs-block">
+      <div class="log-toolbar">
+        <p class="mini-label" style="margin:0">LIVE LOGS</p>
+        <select id="logSource" onchange="loadLogs(true)"></select>
+        <label class="switch-label"><input type="checkbox" id="pauseLogs"><span>Pause</span></label>
+        <label class="switch-label"><input type="checkbox" id="followLogs" checked><span>Auto-scroll</span></label>
+        <button class="btn small" onclick="loadLogs(true)">Refresh</button>
+      </div>
+      <pre id="logs" class="logs">Loading…</pre>
+    </div>
+  </section>
+
+  <!-- ======================= 5 · MAINTENANCE =========================== -->
+  <details class="panel-card collapsible">
+    <summary><span class="eyebrow">5 · MAINTENANCE · OWNER</span></summary>
+    <p class="section-help">Owner operations. Each says when to run it. “Game outage” items stop the active game container while the job runs; every step is backed up first.</p>
+    <div class="maint-grid">
+      <div class="maint-item">
+        <button class="btn" onclick="verifyMounts()">Verify mounts</button>
+        <span class="when">When: the server won’t start or after moving files.</span>
+      </div>
+      <div class="maint-item">
+        <button class="btn" onclick="startBackup()">Create backup</button>
+        <span class="when">When: before any risky change or update.</span>
+      </div>
+      <div class="maint-item">
+        <button class="btn danger" onclick="repairMetamod()">Repair Metamod</button>
+        <span class="when">When: plugins stop loading after a CS2 update. <em>Game outage.</em></span>
+      </div>
+      <div class="maint-item">
+        <button class="btn danger" onclick="runUpdate('update')">Update CS2 files</button>
+        <span class="when">When: a new CS2 build is out. <em>Game outage · SteamCMD.</em></span>
+      </div>
+      <div class="maint-item">
+        <button class="btn danger" onclick="runUpdate('validate')">Validate CS2 files</button>
+        <span class="when">When: files look corrupted or the server crashes on load. <em>Game outage.</em></span>
+      </div>
+      <div class="maint-item">
+        <button class="btn ghost" onclick="restartPanel()">Restart web panel</button>
+        <span class="when">When: the panel is stuck but the game is fine.</span>
+      </div>
+      <div class="maint-item">
+        <button class="btn ghost" onclick="rebuildPanel()">Rebuild web panel</button>
+        <span class="when">When: after changing panel code.</span>
+      </div>
+    </div>
+    <div id="mountResult" class="health-chips" style="margin-top:10px"></div>
+    <div class="two-col" style="margin-top:14px">
+      <div>
+        <p class="mini-label">JOBS</p>
+        <div id="jobsList" class="jobs-list"><span class="muted">No jobs yet.</span></div>
+      </div>
+      <div>
+        <p class="mini-label">JOB LOG <span id="jobLogTitle" class="muted"></span></p>
+        <pre id="jobLog" class="logs" style="height:220px">Select a job to view its live log.</pre>
+      </div>
+    </div>
+    <p class="hint">Update / Validate / Repair / Restore need the Owner confirmation phrase and run the isolated updater — the only place SteamCMD executes.</p>
+  </details>
+</main>
+
+<script>
+let STATE = null;
+let selectedMode = null;
+let pending = {};          // edited (unsaved) config for selectedMode
+let busy = false;
+
+// Mode list + order come from the mode manifests (manager/modes/<id>/mode.json)
+// via /api/v3/status, so a new mode needs no change here.
+function modeOrder(data) { return (data && data.mode_order) || Object.keys((data && data.modes) || {}); }
+const CONFIG_FIELDS = ['map', 'capacity', 'max_rounds', 'freezetime', 'friendly_fire', 'bot_quota'];
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    cache: 'no-store', ...options,
+    headers: { ...(options.body ? {'Content-Type': 'application/json'} : {}), ...(options.headers || {}) }
+  });
+  const body = await res.json();
+  if (!res.ok || body.ok === false) throw new Error(body.error || 'Request failed');
+  return body;
+}
+
+function setBusy(b) { busy = b; document.querySelectorAll('[data-action]').forEach(el => el.disabled = b); }
+function show(text, type = 'info') { const e = document.getElementById('message'); e.textContent = text; e.dataset.type = type; }
+function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString() : '—'; }
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function copyText(t) { navigator.clipboard?.writeText(t).then(() => show('Copied ' + t, 'success')).catch(() => {}); }
+function confirmImpact(title, scope, effect) { return window.confirm(`${title}\n\nScope: ${scope}\nEffect: ${effect}\n\nContinue?`); }
+// Capacity range comes from the mode's manifest (settings.capacity), served in mode_meta.
+function capRange(mode) {
+  const meta = (STATE && STATE.mode_meta && STATE.mode_meta[mode]) || {};
+  return { min: (meta.capacity && meta.capacity.min) || 2, max: (meta.capacity && meta.capacity.max) || 10 };
+}
+
+// ------------------------------------------------------------ 1 · Status
+function renderStatus(data) {
+  const active = data.active;
+  const badge = document.getElementById('stateBadge');
+  const st = data.operational_state || 'Stopped';
+  badge.textContent = st;
+  badge.className = 'state-badge ' + (st === 'Ready' ? 'ok' : st === 'Stopped' ? 'off' : 'warn');
+
+  const modeLabel = active ? data.mode_meta[active.mode].label : '—';
+  const ep = data.endpoint || {};
+  const rows = [
+    ['State', st],
+    ['Active mode', modeLabel],
+    ['Endpoint', `${ep.ip}:${ep.port}`],
+    ['RCON', data.rcon_available ? 'configured' : 'not configured'],
+    ['Password', data.password.enabled ? 'enabled' : 'disabled'],
+    ['Last start', fmt(data.timestamps.last_successful_start)],
+  ];
+  document.getElementById('infoGrid').innerHTML = rows.map(([k, v]) =>
+    `<div class="info-cell"><span>${k}</span><strong>${escapeHtml(v)}</strong></div>`).join('');
+
+  const list = document.getElementById('containerList');
+  list.innerHTML = (data.containers || []).map(c => {
+    const cls = c.running ? 'ok' : (c.status === 'not-created' ? 'unk' : 'off');
+    const isActive = active && active.name === c.name;
+    return `<div class="container-row">
+      <span class="dot-${cls}"></span>
+      <strong>${escapeHtml(data.mode_meta[c.mode] ? data.mode_meta[c.mode].label : c.label)}</strong>
+      <span class="muted">${escapeHtml(c.status)}</span>
+      ${isActive ? '<span class="chip mini active-chip">ACTIVE</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+// ----------------------------------------------------------- 2 · Modes
+function renderModes(data) {
+  const active = data.active ? data.active.mode : null;
+  const row = document.getElementById('modeRow');
+  row.innerHTML = modeOrder(data).map(m => {
+    const meta = data.mode_meta[m];
+    const s = data.modes[m] || {};
+    const isActive = active === m;
+    const isSelected = selectedMode === m;
+    return `<button class="mode-card ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}" onclick="selectMode('${m}')">
+        <span class="mode-name">${escapeHtml(meta.label)}${isActive ? ' <span class="chip mini active-chip">ACTIVE</span>' : ''}</span>
+        <small class="mode-impl">${escapeHtml(meta.implementation)}</small>
+        <small class="mode-cap">Capacity ${s.capacity ?? '—'} · Map ${s.map ?? '—'}</small>
+      </button>`;
+  }).join('');
+
+  const hint = document.getElementById('modeSwitchHint');
+  if (active && active !== selectedMode) hint.textContent = `Currently running: ${data.mode_meta[active].label}. Switching disconnects players.`;
+  else if (active === selectedMode) hint.textContent = 'This mode is already running; starting restarts it.';
+  else hint.textContent = '';
+}
+
+function selectMode(m) {
+  selectedMode = m;
+  pending = {};
+  renderModes(STATE);
+  loadSelectedMode();
+}
+
+// --------------------------------------------------------- 3 · Server Config
+function loadSelectedMode() {
+  if (!selectedMode || !STATE) return;
+  const saved = STATE.modes[selectedMode] || {};
+  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = saved[k]);
+  renderConfig();
+  markUnsaved(false);
+}
+
+function resetDefaults() {
+  if (!selectedMode || !STATE) return;
+  const d = (STATE.mode_defaults || {})[selectedMode] || {};
+  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = d[k]);
+  renderConfig(); markUnsaved(true); validateLive(); renderPreview();
+  show('Defaults loaded into the form — not saved yet.', 'info');
+}
+
+function fieldNum(key, label, min, max, hint) {
+  return `<label class="field"><span>${label}</span>
+    <input type="number" min="${min}" max="${max}" step="1" value="${pending[key] ?? ''}"
+      oninput="editField('${key}', this.valueAsNumber)">
+    ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
+}
+function fieldMap() {
+  const opts = (STATE.allowed_maps || []).map(mm =>
+    `<option value="${mm}" ${pending.map === mm ? 'selected' : ''}>${mm}</option>`).join('');
+  return `<label class="field"><span>Map</span><select onchange="editField('map', this.value)">${opts}</select>
+    <small class="field-hint">Applies on next start / restart</small></label>`;
+}
+function fieldBool(key, label) {
+  return `<label class="field switch-label"><input type="checkbox" ${pending[key] ? 'checked' : ''}
+    onchange="editField('${key}', this.checked)"><span>${label}</span></label>`;
+}
+
+function renderConfig() {
+  const meta = STATE.mode_meta[selectedMode];
+  // Modes that own their settings elsewhere hide this card (mode.json server_config).
+  // The form is still rendered so pending/preview state stays consistent when switching modes.
+  document.getElementById('configSection').hidden = meta.server_config === false;
+  document.getElementById('configTitle').textContent = `${meta.label} — ${meta.implementation}`;
+  const cap = capRange(selectedMode);
+  document.getElementById('configForm').innerHTML =
+      fieldMap()
+    + fieldNum('capacity', `Capacity (${cap.min}–${cap.max})`, cap.min, cap.max, 'Slot count — applies on next start')
+    + fieldNum('max_rounds', 'Max rounds', 1, 120)
+    + fieldNum('freezetime', 'Freeze time (s)', 0, 60)
+    + fieldNum('bot_quota', 'Bots', 0, 10)
+    + fieldBool('friendly_fire', 'Friendly fire');
+
+  const note = document.getElementById('configNote');
+  if (selectedMode === 'faceit') {
+    note.hidden = false;
+    note.innerHTML = 'Note: MatchZy governs max rounds, freeze time and friendly fire during a live match — these apply to warmup / non-match play.';
+  } else { note.hidden = true; }
+  renderPreview();
+}
+
+function editField(key, value) { pending[key] = value; markUnsaved(true); validateLive(); renderPreview(); }
+function markUnsaved(u) { document.getElementById('unsavedFlag').hidden = !u; }
+
+function validateLive() {
+  const msg = document.getElementById('validationMsg');
+  let err = '';
+  const c = pending.capacity, cap = capRange(selectedMode);
+  if (!(c >= cap.min && c <= cap.max)) err = `Capacity must be ${cap.min}–${cap.max}.`;
+  else if (!(pending.max_rounds >= 1 && pending.max_rounds <= 120)) err = 'Max rounds must be 1–120.';
+  else if (!(pending.freezetime >= 0 && pending.freezetime <= 60)) err = 'Freeze time must be 0–60s.';
+  else if (!(pending.bot_quota >= 0 && pending.bot_quota <= 10)) err = 'Bots must be 0–10.';
+  msg.textContent = err; msg.dataset.type = err ? 'error' : 'info';
+  return !err;
+}
+
+const APPLY_LABELS = { hot: 'Live (no restart)', map_reload: 'Map reload', game_restart: 'Next start' };
+function renderPreview() {
+  const block = document.getElementById('changePreview');
+  const body = document.getElementById('previewBody');
+  const saved = (STATE.modes && STATE.modes[selectedMode]) || {};
+  const levels = STATE.apply_levels || {};
+  const rows = [];
+  CONFIG_FIELDS.forEach(k => {
+    if (JSON.stringify(pending[k]) === JSON.stringify(saved[k])) return;
+    const level = levels[k] || 'hot';
+    rows.push(`<tr>
+      <td class="pf">${escapeHtml(k)}</td>
+      <td class="po">${escapeHtml(saved[k] ?? '—')}</td>
+      <td class="pa">→ ${escapeHtml(pending[k] ?? '—')}</td>
+      <td class="pl level-${level}">${APPLY_LABELS[level]}</td></tr>`);
+  });
+  if (!rows.length) { block.hidden = true; body.innerHTML = ''; return; }
+  block.hidden = false; body.innerHTML = rows.join('');
+}
+
+async function saveSettings() {
+  await api(`/api/v3/modes/${selectedMode}/settings`, { method: 'PUT', body: JSON.stringify(pending) });
+}
+async function saveAndApply() {
+  if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
+  setBusy(true);
+  try {
+    await saveSettings();
+    const r = await api(`/api/v3/modes/${selectedMode}/apply`, { method: 'POST' });
+    show(r.applied_hot ? (r.map_reloaded ? 'Applied live; map reloaded.' : 'Applied live.')
+                       : 'Saved. Applies when this mode starts.', 'success');
+    markUnsaved(false); setTimeout(refresh, 500);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+async function applyAndRestart() {
+  if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
+  if (!confirmImpact('Save settings and restart the container?',
+      `${STATE.mode_meta[selectedMode].label} game container`,
+      'Connected players are disconnected. The panel stays online; SteamCMD does not run.')) return;
+  setBusy(true);
+  try {
+    await saveSettings();
+    await api(`/api/v3/modes/${selectedMode}/start`, { method: 'POST' });
+    show('Saved and restarted.', 'success'); markUnsaved(false);
+    setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+async function startSelected() {
+  const active = STATE && STATE.active;
+  if (active && active.mode !== selectedMode && !confirmImpact(
+      `Start ${STATE.mode_meta[selectedMode].label}?`, 'Game containers',
+      `Stops ${STATE.mode_meta[active.mode].label} (disconnecting its players), then starts ${STATE.mode_meta[selectedMode].label}.`)) return;
+  setBusy(true);
+  try {
+    await saveSettings();
+    await api('/api/v3/modes/switch', { method: 'POST', body: JSON.stringify({ mode: selectedMode }) });
+    show(`Switched to ${STATE.mode_meta[selectedMode].label}.`, 'success');
+    setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+
+// --------------------------------------------------------------- Password
+async function togglePassword() {
+  const enabled = document.getElementById('pwEnabled').checked;
+  try {
+    if (enabled) await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'enable' }) });
+    else await api('/api/v3/server/password/disable', { method: 'POST' });
+    show('Password ' + (enabled ? 'enabled' : 'disabled') + '.', 'success'); refresh();
+  } catch (e) { show(e.message, 'error'); refresh(); }
+}
+async function setPassword() {
+  const v = document.getElementById('pwValue').value;
+  if (!v) { show('Enter a password.', 'error'); return; }
+  try { await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'set', password: v }) });
+    document.getElementById('pwValue').value = ''; show('Password set.', 'success'); refresh(); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function generatePassword() {
+  try { await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'generate' }) });
+    show('Password generated and enabled.', 'success'); refresh(); }
+  catch (e) { show(e.message, 'error'); }
+}
+
+// --------------------------------------------------------- Server controls
+async function startServer() {
+  const mode = selectedMode || (STATE && STATE.server.last_mode);
+  if (!mode) { show('Select a game mode first.', 'error'); return; }
+  const active = STATE && STATE.active;
+  if (active && active.mode !== mode && !confirmImpact(
+      `Switch to ${STATE.mode_meta[mode].label}?`, 'Game containers',
+      `Stops ${STATE.mode_meta[active.mode].label}, disconnects its players, and starts ${STATE.mode_meta[mode].label}.`)) return;
+  setBusy(true);
+  try {
+    await api('/api/v3/server/start', { method: 'POST', body: JSON.stringify({ mode }) });
+    show(`${STATE.mode_meta[mode].label} is starting.`, 'success'); setTimeout(refresh, 800);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+async function stopGameServer() {
+  if (!STATE || !STATE.active) { show('No game server is running.', 'error'); return; }
+  if (!confirmImpact('Stop the game server?', `${STATE.active.name} (entire CS2 container)`,
+      'All connected players are disconnected. The panel stays online.')) return;
+  setBusy(true);
+  try {
+    await api('/api/v3/server/stop', { method: 'POST' });
+    show('Game container stopped. The panel is still running.', 'warn');
+    setTimeout(refresh, 500); setTimeout(() => loadLogs(true), 800);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+async function restartGameContainer() {
+  if (!STATE || !STATE.active) { show('No game server is running.', 'error'); return; }
+  if (!confirmImpact('Restart the game container?', `${STATE.active.name} (entire CS2 container)`,
+      'All connected players are disconnected. Runtime settings are reapplied; SteamCMD does not run.')) return;
+  setBusy(true);
+  try {
+    await api('/api/v3/server/restart', { method: 'POST' });
+    show('Game container restarting; players were disconnected.', 'warn');
+    setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+
+// ---------------------------------------------------------------- Players
+async function loadPlayers() {
+  try {
+    const d = await api('/api/v3/players');
+    const body = document.getElementById('playersBody');
+    document.getElementById('playerCount').textContent = d.players.length;
+    if (!d.active) { body.innerHTML = '<tr><td colspan="4" class="muted">No active server.</td></tr>'; return; }
+    if (!d.players.length) {
+      const note = d.note ? ` (${d.note})` : '';
+      body.innerHTML = `<tr><td colspan="4" class="muted">No players connected${note}.</td></tr>`; return;
+    }
+    body.innerHTML = d.players.map(p => {
+      const s64 = p.steamid64 || null;
+      const ident = encodeURIComponent(s64 || String(p.userid));
+      const nameCell = `${escapeHtml(p.name || '(unnamed)')}${p.bot ? ' <span class="chip mini">BOT</span>' : ''}`
+        + (s64 ? `<br><span class="mono copyable" title="Copy SteamID64" onclick="copyText('${s64}')">${s64}</span>` : '');
+      return `<tr>
+        <td>${nameCell}</td>
+        <td>${p.team_label || '—'}</td>
+        <td>${p.ping ?? '—'}</td>
+        <td class="actions-cell">
+          <button class="btn small danger" title="Disconnect now; may reconnect." onclick="kickPlayer('${ident}', ${p.userid})">Kick</button>
+          <button class="btn small danger" title="Ban and disconnect." onclick="banPlayer('${ident}', ${p.userid})">Ban</button>
+        </td></tr>`;
+    }).join('');
+  } catch (e) { /* keep last render */ }
+}
+async function kickPlayer(ident, userid) {
+  if (!confirmImpact(`Kick userid ${userid}?`, 'One connected player',
+      'Disconnects the player now. They can reconnect (no ban).')) return;
+  try { await api(`/api/v3/players/${ident}/kick`, { method: 'POST', body: JSON.stringify({ userid }) });
+    show('Player kicked.', 'success'); setTimeout(loadPlayers, 600); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function banPlayer(ident, userid) {
+  const input = prompt(`Ban and disconnect userid ${userid}.\n0 = permanent.\n\nDuration in minutes:`, '0');
+  if (input === null) return;
+  const minutes = Number(input);
+  if (!Number.isFinite(minutes) || minutes < 0) { show('Invalid duration.', 'error'); return; }
+  try { await api(`/api/v3/players/${ident}/ban`, { method: 'POST', body: JSON.stringify({ userid, minutes }) });
+    show(minutes === 0 ? 'Player permanently banned.' : `Player banned for ${minutes} min.`, 'success');
+    setTimeout(loadPlayers, 600); }
+  catch (e) { show(e.message, 'error'); }
+}
+
+// ------------------------------------------------------------ Mode commands
+function renderModeCommands(data) {
+  const box = document.getElementById('modeCommands');
+  const chip = document.getElementById('cmdTarget');
+  const active = data.active;
+  if (!active) {
+    chip.textContent = 'no active server';
+    box.innerHTML = '<span class="muted">Start a mode to see its commands.</span>';
+    return;
+  }
+  chip.textContent = data.mode_meta[active.mode].label;
+  const actions = (data.mode_meta[active.mode] || {}).actions || [];
+  box.innerHTML = actions.map(a =>
+    `<button class="cmd-btn ${a.confirm ? 'warn' : ''}" title="${escapeHtml(a.description)}"
+       onclick="injectCommand('${escapeHtml(a.cmd)}')">
+       <span class="cmd-label">${escapeHtml(a.label)}</span>
+       <code>${escapeHtml(a.cmd)}</code>
+     </button>`).join('') || '<span class="muted">No commands for this mode.</span>';
+}
+function injectCommand(cmd) {
+  const input = document.getElementById('consoleInput');
+  input.value = cmd; input.focus();
+  show('Command loaded into the console — review, then Send.', 'info');
+}
+
+// ---------------------------------------------------------------- Console
+async function sendConsole() {
+  const input = document.getElementById('consoleInput');
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  appendConsole('> ' + cmd, 'cmd');
+  try {
+    const d = await api('/api/v3/console/command', { method: 'POST', body: JSON.stringify({ command: cmd }) });
+    if (d.output) appendConsole(d.output, 'out');
+    input.value = '';
+  } catch (e) { appendConsole(e.message, 'err'); }
+}
+function appendConsole(text, cls) {
+  const h = document.getElementById('consoleHistory');
+  const line = document.createElement('div');
+  line.className = 'cline ' + cls; line.textContent = text;
+  h.appendChild(line); h.scrollTop = h.scrollHeight;
+}
+document.getElementById('consoleInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendConsole(); } });
+
+// ------------------------------------------------------------------- Logs
+async function loadLogSources() {
+  try {
+    const d = await api('/api/v3/logs/sources');
+    document.getElementById('logSource').innerHTML = d.sources.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+  } catch (e) {}
+}
+async function loadLogs(force = false) {
+  if (document.getElementById('pauseLogs').checked && !force) return;
+  const source = document.getElementById('logSource').value || 'game';
+  try {
+    const d = await api(`/api/v3/logs/stream?source=${encodeURIComponent(source)}&tail=400`);
+    const el = document.getElementById('logs');
+    el.textContent = d.logs || '(empty)';
+    if (document.getElementById('followLogs').checked) el.scrollTop = el.scrollHeight;
+  } catch (e) { document.getElementById('logs').textContent = e.message; }
+}
+
+// ----------------------------------------------------------- Plugin health
+async function loadHealth() {
+  const box = document.getElementById('pluginHealth');
+  if (!STATE || !STATE.active) { box.innerHTML = '<span class="muted">Server stopped.</span>'; return; }
+  try {
+    const h = await api('/api/v3/health');
+    const c = h.checks || {};
+    const chip = (label, ok) => `<span class="hchip ${ok ? 'ok' : (ok === false ? 'bad' : 'unk')}">${label}</span>`;
+    const chips = [chip('Metamod', c.metamod), chip('CounterStrikeSharp', c.counterstrikesharp)];
+    Object.entries(c.required_plugins || {}).forEach(([k, v]) => chips.push(chip(k, v)));
+    chips.push(chip('RCON', c.rcon));
+    if (c.map) chips.push(`<span class="hchip info">map: ${escapeHtml(c.map)}</span>`);
+    box.innerHTML = chips.join('');
+  } catch (e) { box.innerHTML = `<span class="muted">${escapeHtml(e.message)}</span>`; }
+}
+
+// ------------------------------------------------------------- Maintenance
+let selectedJob = null, jobPollTimer = null;
+const CONFIRM_PHRASE = 'UPDATE CS2';
+
+async function verifyMounts() {
+  const box = document.getElementById('mountResult');
+  box.innerHTML = '<span class="muted">Checking…</span>';
+  try {
+    const d = await api('/api/v3/maintenance/verify-mounts');
+    box.innerHTML = Object.entries(d.checks).map(([k, v]) =>
+      `<span class="hchip ${v === true ? 'ok' : (v === false ? 'bad' : 'unk')}">${escapeHtml(k)}</span>`).join('');
+    show(d.all_present ? 'All mounts present.' : 'Some mounts missing — see chips.', d.all_present ? 'success' : 'warn');
+  } catch (e) { box.innerHTML = `<span class="hchip bad">${escapeHtml(e.message)}</span>`; }
+}
+async function startBackup() {
+  try { const d = await api('/api/v3/maintenance/backup', { method: 'POST' }); watchJob(d.job.id); show('Backup started.', 'success'); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function repairMetamod() {
+  if (!confirm('Repair Metamod? Stops the game, backs up, repairs gameinfo.gi, then restarts the current mode.')) return;
+  try { const d = await api('/api/v3/maintenance/repair-metamod', { method: 'POST' }); watchJob(d.job.id); show('Metamod repair started.', 'success'); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function runUpdate(mode) {
+  const verb = mode === 'update' ? 'update CS2 via SteamCMD' : 'validate game files';
+  const phrase = prompt(`This will ${verb}. It stops the server and runs SteamCMD.\nType the confirmation phrase to proceed:`, '');
+  if (phrase === null) return;
+  if (phrase !== CONFIRM_PHRASE) { show(`Confirmation must be exactly "${CONFIRM_PHRASE}".`, 'error'); return; }
+  try { const d = await api(`/api/v3/maintenance/${mode}`, { method: 'POST', body: JSON.stringify({ confirm: phrase }) });
+    watchJob(d.job.id); show(`${mode} started.`, 'success'); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function restartPanel() {
+  if (!confirm('Restart the panel? The game server keeps running; reconnect in a few seconds.')) return;
+  try { await api('/api/v3/panel/restart', { method: 'POST' }); show('Panel restarting — reconnect shortly.', 'warn'); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function rebuildPanel() {
+  if (!confirm('Rebuild the panel image from source, health-check it, and recreate the panel? The game server is untouched.')) return;
+  try { const d = await api('/api/v3/panel/rebuild', { method: 'POST' }); watchJob(d.job.id); show('Panel rebuild started.', 'success'); }
+  catch (e) { show(e.message, 'error'); }
+}
+async function loadJobs() {
+  try {
+    const d = await api('/api/v3/maintenance/jobs');
+    const list = document.getElementById('jobsList');
+    if (!d.jobs.length) { list.innerHTML = '<span class="muted">No jobs yet.</span>'; return; }
+    list.innerHTML = d.jobs.map(j => `
+      <button class="job-row ${j.id === selectedJob ? 'sel' : ''} st-${j.status}" onclick="openJob('${j.id}')">
+        <span class="job-type">${escapeHtml(j.type)}</span>
+        <span class="job-status">${j.status}${j.percent && j.status === 'Running' ? ' ' + j.percent + '%' : ''}</span>
+      </button>`).join('');
+  } catch (e) {}
+}
+async function openJob(id) {
+  selectedJob = id; loadJobs();
+  try {
+    const d = await api(`/api/v3/maintenance/jobs/${id}`);
+    const j = d.job;
+    document.getElementById('jobLogTitle').textContent = `${j.type} · ${j.status}${j.step ? ' · ' + j.step : ''}`;
+    const el = document.getElementById('jobLog');
+    el.textContent = (j.log || []).join('\n') + (j.error ? `\n\nERROR: ${j.error}` : '') + (j.rollback_status ? `\nROLLBACK: ${j.rollback_status}` : '');
+    el.scrollTop = el.scrollHeight;
+    if (j.status === 'Running' || j.status === 'Queued') { clearTimeout(jobPollTimer); jobPollTimer = setTimeout(() => openJob(id), 2000); }
+    else { loadJobs(); }
+  } catch (e) {}
+}
+function watchJob(id) { openJob(id); }
+
+// ------------------------------------------------------------------ Refresh
+async function refresh() {
+  try {
+    const data = await api('/api/v3/status');
+    STATE = data;
+    if (!selectedMode) selectedMode = (data.active && data.active.mode) || data.server.last_mode || 'faceit';
+    renderStatus(data);
+    renderModes(data);
+    renderModeCommands(data);
+    if (!Object.keys(pending).length) loadSelectedMode();
+    else renderPreview();
+    document.getElementById('pwEnabled').checked = data.password.enabled;
+    const active = data.active;
+    document.getElementById('consoleTarget').textContent = active ? data.mode_meta[active.mode].label : 'no active server';
+    document.getElementById('consoleInput').disabled = !active;
+    document.getElementById('consoleSend').disabled = !active;
+  } catch (e) { show(e.message, 'error'); }
+}
+
+(async function init() {
+  await loadLogSources();
+  await refresh();
+  loadLogs(true);
+  loadPlayers();
+  loadHealth();
+  loadJobs();
+  setInterval(refresh, 4000);
+  setInterval(() => loadLogs(false), 3000);
+  setInterval(loadPlayers, 5000);
+  setInterval(loadHealth, 6000);
+  setInterval(loadJobs, 5000);
+})();
+</script>
+</body>
+</html>

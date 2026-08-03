@@ -1,0 +1,368 @@
+name: cs2-server
+
+# =============================================================================
+# CS2 Manager V3 — Runtime / Updater separation (Improvment.md section 16)
+#
+#  * All game services use the custom runtime image (./manager/runtime) whose launcher
+#    NEVER runs SteamCMD. Normal start / restart / mode-switch cannot update CS2.
+#  * The base image is pinned by digest via CS2_BASE_IMAGE (see .env).
+#  * SteamCMD lives ONLY in cs2-updater, which is in the "maintenance" profile
+#    so a plain `docker compose up` never starts it, and it publishes no ports.
+#  * Exactly one game service is meant to run at a time (enforced by the panel).
+# =============================================================================
+
+x-cs2-runtime: &cs2-runtime
+  build:
+    context: ./manager/runtime
+    args:
+      CS2_BASE_IMAGE: ${CS2_BASE_IMAGE:-joedwards32/cs2@sha256:962cc781eec63a3b28287724b7940ef141fcccf7f0cb0318287c2ac3544ed383}
+  image: cs2-manager-runtime:pinned
+  restart: "no"
+  stdin_open: true
+  tty: true
+
+  environment: &cs2-env
+    SRCDS_TOKEN: ${SRCDS_TOKEN}
+    DEBUG: "0"
+
+    CS2_SERVERNAME: ${CS2_SERVERNAME}
+    CS2_CHEATS: "0"
+    CS2_PORT: ${CS2_PORT:-27015}
+    CS2_SERVER_HIBERNATE: "0"
+    CS2_LAN: "0"
+
+    CS2_RCONPW: ${CS2_RCON_PASSWORD}
+    # Server password is owned by the panel and applied via panel_runtime.cfg
+    # (sv_password). It is intentionally NOT baked into the launch args here so
+    # the panel is the single source of truth (Improvment.md section 12).
+
+    CS2_MAPGROUP: mg_active
+    CS2_STARTMAP: ${CS2_STARTMAP:-de_dust2}
+    CS2_BOT_QUOTA: "0"
+    CS2_LOG: "on"
+
+    TV_ENABLE: "0"
+
+  ports:
+    - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
+    - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/udp"
+
+services:
+  # ------------------------------------------------------------------ FaceIt
+  # User-facing "FaceIt", powered by MatchZy.
+  cs2-faceit:
+    <<: *cs2-runtime
+    container_name: cs2-faceit
+
+    environment:
+      <<: *cs2-env
+      CS2_SERVERNAME: "${CS2_SERVERNAME} Faceit Server"
+      CS2_GAMEALIAS: competitive
+      CS2_MAXPLAYERS: ${FACEIT_CAPACITY:-10}
+      CS2_ADDITIONAL_ARGS: "+exec mode_faceit.cfg +exec panel_runtime.cfg"
+
+    volumes:
+      - type: bind
+        source: ${CS2_DATA_PATH}
+        target: /home/steam/cs2-dedicated
+
+      - type: bind
+        source: ./manager/modes/faceit/cfg/mode_faceit.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_faceit.cfg
+
+      - type: bind
+        source: ./manager/modes/faceit/cfg/panel_runtime.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/panel_runtime.cfg
+
+      - type: bind
+        source: ./manager/shared/plugins/PanelBridge
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/PanelBridge
+
+      - type: bind
+        source: ./manager/modes/faceit/cfg/MatchZy
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/MatchZy
+
+      - type: bind
+        source: ./manager/modes/faceit/plugins/MatchZy
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/MatchZy
+
+      - type: bind
+        source: ./manager/modes/faceit/utils/AutoReady
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/AutoReady
+
+  # ------------------------------------------------------------------- Retake
+  # User-facing "Retake", powered by the Retakes plugin + Instadefuse.
+  # RetakesPlugin owns weapon allocation itself (EnableFallbackAllocation true);
+  # no allocator plugin is installed. Isolated: no MatchZy, AutoReady, HeroShift,
+  # RayTrace or GG2.
+  cs2-retakes:
+    <<: *cs2-runtime
+    container_name: cs2-retakes
+
+    environment:
+      <<: *cs2-env
+      CS2_SERVERNAME: "${CS2_SERVERNAME} Retake Server"
+      CS2_GAMEALIAS: competitive
+      CS2_MAXPLAYERS: ${RETAKE_CAPACITY:-7}
+      CS2_ADDITIONAL_ARGS: "+exec mode_retake.cfg +exec panel_runtime.cfg"
+
+    volumes:
+      - type: bind
+        source: ${CS2_DATA_PATH}
+        target: /home/steam/cs2-dedicated
+
+      - type: bind
+        source: ./manager/modes/retake/cfg/mode_retake.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_retake.cfg
+
+      - type: bind
+        source: ./manager/modes/retake/cfg/panel_runtime.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/panel_runtime.cfg
+
+      - type: bind
+        source: ./manager/shared/plugins/PanelBridge
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/PanelBridge
+
+      - type: bind
+        source: ./manager/modes/retake/plugins/RetakesPlugin
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/RetakesPlugin
+
+      - type: bind
+        source: ./manager/modes/retake/utils/RetakesPluginShared
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/shared/RetakesPluginShared
+
+      - type: bind
+        source: ./manager/modes/retake/utils/InstadefusePlugin
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/InstadefusePlugin
+
+      # RetakesPlugin config, mounted over its auto-generated copy so the panel
+      # owns it. EnableFallbackAllocation stays true: RetakesPlugin allocates
+      # weapons itself, as no allocator plugin is installed in this mode.
+      - type: bind
+        source: ./manager/modes/retake/config/RetakesPlugin.json
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/configs/plugins/RetakesPlugin/RetakesPlugin.json
+
+  # -------------------------------------------------------------- Superheroes
+  # User-facing "Superheroes", powered by the HeroShift plugin (Juzlus stock
+  # release). Isolated mode: mounts ONLY superheroes-specific config + HeroShift
+  # + its RayTrace dependency. Deliberately does NOT mount MatchZy, AutoReady,
+  # Retakes or Instadefuse. Uses the shared no-SteamCMD runtime image like every
+  # other mode (normal start never updates).
+  # RayTrace (native Metamod module + RayTraceImpl/RayTraceApi) is built from
+  # Juzlus/Ray-Trace and staged under modes/superheroes/utils/RayTrace/addons.
+  cs2-superheroes:
+    <<: *cs2-runtime
+    container_name: cs2-superheroes
+
+    environment:
+      <<: *cs2-env
+      CS2_SERVERNAME: "${CS2_SERVERNAME} SuperHero Server"
+      CS2_GAMEALIAS: competitive
+      CS2_MAXPLAYERS: ${SUPERHEROES_CAPACITY:-10}
+      CS2_ADDITIONAL_ARGS: "+exec mode_superheroes.cfg +exec panel_runtime.cfg"
+
+    volumes:
+      - type: bind
+        source: ${CS2_DATA_PATH}
+        target: /home/steam/cs2-dedicated
+
+      - type: bind
+        source: ./manager/modes/superheroes/cfg/mode_superheroes.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_superheroes.cfg
+
+      - type: bind
+        source: ./manager/modes/superheroes/cfg/panel_runtime.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/panel_runtime.cfg
+
+      - type: bind
+        source: ./manager/shared/plugins/PanelBridge
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/PanelBridge
+
+      # HeroShift plugin (stock Juzlus release, DLLs + languages + packages).
+      - type: bind
+        source: ./manager/modes/superheroes/plugins/HeroShift
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/HeroShift
+
+      # HeroShift gamedata (signatures) — required alongside the plugin.
+      - type: bind
+        source: ./manager/modes/superheroes/gamedata/HeroShift.gamedata.json
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/gamedata/HeroShift.gamedata.json
+
+      # Editable skill roster + plugin config, mounted on top of the shipped
+      # defaults (single source of truth the panel edits).
+      - type: bind
+        source: ./manager/modes/superheroes/config/skillsInfo.json
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/HeroShift/configs/skillsInfo.json
+      - type: bind
+        source: ./manager/modes/superheroes/config/config.json
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/HeroShift/configs/config.json
+
+      # RayTrace dependency — native Metamod module + CSS impl/shared API.
+      # Mounted ONLY here so other modes stay free of it (isolation preserved).
+      - type: bind
+        source: ./manager/modes/superheroes/utils/RayTrace/addons/metamod/RayTrace.vdf
+        target: /home/steam/cs2-dedicated/game/csgo/addons/metamod/RayTrace.vdf
+      - type: bind
+        source: ./manager/modes/superheroes/utils/RayTrace/addons/RayTrace
+        target: /home/steam/cs2-dedicated/game/csgo/addons/RayTrace
+      # This CS2 image's engine returns an empty GetGameDir() at Metamod load,
+      # so RayTrace's native module resolves its gamedata to the absolute path
+      # /addons/RayTrace/gamedata.json. Satisfy exactly that path (libs are found
+      # in-memory by name, so only gamedata needs this).
+      - type: bind
+        source: ./manager/modes/superheroes/utils/RayTrace/addons/RayTrace/gamedata.json
+        target: /addons/RayTrace/gamedata.json
+      - type: bind
+        source: ./manager/modes/superheroes/utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/RayTraceImpl
+      - type: bind
+        source: ./manager/modes/superheroes/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/shared/RayTraceApi
+
+  # ----------------------------------------------------------------- GunGame
+  # User-facing "GunGame", powered by the GG2 plugin (ssypchenko/cs2-gungame
+  # v1.2.4) plus its GunGameAPI shared library. Isolated mode: mounts ONLY the
+  # gungame profile config + GG2. Deliberately does NOT mount MatchZy, AutoReady,
+  # Retakes, Instadefuse, HeroShift or RayTrace. Uses the shared no-SteamCMD
+  # runtime image like every other mode (normal start never updates).
+  # GG2's FAQ requires game_type 0 / game_mode 0, so this mode runs Casual.
+  cs2-gungame:
+    <<: *cs2-runtime
+    container_name: cs2-gungame
+
+    environment:
+      <<: *cs2-env
+      CS2_SERVERNAME: "${CS2_SERVERNAME} GunGame Server"
+      CS2_GAMEALIAS: casual
+      CS2_MAXPLAYERS: ${GUNGAME_CAPACITY:-10}
+      CS2_ADDITIONAL_ARGS: "+exec mode_gungame.cfg +exec panel_runtime.cfg"
+
+    volumes:
+      - type: bind
+        source: ${CS2_DATA_PATH}
+        target: /home/steam/cs2-dedicated
+
+      - type: bind
+        source: ./manager/modes/gungame/cfg/mode_gungame.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/mode_gungame.cfg
+
+      - type: bind
+        source: ./manager/modes/gungame/cfg/panel_runtime.cfg
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/panel_runtime.cfg
+
+      - type: bind
+        source: ./manager/shared/plugins/PanelBridge
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/PanelBridge
+
+      # GG2 plugin (stock release: DLLs + languages).
+      - type: bind
+        source: ./manager/modes/gungame/plugins/GG2
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/plugins/GG2
+
+      # GunGameAPI shared library — required alongside the plugin.
+      - type: bind
+        source: ./manager/modes/gungame/utils/GunGameAPI
+        target: /home/steam/cs2-dedicated/game/csgo/addons/counterstrikesharp/shared/GunGameAPI
+
+      # GG2 reads all of its settings from csgo/cfg/gungame (gungame.json,
+      # weapons.json, gungame_weapons.json + the .cfg hooks it execs). Editable on
+      # the host; reload in-game with "gg_config gungame".
+      - type: bind
+        source: ./manager/modes/gungame/cfg/gungame
+        target: /home/steam/cs2-dedicated/game/csgo/cfg/gungame
+
+  # ------------------------------------------------------------------ Updater
+  # The ONLY service that runs SteamCMD. Stopped by default (maintenance profile),
+  # no published ports, requires CS2_UPDATER_CONFIRM="UPDATE CS2" to actually run.
+  cs2-updater:
+    build:
+      context: ./manager/updater
+      args:
+        CS2_BASE_IMAGE: ${CS2_BASE_IMAGE:-joedwards32/cs2@sha256:41b826d6280d1aa9e41c866a6d88cc7f523e027f16c47a313b20c2d7a17f2680}
+    image: cs2-manager-updater:pinned
+    container_name: cs2-updater
+    restart: "no"
+    profiles: ["maintenance"]
+
+    environment:
+      CS2_UPDATER_MODE: ${CS2_UPDATER_MODE:-update}
+      CS2_UPDATER_CONFIRM: ${CS2_UPDATER_CONFIRM:-}
+
+    volumes:
+      - type: bind
+        source: ${CS2_DATA_PATH}
+        target: /home/steam/cs2-dedicated
+
+  # ------------------------------------------------------------- Mod installer
+  # Fresh-bootstrap helper: fetches Metamod:Source + CounterStrikeSharp into the
+  # persistent install after cs2-updater has delivered the base game. Never runs
+  # SteamCMD and never launches the game. Maintenance profile, no ports, stopped
+  # by default. Uses the runtime image purely for its matching user/paths and its
+  # curl / tar / unzip / python3 tooling.
+  cs2-modinstaller:
+    build:
+      context: ./manager/runtime
+      args:
+        CS2_BASE_IMAGE: ${CS2_BASE_IMAGE:-joedwards32/cs2@sha256:41b826d6280d1aa9e41c866a6d88cc7f523e027f16c47a313b20c2d7a17f2680}
+    image: cs2-manager-runtime:pinned
+    container_name: cs2-modinstaller
+    restart: "no"
+    profiles: ["maintenance"]
+
+    # Replaces the runtime launcher: this container installs addons, never plays.
+    entrypoint: ["bash", "/project/manager/scripts/install-mods-linux.sh"]
+
+    environment:
+      # Set so the script needs no .env inside the container.
+      CS2_DATA_DIR: /home/steam/cs2-dedicated
+
+    volumes:
+      - type: bind
+        source: ${CS2_DATA_PATH}
+        target: /home/steam/cs2-dedicated
+      # Script + mode trees. rw so an explicit --with-mode-plugins run can write.
+      - type: bind
+        source: ./manager
+        target: /project/manager
+
+  # -------------------------------------------------------------------- Panel
+  panel:
+    build: ./manager/panel
+    container_name: cs2-panel
+    restart: unless-stopped
+
+    environment:
+      PANEL_USERNAME: ${PANEL_USERNAME}
+      PANEL_PASSWORD: ${PANEL_PASSWORD}
+      CS2_RCON_PASSWORD: ${CS2_RCON_PASSWORD}
+      CS2_PASSWORD: ${CS2_PASSWORD:-}
+      CS2_SERVERNAME: ${CS2_SERVERNAME}
+      CS2_PORT: ${CS2_PORT:-27015}
+      CS2_ALLOWED_MAPS: ${CS2_ALLOWED_MAPS:-de_ancient,de_anubis,de_dust2,de_inferno,de_mirage,de_nuke,de_overpass,de_train,de_vertigo}
+      PANEL_DATA_DIR: /data
+      PANEL_MODES_DIR: /modes
+      PANEL_PROJECT_DIR: /project
+      PANEL_SERVER_DIR: /server
+      RCON_APPLY_TIMEOUT: "90"
+      LOG_TAIL_DEFAULT: "300"
+      # Maintenance orchestration (Phase 3). CS2_DATA_PATH / MANAGER_PATH are HOST
+      # paths used when the panel launches the updater/applier containers.
+      CS2_DATA_PATH: ${CS2_DATA_PATH}
+      MANAGER_PATH: ${MANAGER_PATH:-}
+      UPDATER_IMAGE: cs2-manager-updater:pinned
+      COMPOSE_PROJECT: cs2-server
+
+    ports:
+      - "${PANEL_BIND:-127.0.0.1}:${PANEL_PORT:-8080}:8080"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Absolute host paths (not ./) so mounts resolve correctly even when the
+      # rebuild applier runs `compose up` from inside a container (where ./ would
+      # resolve to the applier's /work, not the real host project).
+      - ${MANAGER_PATH}/data:/data
+      - ${MANAGER_PATH}/modes:/modes
+      # Whole project (rw) for backups + panel rebuild; server install (ro) for
+      # gameinfo inspection/backup. Metamod repair itself runs in the updater.
+      - ${MANAGER_PATH}:/project
+      - ${CS2_DATA_PATH}:/server:ro
