@@ -42,6 +42,11 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- `.env.example`'s `CS2_DATA_PATH` and `MANAGER_PATH` now default to `./server` and
+  `./manager` (relative to the project root) instead of an external static host path
+  (`C:/Development/CS2/Server` / `C:/Development/CS2/Manager`), matching the repo's
+  actual layout described in the README's Project Structure section.
+
 - The panel's `3 · SERVER CONFIG` card is now per-mode, driven by a new optional
   `server_config` boolean in `mode.json` (defaults to `true`, so FaceIt, GunGame and
   Retake are unaffected). `manager/modes/superheroes/mode.json` sets it to `false`,
