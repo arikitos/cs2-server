@@ -1,7 +1,7 @@
 {
   "map": "de_dust2",
   "capacity": 9,
-  "max_rounds": 30,
+  "max_rounds": 24,
   "freezetime": 5,
   "bot_quota": 0,
   "friendly_fire": false
