@@ -19,10 +19,8 @@
   <!-- ============================ 1 · STATUS ============================ -->
   <section class="panel-card">
     <div class="section-heading compact">
-      <p class="eyebrow">1 · STATUS</p>
+      <p class="eyebrow">STATUS</p>
       <div class="control-row">
-        <button class="btn small primary" data-action onclick="startServer()">Start</button>
-        <button class="btn small danger" data-action onclick="stopGameServer()">Stop</button>
         <button class="btn small danger" data-action onclick="restartGameContainer()">Restart</button>
         <button class="btn small ghost" onclick="refresh(); loadLogs(true)">Refresh</button>
       </div>
@@ -41,44 +39,56 @@
     <p id="message" class="message" aria-live="polite"></p>
   </section>
 
-  <!-- ========================= 2 · GAME MODE =========================== -->
+  <!-- ========================== 2 · LOBBY SETUP ========================= -->
   <section class="panel-card">
-    <p class="eyebrow">2 · GAME MODE</p>
-    <p class="section-help">The active mode is marked. Click a mode to edit its config below; use “Start / switch” to run it.</p>
-    <div class="mode-row" id="modeRow"><!-- mode cards filled by JS --></div>
-    <div class="control-row" style="margin-top:12px">
-      <button class="btn primary" data-action onclick="startSelected()">Start / switch to selected mode</button>
-      <span id="modeSwitchHint" class="hint" style="margin:0;align-self:center"></span>
-    </div>
-  </section>
-
-  <!-- ======================= 3 · SERVER CONFIG ========================= -->
-  <section class="panel-card" id="configSection">
     <div class="section-heading">
       <div>
-        <p class="eyebrow">3 · SERVER CONFIG</p>
-        <h2 id="configTitle">—</h2>
+        <p class="eyebrow">LOBBY SETUP</p>
+        <h2 id="setupTitle">—</h2>
       </div>
       <span id="unsavedFlag" class="chip" hidden>Unsaved changes</span>
     </div>
-    <p class="section-help">Server settings for the selected mode. Defaults match each mode’s official cfg (HeroShift = Competitive). Friendly fire is off by default.</p>
 
-    <div id="configForm" class="workspace"><!-- 7 fields filled by JS --></div>
-    <p id="configNote" class="hint" hidden></p>
-    <p id="validationMsg" class="validation" aria-live="polite"></p>
+    <div class="setup-block">
+      <p class="block-label">GAME MODE</p>
+      <div class="seg seg-lg" id="modeRow"></div>
+    </div>
 
-    <div class="pw-block">
-      <p class="mini-label">SERVER PASSWORD</p>
-      <label class="switch-label">
-        <input type="checkbox" id="pwEnabled" title="Enable or disable the join password live; no container restart." onchange="togglePassword()">
-        <span>Password enabled (off by default)</span>
-      </label>
-      <div class="pw-row">
-        <input type="password" id="pwValue" placeholder="Set / change password" autocomplete="off">
-        <button class="btn small" onclick="setPassword()">Set &amp; enable</button>
-        <button class="btn small ghost" onclick="generatePassword()">Generate &amp; enable</button>
+    <div class="setup-block">
+      <p class="block-label">MATCH FORMAT <span id="formatHint" class="block-note"></span></p>
+      <div class="seg seg-lg" id="formatRow"></div>
+    </div>
+
+    <div class="setup-block" id="commonBlock">
+      <p class="block-label">COMMON CONFIGURATION</p>
+      <div id="commonForm" class="settings-grid"></div>
+      <p id="configNote" class="hint" hidden></p>
+      <p id="validationMsg" class="validation" aria-live="polite"></p>
+    </div>
+
+    <div class="setup-block">
+      <p class="block-label">LOBBY VISIBILITY</p>
+      <div class="seg" id="visibilityRow"></div>
+      <div class="pw-row" id="pwRow">
+        <input type="password" id="pwValue" placeholder="Lobby password" autocomplete="off">
+        <button class="btn small" onclick="setLobbyPassword()">Set password</button>
+        <button class="btn small ghost" onclick="generateLobbyPassword()">Generate</button>
       </div>
-      <p class="hint">Applied live over RCON; masked and never returned by the API.</p>
+      <p class="hint">Private requires a join password. It is applied live over RCON, and never returned by the API.</p>
+    </div>
+
+    <div class="setup-block" id="friendlyFireBlock">
+      <p class="block-label">FRIENDLY FIRE</p>
+      <div class="seg" id="friendlyFireRow"></div>
+    </div>
+
+    <div class="setup-block">
+      <div class="block-heading">
+        <p class="block-label">MAP POOL</p>
+        <span id="poolCount" class="pool-count">0 selected</span>
+      </div>
+      <div class="map-grid" id="mapGrid"></div>
+      <p class="hint">The map marked <strong>START</strong> is the one the server launches on. Use “Set start” to promote another pooled map.</p>
     </div>
 
     <div id="changePreview" class="change-preview" hidden>
@@ -86,54 +96,59 @@
       <table class="preview-table"><tbody id="previewBody"></tbody></table>
     </div>
 
-    <div class="control-row" style="margin-top:14px">
-      <button class="btn primary" data-action onclick="saveAndApply()">Save &amp; apply live</button>
-      <button class="btn danger" data-action onclick="applyAndRestart()">Save &amp; restart container</button>
+    <div class="lifecycle-row">
+      <button class="btn big primary" id="lifecycleBtn" data-action onclick="toggleServer()">Start Server</button>
+      <button class="btn" data-action onclick="saveAndApply()">Save &amp; apply live</button>
+      <button class="btn danger" data-action onclick="applyAndRestart()">Save &amp; restart</button>
       <button class="btn ghost" onclick="resetDefaults()">Reset to defaults</button>
       <button class="btn ghost" onclick="loadSelectedMode()">Discard changes</button>
     </div>
-    <p class="hint">“Apply live” hot-applies rounds / freeze time / friendly fire / bots over RCON. Capacity and map changes take effect on the next container start / restart.</p>
+    <p class="hint" id="lifecycleHint"></p>
   </section>
 
-  <!-- ====================== 4 · RCON CONSOLE =========================== -->
-  <section class="panel-card">
-    <p class="eyebrow">4 · RCON CONSOLE</p>
-    <p class="section-help">Players (left) · console (center) · the active mode’s commands (right). Click a command to drop it into the input, then Send.</p>
-    <div class="console-layout">
-      <div class="cl-players">
-        <div class="section-heading compact">
-          <p class="mini-label">PLAYERS</p>
-          <span id="playerCount" class="chip">0</span>
-        </div>
-        <table class="players-table">
-          <thead><tr><th>Name</th><th>Team</th><th>Ping</th><th></th></tr></thead>
-          <tbody id="playersBody"><tr><td colspan="4" class="muted">No active server.</td></tr></tbody>
-        </table>
+  <!-- ======================= 3 · SERVER CONSOLE ========================= -->
+  <section class="panel-card" id="consoleSection" hidden>
+    <div class="section-heading compact">
+      <div>
+        <p class="eyebrow">SERVER CONSOLE</p>
+        <h2>Send commands over RCON</h2>
       </div>
+      <span id="consoleTarget" class="chip">—</span>
+    </div>
+    <p class="section-help">Type a command, or pick one below to load it into the input. Commands with a
+      <code>&lt;placeholder&gt;</code> need you to replace it before sending.</p>
 
-      <div class="cl-console">
-        <div class="section-heading compact">
-          <p class="mini-label">CONSOLE</p>
-          <span id="consoleTarget" class="chip">—</span>
-        </div>
-        <pre id="consoleHistory" class="console-history"></pre>
-        <div class="console-input-row">
-          <input id="consoleInput" class="console-input" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="status / changelevel de_mirage / css_pause">
-          <button class="btn primary" id="consoleSend" onclick="sendConsole()">Send</button>
-        </div>
-        <p class="hint">Sent over RCON to the active server. Secrets are redacted; a few commands are blocked server-side.</p>
-      </div>
+    <div class="console-input-row">
+      <input id="consoleInput" class="console-input" type="text" autocomplete="off" spellcheck="false"
+             placeholder="status / changelevel de_mirage / css_pause">
+      <button class="btn primary" id="consoleSend" onclick="sendConsole()">Send</button>
+    </div>
+    <pre id="consoleHistory" class="console-history"></pre>
 
-      <div class="cl-commands">
-        <div class="section-heading compact">
-          <p class="mini-label">MODE COMMANDS</p>
-          <span id="cmdTarget" class="chip">—</span>
-        </div>
-        <div id="modeCommands" class="cmd-list"><span class="muted">Start a mode to see its commands.</span></div>
-      </div>
+    <div class="setup-block" id="mapSwitchBlock" hidden>
+      <p class="block-label">SWITCH MAP · ACTIVE POOL</p>
+      <div class="map-switch" id="mapSwitch"></div>
     </div>
 
+    <div class="setup-block">
+      <p class="block-label">AVAILABLE COMMANDS <span class="block-note">plugin and server commands for the running mode</span></p>
+      <div id="commandGroups" class="cmd-groups"><span class="muted">Loading…</span></div>
+    </div>
+
+    <div class="cl-players">
+      <div class="section-heading compact">
+        <p class="mini-label">PLAYERS</p>
+        <span id="playerCount" class="chip">0</span>
+      </div>
+      <table class="players-table">
+        <thead><tr><th>Name</th><th>Team</th><th>Ping</th><th></th></tr></thead>
+        <tbody id="playersBody"><tr><td colspan="4" class="muted">No active server.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ========================== 4 · LIVE LOGS ========================== -->
+  <section class="panel-card">
     <div class="logs-block">
       <div class="log-toolbar">
         <p class="mini-label" style="margin:0">LIVE LOGS</p>
@@ -148,7 +163,7 @@
 
   <!-- ======================= 5 · MAINTENANCE =========================== -->
   <details class="panel-card collapsible">
-    <summary><span class="eyebrow">5 · MAINTENANCE · OWNER</span></summary>
+    <summary><span class="eyebrow">MAINTENANCE · OWNER</span></summary>
     <p class="section-help">Owner operations. Each says when to run it. “Game outage” items stop cs2-game while the job runs; every step is backed up first.</p>
     <div class="maint-grid">
       <div class="maint-item">
@@ -201,10 +216,23 @@ let selectedMode = null;
 let pending = {};          // edited (unsaved) config for selectedMode
 let busy = false;
 
-// Mode list + order come from the mode manifests (manager/modes/<id>/mode.json)
-// via /api/v3/status, so a new mode needs no change here.
+// Mode list, match formats and defaults all come from the mode manifests
+// (manager/modes/<id>/mode.json) via /api/v3/status, so a new mode or a new
+// match format needs no change here.
 function modeOrder(data) { return (data && data.mode_order) || Object.keys((data && data.modes) || {}); }
-const CONFIG_FIELDS = ['map', 'capacity', 'max_rounds', 'freezetime', 'friendly_fire', 'bot_quota'];
+const CONFIG_FIELDS = ['format', 'map_pool', 'max_rounds', 'freezetime', 'warmup_time',
+                       'round_time', 'bot_quota', 'friendly_fire', 'overtime', 'overtime_max_rounds'];
+const FIELD_LABELS = {
+  format: 'Match format', map_pool: 'Map pool', max_rounds: 'Max rounds',
+  freezetime: 'Freeze time', warmup_time: 'Warmup time', round_time: 'Round time',
+  bot_quota: 'Bots', friendly_fire: 'Friendly fire', overtime: 'Overtime',
+  overtime_max_rounds: 'Overtime rounds',
+};
+const FRIENDLY_FIRE_OPTIONS = [
+  { value: 'regular', label: 'Regular', detail: 'All team damage' },
+  { value: 'nades', label: 'Nades Only', detail: 'Only grenade damage' },
+  { value: 'off', label: 'Off', detail: 'No team damage' },
+];
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -219,13 +247,24 @@ async function api(path, options = {}) {
 function setBusy(b) { busy = b; document.querySelectorAll('[data-action]').forEach(el => el.disabled = b); }
 function show(text, type = 'info') { const e = document.getElementById('message'); e.textContent = text; e.dataset.type = type; }
 function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString() : '—'; }
-function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function copyText(t) { navigator.clipboard?.writeText(t).then(() => show('Copied ' + t, 'success')).catch(() => {}); }
 function confirmImpact(title, scope, effect) { return window.confirm(`${title}\n\nScope: ${scope}\nEffect: ${effect}\n\nContinue?`); }
-// Capacity range comes from the mode's manifest (settings.capacity), served in mode_meta.
-function capRange(mode) {
-  const meta = (STATE && STATE.mode_meta && STATE.mode_meta[mode]) || {};
-  return { min: (meta.capacity && meta.capacity.min) || 2, max: (meta.capacity && meta.capacity.max) || 10 };
+function modeMeta(mode) { return (STATE && STATE.mode_meta && STATE.mode_meta[mode]) || {}; }
+function formatsFor(mode) { return modeMeta(mode).formats || []; }
+function currentFormat() {
+  return formatsFor(selectedMode).find(f => f.key === pending.format) || formatsFor(selectedMode)[0] || {};
+}
+function prettyMap(name) { return String(name || '').replace(/^de_/, '').replace(/^cs_/, ''); }
+
+// Shared segmented-control renderer used by mode / format / visibility / friendly fire.
+function segmented(options, current, handler) {
+  return options.map(o => `
+    <button class="seg-option ${o.value === current ? 'on' : ''} ${o.tone ? 'tone-' + o.tone : ''}"
+            onclick="${handler}('${o.value}')" ${o.disabled ? 'disabled' : ''}>
+      <span class="seg-title">${escapeHtml(o.label)}${o.badge ? ` <span class="chip mini active-chip">${escapeHtml(o.badge)}</span>` : ''}</span>
+      ${o.detail ? `<small class="seg-detail">${escapeHtml(o.detail)}</small>` : ''}
+    </button>`).join('');
 }
 
 // ------------------------------------------------------------ 1 · Status
@@ -236,14 +275,15 @@ function renderStatus(data) {
   badge.textContent = st;
   badge.className = 'state-badge ' + (st === 'Ready' ? 'ok' : st === 'Stopped' ? 'off' : 'warn');
 
-  const modeLabel = active ? data.mode_meta[active.mode].label : '—';
+  const modeLabel = active ? modeMeta(active.mode).label : '—';
+  const saved = (data.modes && data.modes[active ? active.mode : selectedMode]) || {};
   const ep = data.endpoint || {};
   const rows = [
     ['State', st],
     ['Active mode', modeLabel],
+    ['Match format', active ? (saved.format || '—') : '—'],
     ['Endpoint', `${ep.ip}:${ep.port}`],
-    ['RCON', data.rcon_available ? 'configured' : 'not configured'],
-    ['Password', data.password.enabled ? 'enabled' : 'disabled'],
+    ['Visibility', data.visibility === 'private' ? 'private (password)' : 'public'],
     ['Last start', fmt(data.timestamps.last_successful_start)],
   ];
   document.getElementById('infoGrid').innerHTML = rows.map(([k, v]) =>
@@ -255,97 +295,185 @@ function renderStatus(data) {
     const isActive = active && active.name === c.name;
     return `<div class="container-row">
       <span class="dot-${cls}"></span>
-      <strong>${escapeHtml(data.mode_meta[c.mode] ? data.mode_meta[c.mode].label : c.label)}</strong>
+      <strong>${escapeHtml(modeMeta(c.mode).label || c.label)}</strong>
       <span class="muted">${escapeHtml(c.status)}</span>
       ${isActive ? '<span class="chip mini active-chip">ACTIVE</span>' : ''}
     </div>`;
   }).join('');
 }
 
-// ----------------------------------------------------------- 2 · Modes
+// ------------------------------------------------------- 2 · Game mode
 function renderModes(data) {
   const active = data.active ? data.active.mode : null;
-  const row = document.getElementById('modeRow');
-  row.innerHTML = modeOrder(data).map(m => {
-    const meta = data.mode_meta[m];
-    const s = data.modes[m] || {};
-    const isActive = active === m;
-    const isSelected = selectedMode === m;
-    return `<button class="mode-card ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}" onclick="selectMode('${m}')">
-        <span class="mode-name">${escapeHtml(meta.label)}${isActive ? ' <span class="chip mini active-chip">ACTIVE</span>' : ''}</span>
-        <small class="mode-impl">${escapeHtml(meta.implementation)}</small>
-        <small class="mode-cap">Capacity ${s.capacity ?? '—'} · Map ${s.map ?? '—'}</small>
-      </button>`;
-  }).join('');
-
-  const hint = document.getElementById('modeSwitchHint');
-  if (active && active !== selectedMode) hint.textContent = `Currently running: ${data.mode_meta[active].label}. Switching disconnects players.`;
-  else if (active === selectedMode) hint.textContent = 'This mode is already running; starting restarts it.';
-  else hint.textContent = '';
+  document.getElementById('modeRow').innerHTML = segmented(
+    modeOrder(data).map(m => ({
+      value: m,
+      label: modeMeta(m).label,
+      detail: modeMeta(m).implementation,
+      badge: active === m ? 'ACTIVE' : '',
+    })), selectedMode, 'selectMode');
 }
 
 function selectMode(m) {
+  if (m === selectedMode) return;
   selectedMode = m;
-  pending = {};
-  renderModes(STATE);
   loadSelectedMode();
+  renderModes(STATE);
 }
 
-// --------------------------------------------------------- 3 · Server Config
-function loadSelectedMode() {
-  if (!selectedMode || !STATE) return;
-  const saved = STATE.modes[selectedMode] || {};
-  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = saved[k]);
-  renderConfig();
-  markUnsaved(false);
+// ----------------------------------------------------- 3 · Match format
+function renderFormats() {
+  const formats = formatsFor(selectedMode);
+  document.getElementById('formatRow').innerHTML = segmented(
+    formats.map(f => ({
+      value: f.key,
+      label: f.label,
+      detail: f.detail || `${f.capacity} players`,
+    })), pending.format, 'pickFormat');
+  const f = currentFormat();
+  document.getElementById('formatHint').textContent = f.key
+    ? `${f.capacity} slots · ${f.game_alias} game mode · applies on start / restart`
+    : '';
 }
+function pickFormat(key) { editField('format', key); renderFormats(); }
 
-function resetDefaults() {
-  if (!selectedMode || !STATE) return;
-  const d = (STATE.mode_defaults || {})[selectedMode] || {};
-  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = d[k]);
-  renderConfig(); markUnsaved(true); validateLive(); renderPreview();
-  show('Defaults loaded into the form — not saved yet.', 'info');
-}
-
-function fieldNum(key, label, min, max, hint) {
+// ------------------------------------------------- 4 · Common configuration
+function fieldNum(key, label, min, max, step, hint) {
   return `<label class="field"><span>${label}</span>
-    <input type="number" min="${min}" max="${max}" step="1" value="${pending[key] ?? ''}"
+    <input type="number" min="${min}" max="${max}" step="${step}" value="${pending[key] ?? ''}"
       oninput="editField('${key}', this.valueAsNumber)">
     ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
 }
-function fieldMap() {
-  const opts = (STATE.allowed_maps || []).map(mm =>
-    `<option value="${mm}" ${pending.map === mm ? 'selected' : ''}>${mm}</option>`).join('');
-  return `<label class="field"><span>Map</span><select onchange="editField('map', this.value)">${opts}</select>
-    <small class="field-hint">Applies on next start / restart</small></label>`;
-}
-function fieldBool(key, label) {
-  return `<label class="field switch-label"><input type="checkbox" ${pending[key] ? 'checked' : ''}
-    onchange="editField('${key}', this.checked)"><span>${label}</span></label>`;
-}
 
-function renderConfig() {
-  const meta = STATE.mode_meta[selectedMode];
-  // Modes that own their settings elsewhere hide this card (mode.json server_config).
-  // The form is still rendered so pending/preview state stays consistent when switching modes.
-  document.getElementById('configSection').hidden = meta.server_config === false;
-  document.getElementById('configTitle').textContent = `${meta.label} — ${meta.implementation}`;
-  const cap = capRange(selectedMode);
-  document.getElementById('configForm').innerHTML =
-      fieldMap()
-    + fieldNum('capacity', `Capacity (${cap.min}–${cap.max})`, cap.min, cap.max, 'Slot count — applies on next start')
-    + fieldNum('max_rounds', 'Max rounds', 1, 120)
-    + fieldNum('freezetime', 'Freeze time (s)', 0, 60)
-    + fieldNum('bot_quota', 'Bots', 0, 10)
-    + fieldBool('friendly_fire', 'Friendly fire');
+function renderCommon() {
+  document.getElementById('commonForm').innerHTML =
+      fieldNum('freezetime', 'Freeze time (s)', 0, 60, 1, 'Buy/planning time before each round')
+    + fieldNum('warmup_time', 'Warmup time (s)', 0, 600, 1, 'Length of warmup after a map load')
+    + fieldNum('max_rounds', 'Max rounds', 1, 120, 1, 'Regulation round count')
+    + fieldNum('round_time', 'Round time (min)', 0.5, 60, 0.05, '1.55 = 1 min 33 s')
+    + fieldNum('bot_quota', 'Bots', 0, 10, 1, 'Bots the server keeps filled')
+    + `<label class="field switch-label"><input type="checkbox" ${pending.overtime ? 'checked' : ''}
+         onchange="editField('overtime', this.checked)"><span>Overtime enabled</span></label>`
+    + fieldNum('overtime_max_rounds', 'Overtime rounds', 2, 30, 1, 'Rounds per overtime half-set');
 
   const note = document.getElementById('configNote');
   if (selectedMode === 'faceit') {
     note.hidden = false;
-    note.innerHTML = 'Note: MatchZy governs max rounds, freeze time and friendly fire during a live match — these apply to warmup / non-match play.';
+    note.innerHTML = 'Note: MatchZy owns rounds, freeze time, warmup and friendly fire once a match goes live — these values apply to warmup and non-match play.';
   } else { note.hidden = true; }
+}
+
+// ---------------------------------------------------- 5 · Lobby visibility
+function renderVisibility(data) {
+  const current = data.visibility || 'public';
+  document.getElementById('visibilityRow').innerHTML = segmented([
+    { value: 'public', label: 'Public Lobby', detail: 'Anyone with the address can join' },
+    { value: 'private', label: 'Private Lobby', detail: 'Join password required' },
+  ], current, 'setVisibility');
+  // Nothing to do in the row when the lobby is public and a password already exists.
+  document.getElementById('pwRow').hidden = current === 'public' && !!data.password.has_password;
+}
+
+async function setVisibility(value) {
+  const body = { visibility: value };
+  const input = document.getElementById('pwValue');
+  if (value === 'private' && input.value) body.password = input.value;
+  try {
+    await api('/api/v3/server/visibility', { method: 'PUT', body: JSON.stringify(body) });
+    input.value = '';
+    show(value === 'private' ? 'Lobby is private; the join password is active.' : 'Lobby is public.', 'success');
+    refresh();
+  } catch (e) { show(e.message, 'error'); }
+}
+async function setLobbyPassword() {
+  const input = document.getElementById('pwValue');
+  if (!input.value) { show('Enter a password first.', 'error'); return; }
+  try {
+    await api('/api/v3/server/visibility', { method: 'PUT', body: JSON.stringify({ visibility: 'private', password: input.value }) });
+    input.value = ''; show('Password set; the lobby is private.', 'success'); refresh();
+  } catch (e) { show(e.message, 'error'); }
+}
+async function generateLobbyPassword() {
+  try {
+    await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'generate' }) });
+    show('Password generated and enabled. It is stored server-side and never returned — set your own if you need to share it.', 'warn');
+    refresh();
+  } catch (e) { show(e.message, 'error'); }
+}
+
+// ------------------------------------------------------ 6 · Friendly fire
+function renderFriendlyFire() {
+  document.getElementById('friendlyFireRow').innerHTML =
+    segmented(FRIENDLY_FIRE_OPTIONS, pending.friendly_fire, 'pickFriendlyFire');
+}
+function pickFriendlyFire(value) { editField('friendly_fire', value); renderFriendlyFire(); }
+
+// ---------------------------------------------------------- 7 · Map pool
+function renderMapPool() {
+  const pool = pending.map_pool || [];
+  const maps = STATE.allowed_maps || [];
+  document.getElementById('poolCount').textContent = `${pool.length} selected`;
+  document.getElementById('mapGrid').innerHTML = maps.map(m => {
+    const index = pool.indexOf(m);
+    const isStart = index === 0;
+    return `<div class="map-card ${index >= 0 ? 'on' : ''}">
+      <button class="map-toggle" onclick="toggleMap('${m}')">
+        <span class="map-name">${escapeHtml(prettyMap(m))}</span>
+        <small class="map-id">${escapeHtml(m)}</small>
+      </button>
+      ${isStart ? '<span class="chip mini active-chip">START</span>'
+        : index > 0 ? `<button class="btn tiny ghost" onclick="setStartMap('${m}')">Set start</button>` : ''}
+    </div>`;
+  }).join('');
+}
+function toggleMap(name) {
+  const pool = (pending.map_pool || []).slice();
+  const index = pool.indexOf(name);
+  if (index >= 0) {
+    if (pool.length === 1) { show('Keep at least one map in the pool.', 'error'); return; }
+    pool.splice(index, 1);
+  } else { pool.push(name); }
+  editField('map_pool', pool);
+  renderMapPool();
+}
+function setStartMap(name) {
+  const pool = (pending.map_pool || []).filter(m => m !== name);
+  editField('map_pool', [name, ...pool]);
+  renderMapPool();
+}
+
+// ------------------------------------------------------- Form plumbing
+function loadSelectedMode() {
+  if (!selectedMode || !STATE) return;
+  const saved = STATE.modes[selectedMode] || {};
+  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = clone(saved[k]));
+  renderSetup();
+  markUnsaved(false);
+}
+function clone(v) { return Array.isArray(v) ? v.slice() : v; }
+
+function resetDefaults() {
+  if (!selectedMode || !STATE) return;
+  const d = (STATE.mode_defaults || {})[selectedMode] || {};
+  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = clone(d[k]));
+  renderSetup(); markUnsaved(true); validateLive();
+  show('Defaults loaded into the form — not saved yet.', 'info');
+}
+
+function renderSetup() {
+  const meta = modeMeta(selectedMode);
+  document.getElementById('setupTitle').textContent = meta.label
+    ? `${meta.label} — ${meta.implementation}` : '—';
+  // A mode may declare server_config:false when its convars are owned elsewhere.
+  const ownsConvars = meta.server_config !== false;
+  document.getElementById('commonBlock').hidden = !ownsConvars;
+  document.getElementById('friendlyFireBlock').hidden = !ownsConvars;
+  renderFormats();
+  renderCommon();
+  renderFriendlyFire();
+  renderMapPool();
   renderPreview();
+  renderLifecycle();
 }
 
 function editField(key, value) { pending[key] = value; markUnsaved(true); validateLive(); renderPreview(); }
@@ -354,11 +482,14 @@ function markUnsaved(u) { document.getElementById('unsavedFlag').hidden = !u; }
 function validateLive() {
   const msg = document.getElementById('validationMsg');
   let err = '';
-  const c = pending.capacity, cap = capRange(selectedMode);
-  if (!(c >= cap.min && c <= cap.max)) err = `Capacity must be ${cap.min}–${cap.max}.`;
+  if (!(pending.map_pool || []).length) err = 'Select at least one map.';
+  else if (!currentFormat().key) err = 'Select a match format.';
   else if (!(pending.max_rounds >= 1 && pending.max_rounds <= 120)) err = 'Max rounds must be 1–120.';
   else if (!(pending.freezetime >= 0 && pending.freezetime <= 60)) err = 'Freeze time must be 0–60s.';
+  else if (!(pending.warmup_time >= 0 && pending.warmup_time <= 600)) err = 'Warmup time must be 0–600s.';
+  else if (!(pending.round_time >= 0.5 && pending.round_time <= 60)) err = 'Round time must be 0.5–60 min.';
   else if (!(pending.bot_quota >= 0 && pending.bot_quota <= 10)) err = 'Bots must be 0–10.';
+  else if (!(pending.overtime_max_rounds >= 2 && pending.overtime_max_rounds <= 30)) err = 'Overtime rounds must be 2–30.';
   msg.textContent = err; msg.dataset.type = err ? 'error' : 'info';
   return !err;
 }
@@ -369,14 +500,15 @@ function renderPreview() {
   const body = document.getElementById('previewBody');
   const saved = (STATE.modes && STATE.modes[selectedMode]) || {};
   const levels = STATE.apply_levels || {};
+  const asText = v => Array.isArray(v) ? v.map(prettyMap).join(', ') : (v === true ? 'on' : v === false ? 'off' : (v ?? '—'));
   const rows = [];
   CONFIG_FIELDS.forEach(k => {
     if (JSON.stringify(pending[k]) === JSON.stringify(saved[k])) return;
     const level = levels[k] || 'hot';
     rows.push(`<tr>
-      <td class="pf">${escapeHtml(k)}</td>
-      <td class="po">${escapeHtml(saved[k] ?? '—')}</td>
-      <td class="pa">→ ${escapeHtml(pending[k] ?? '—')}</td>
+      <td class="pf">${escapeHtml(FIELD_LABELS[k] || k)}</td>
+      <td class="po">${escapeHtml(asText(saved[k]))}</td>
+      <td class="pa">→ ${escapeHtml(asText(pending[k]))}</td>
       <td class="pl level-${level}">${APPLY_LABELS[level]}</td></tr>`);
   });
   if (!rows.length) { block.hidden = true; body.innerHTML = ''; return; }
@@ -400,7 +532,7 @@ async function saveAndApply() {
 async function applyAndRestart() {
   if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
   if (!confirmImpact('Save settings and restart the container?',
-      `${STATE.mode_meta[selectedMode].label} game container`,
+      `${modeMeta(selectedMode).label} game container`,
       'Connected players are disconnected. The panel stays online; SteamCMD does not run.')) return;
   setBusy(true);
   try {
@@ -410,59 +542,61 @@ async function applyAndRestart() {
     setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
   } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
 }
-async function startSelected() {
+
+// --------------------------------------------------- Start / Close server
+function renderLifecycle() {
   const active = STATE && STATE.active;
-  if (active && active.mode !== selectedMode && !confirmImpact(
-      `Start ${STATE.mode_meta[selectedMode].label}?`, 'CS2 game runtime',
-      `Stops ${STATE.mode_meta[active.mode].label} (disconnecting its players), then starts ${STATE.mode_meta[selectedMode].label}.`)) return;
+  const btn = document.getElementById('lifecycleBtn');
+  const hint = document.getElementById('lifecycleHint');
+  const label = modeMeta(selectedMode).label || 'the selected mode';
+  if (active) {
+    const same = active.mode === selectedMode;
+    btn.textContent = same ? 'Close Server' : `Switch to ${label}`;
+    btn.className = 'btn big ' + (same ? 'danger' : 'primary');
+    hint.textContent = same
+      ? `${modeMeta(active.mode).label} is running. Closing stops the game container; the panel stays online.`
+      : `${modeMeta(active.mode).label} is running. Switching stops it and disconnects its players.`;
+  } else {
+    btn.textContent = 'Start Server';
+    btn.className = 'btn big primary';
+    hint.textContent = `Starts the CS2 container with ${label} and the settings above.`;
+  }
+}
+
+async function toggleServer() {
+  const active = STATE && STATE.active;
+  if (active && active.mode === selectedMode) return stopGameServer();
+  if (active) return switchMode();
+  return startServer();
+}
+
+async function startServer() {
+  if (!selectedMode) { show('Select a game mode first.', 'error'); return; }
+  if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
+  setBusy(true);
+  try {
+    await saveSettings();
+    await api('/api/v3/server/start', { method: 'POST', body: JSON.stringify({ mode: selectedMode }) });
+    markUnsaved(false);
+    show(`${modeMeta(selectedMode).label} is starting.`, 'success'); setTimeout(refresh, 800);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+async function switchMode() {
+  const active = STATE.active;
+  if (!confirmImpact(`Switch to ${modeMeta(selectedMode).label}?`, 'CS2 game runtime',
+      `Stops ${modeMeta(active.mode).label} (disconnecting its players), then starts ${modeMeta(selectedMode).label}.`)) return;
   setBusy(true);
   try {
     await saveSettings();
     await api('/api/v3/modes/switch', { method: 'POST', body: JSON.stringify({ mode: selectedMode }) });
-    show(`Switched to ${STATE.mode_meta[selectedMode].label}.`, 'success');
+    markUnsaved(false);
+    show(`Switched to ${modeMeta(selectedMode).label}.`, 'success');
     setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-
-// --------------------------------------------------------------- Password
-async function togglePassword() {
-  const enabled = document.getElementById('pwEnabled').checked;
-  try {
-    if (enabled) await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'enable' }) });
-    else await api('/api/v3/server/password/disable', { method: 'POST' });
-    show('Password ' + (enabled ? 'enabled' : 'disabled') + '.', 'success'); refresh();
-  } catch (e) { show(e.message, 'error'); refresh(); }
-}
-async function setPassword() {
-  const v = document.getElementById('pwValue').value;
-  if (!v) { show('Enter a password.', 'error'); return; }
-  try { await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'set', password: v }) });
-    document.getElementById('pwValue').value = ''; show('Password set.', 'success'); refresh(); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function generatePassword() {
-  try { await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'generate' }) });
-    show('Password generated and enabled.', 'success'); refresh(); }
-  catch (e) { show(e.message, 'error'); }
-}
-
-// --------------------------------------------------------- Server controls
-async function startServer() {
-  const mode = selectedMode || (STATE && STATE.server.last_mode);
-  if (!mode) { show('Select a game mode first.', 'error'); return; }
-  const active = STATE && STATE.active;
-  if (active && active.mode !== mode && !confirmImpact(
-      `Switch to ${STATE.mode_meta[mode].label}?`, 'CS2 game runtime',
-      `Stops ${STATE.mode_meta[active.mode].label}, disconnects its players, and starts ${STATE.mode_meta[mode].label}.`)) return;
-  setBusy(true);
-  try {
-    await api('/api/v3/server/start', { method: 'POST', body: JSON.stringify({ mode }) });
-    show(`${STATE.mode_meta[mode].label} is starting.`, 'success'); setTimeout(refresh, 800);
   } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
 }
 async function stopGameServer() {
   if (!STATE || !STATE.active) { show('No game server is running.', 'error'); return; }
-  if (!confirmImpact('Stop the game server?', `${STATE.active.name} (entire CS2 container)`,
+  if (!confirmImpact('Close the game server?', `${STATE.active.name} (entire CS2 container)`,
       'All connected players are disconnected. The panel stays online.')) return;
   setBusy(true);
   try {
@@ -485,6 +619,7 @@ async function restartGameContainer() {
 
 // ---------------------------------------------------------------- Players
 async function loadPlayers() {
+  if (!STATE || !STATE.active) return;
   try {
     const d = await api('/api/v3/players');
     const body = document.getElementById('playersBody');
@@ -528,36 +663,69 @@ async function banPlayer(ident, userid) {
   catch (e) { show(e.message, 'error'); }
 }
 
-// ------------------------------------------------------------ Mode commands
-function renderModeCommands(data) {
-  const box = document.getElementById('modeCommands');
-  const chip = document.getElementById('cmdTarget');
-  const active = data.active;
-  if (!active) {
-    chip.textContent = 'no active server';
-    box.innerHTML = '<span class="muted">Start a mode to see its commands.</span>';
-    return;
-  }
-  chip.textContent = data.mode_meta[active.mode].label;
-  const actions = (data.mode_meta[active.mode] || {}).actions || [];
-  box.innerHTML = actions.map(a =>
-    `<button class="cmd-btn ${a.confirm ? 'warn' : ''}" title="${escapeHtml(a.description)}"
-       onclick="injectCommand('${escapeHtml(a.cmd)}')">
-       <span class="cmd-label">${escapeHtml(a.label)}</span>
-       <code>${escapeHtml(a.cmd)}</code>
-     </button>`).join('') || '<span class="muted">No commands for this mode.</span>';
-}
-function injectCommand(cmd) {
-  const input = document.getElementById('consoleInput');
-  input.value = cmd; input.focus();
-  show('Command loaded into the console — review, then Send.', 'info');
+// ------------------------------------------------- Console + command list
+let commandsLoadedFor = null;
+
+async function loadCommands(force = false) {
+  const active = STATE && STATE.active;
+  if (!active) { commandsLoadedFor = null; return; }
+  if (!force && commandsLoadedFor === active.mode) return;
+  const box = document.getElementById('commandGroups');
+  try {
+    const d = await api('/api/v3/commands');
+    commandsLoadedFor = active.mode;
+    box.innerHTML = (d.groups || []).map(g => `
+      <details class="cmd-group" ${g.source === 'plugin' ? 'open' : ''}>
+        <summary><span class="cmd-group-label">${escapeHtml(g.label)}</span>
+          <span class="chip mini">${g.commands.length}</span></summary>
+        <div class="cmd-list">${g.commands.map(c => `
+          <button class="cmd-btn ${c.confirm ? 'warn' : ''}" title="${escapeHtml(c.description)} — ${escapeHtml(c.impact)}"
+                  onclick="injectCommand('${escapeHtml(c.cmd)}', '${escapeHtml(c.arg_hint || '')}')">
+            <span class="cmd-label">${escapeHtml(c.label)}</span>
+            <code>${escapeHtml(c.cmd)}${c.arg_hint ? ' ' + escapeHtml(c.arg_hint) : ''}</code>
+          </button>`).join('')}</div>
+      </details>`).join('') || '<span class="muted">No commands for this mode.</span>';
+  } catch (e) { box.innerHTML = `<span class="muted">${escapeHtml(e.message)}</span>`; }
 }
 
-// ---------------------------------------------------------------- Console
+function renderMapSwitch(data) {
+  const block = document.getElementById('mapSwitchBlock');
+  const active = data.active;
+  if (!active) { block.hidden = true; return; }
+  const pool = ((data.modes || {})[active.mode] || {}).map_pool || [];
+  block.hidden = !pool.length;
+  document.getElementById('mapSwitch').innerHTML = pool.map(m =>
+    `<button class="btn small" data-action onclick="switchMap('${m}')">${escapeHtml(prettyMap(m))}</button>`).join('');
+}
+async function switchMap(name) {
+  if (!confirmImpact(`Change level to ${name}?`, 'Running server',
+      'The current round is interrupted while the map loads. Players stay connected.')) return;
+  setBusy(true);
+  try {
+    await api('/api/v3/server/map', { method: 'POST', body: JSON.stringify({ map: name }) });
+    show(`Changing level to ${name}.`, 'success'); setTimeout(refresh, 1500);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+
+const PLACEHOLDER_RE = /<[^>]{1,24}>/;
+
+function injectCommand(cmd, argHint) {
+  const input = document.getElementById('consoleInput');
+  input.value = argHint ? `${cmd} ${argHint}` : cmd;
+  input.focus();
+  if (argHint) {
+    input.setSelectionRange(cmd.length + 1, input.value.length);
+    show(`Replace ${argHint} with a value, then Send.`, 'info');
+  } else {
+    show('Command loaded into the console — review, then Send.', 'info');
+  }
+}
+
 async function sendConsole() {
   const input = document.getElementById('consoleInput');
   const cmd = input.value.trim();
   if (!cmd) return;
+  if (PLACEHOLDER_RE.test(cmd)) { show('Replace the <placeholder> before sending.', 'error'); return; }
   appendConsole('> ' + cmd, 'cmd');
   try {
     const d = await api('/api/v3/console/command', { method: 'POST', body: JSON.stringify({ command: cmd }) });
@@ -681,17 +849,20 @@ async function refresh() {
   try {
     const data = await api('/api/v3/status');
     STATE = data;
-    if (!selectedMode) selectedMode = (data.active && data.active.mode) || data.server.last_mode || 'faceit';
+    if (!selectedMode) selectedMode = (data.active && data.active.mode) || data.server.last_mode || modeOrder(data)[0];
     renderStatus(data);
     renderModes(data);
-    renderModeCommands(data);
+    renderVisibility(data);
     if (!Object.keys(pending).length) loadSelectedMode();
-    else renderPreview();
-    document.getElementById('pwEnabled').checked = data.password.enabled;
+    else renderSetup();
+
     const active = data.active;
-    document.getElementById('consoleTarget').textContent = active ? data.mode_meta[active.mode].label : 'no active server';
+    document.getElementById('consoleSection').hidden = !active;
+    document.getElementById('consoleTarget').textContent = active ? modeMeta(active.mode).label : 'no active server';
     document.getElementById('consoleInput').disabled = !active;
     document.getElementById('consoleSend').disabled = !active;
+    renderMapSwitch(data);
+    loadCommands();
   } catch (e) { show(e.message, 'error'); }
 }
 

@@ -40,7 +40,7 @@ modes/heroshift/plugins/HeroShift/configs/config.json       # HUD, chat, command
 
 Both config files are declared in `mode.json` under `configs`, which is how the
 panel resolves them — along with this mode's plugin list (HeroShift + the RayTrace
-util), capacity range, defaults and RCON quick actions.
+util), match formats, defaults and RCON quick actions.
 
 **There is exactly one copy of each file, and it sits where the upstream release
 puts it** — inside the plugin folder. Because the manifest deploys the whole `plugins/HeroShift` directory, those
@@ -110,16 +110,20 @@ against a fresh HeroShift release, expect these to differ on purpose:
 ## Round settings
 
 HeroShift runs the shared base profile like every other mode:
-`mode_heroshift.cfg` execs `manager/shared/cfg/server.cfg` and then adds only the
-two convars this mode needs on top of it — `mp_roundtime 1.55` and
-`mp_warmuptime 20`. Change a shared value in `server.cfg`, not here.
+`mode_heroshift.cfg` execs `manager/shared/cfg/server.cfg` and adds nothing on top
+of it. Round time (**1.55**) and warmup time (**20s**) used to be hardcoded here;
+they are now panel-managed and written into `panel_runtime.cfg`, which execs last
+and therefore wins. Change a shared value in `server.cfg`, not here.
 
-Panel settings match the other modes: `max_rounds` 24, freeze time **15s**,
-`bot_quota` 0, friendly fire off, `de_dust2`, capacity 10. Freeze time is set in
-three places that must agree: `data/modes/heroshift.json`, the panel-generated
-`modes/heroshift/cfg/panel_runtime.cfg`, and the `!start` vote's `StartParams` in
-`config.json`. The panel's Server Config writes the first two; edit the third by
-hand.
+Match formats are 5v5 (10 slots, default), 2v2 (4 slots, wingman alias) and 1v1
+(2 slots). The remaining panel defaults match the other modes: `max_rounds` 24,
+freeze time **15s**, `bot_quota` 0, friendly fire off, overtime off, and an
+active-duty map pool starting on `de_dust2`.
+
+Freeze time is set in three places that must agree: `data/modes/heroshift.json`,
+the panel-generated `modes/heroshift/cfg/panel_runtime.cfg`, and the `!start`
+vote's `StartParams` in `config.json`. The panel's Lobby Setup writes the first
+two; edit the third by hand.
 
 ## RayTrace dependency
 

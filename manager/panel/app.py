@@ -105,18 +105,163 @@ MODES = {
 }
 MODE_ORDER = list(MODE_DEFS)
 MODE_ACTIONS = {mode: definition["actions"] for mode, definition in MODE_DEFS.items()}
-DEFAULT_MODE_SETTINGS = {mode: dict(definition["defaults"]) for mode, definition in MODE_DEFS.items()}
+DEFAULT_MODE_SETTINGS = {
+    mode: json.loads(json.dumps(definition["defaults"])) for mode, definition in MODE_DEFS.items()
+}
 CAPACITY_RANGES = {mode: dict(definition["capacity"]) for mode, definition in MODE_DEFS.items()}
+MODE_FORMATS = {
+    mode: {entry["key"]: entry for entry in definition["formats"]}
+    for mode, definition in MODE_DEFS.items()
+}
 GAME_CONTAINERS = [GAME_CONTAINER]  # retained for response compatibility
 
+# A format owns the slot count and the game alias, so it needs a fresh launch.
 APPLY_LEVELS = {
-    "map": "map_reload",
-    "capacity": "game_restart",
+    "format": "game_restart",
+    "map_pool": "map_reload",
     "max_rounds": "hot",
     "freezetime": "hot",
+    "warmup_time": "hot",
+    "round_time": "hot",
     "friendly_fire": "hot",
     "bot_quota": "hot",
+    "overtime": "hot",
+    "overtime_max_rounds": "hot",
 }
+VISIBILITY_MODES = ("public", "private")
+
+
+def _cmd(key, label, cmd, impact, description, confirm=False, arg_hint=""):
+    return {
+        "key": key,
+        "label": label,
+        "cmd": cmd,
+        "impact": impact,
+        "description": description,
+        "confirm": confirm,
+        "arg_hint": arg_hint,
+    }
+
+
+# Commands the panel can send over RCON regardless of the active plugin set.
+# "aliases" limits a group to the game alias of the selected match format.
+SHARED_COMMAND_GROUPS = [
+    {
+        "id": "round",
+        "label": "Round & match",
+        "aliases": (),
+        "commands": [
+            _cmd("restart_game", "Restart Game", "mp_restartgame 1", "In-game round", "Restarts the game after one second.", True),
+            _cmd("warmup_start", "Start Warmup", "mp_warmup_start", "In-game phase", "Puts the server back into warmup.", True),
+            _cmd("warmup_end", "End Warmup", "mp_warmup_end", "In-game phase", "Ends warmup and starts the match."),
+            _cmd("pause", "Pause Match", "mp_pause_match", "In-game match", "Freezes the match at the next round."),
+            _cmd("unpause", "Unpause Match", "mp_unpause_match", "In-game match", "Resumes a paused match."),
+            _cmd("swap_teams", "Swap Teams", "mp_swapteams", "Players", "Swaps CT and T rosters.", True),
+            _cmd("scramble_teams", "Scramble Teams", "mp_scrambleteams", "Players", "Randomly reassigns both teams.", True),
+        ],
+    },
+    {
+        "id": "bots",
+        "label": "Bots",
+        "aliases": (),
+        "commands": [
+            _cmd("bot_add", "Add Bot", "bot_add", "Players", "Adds one bot to the smaller team."),
+            _cmd("bot_add_ct", "Add CT Bot", "bot_add_ct", "Players", "Adds one bot to the CT side."),
+            _cmd("bot_add_t", "Add T Bot", "bot_add_t", "Players", "Adds one bot to the T side."),
+            _cmd("bot_kick", "Kick All Bots", "bot_kick", "Players", "Removes every bot.", True),
+            _cmd("bot_quota", "Set Bot Quota", "bot_quota", "Players", "Sets how many bots the server keeps filled. Append a number.", False, "<count>"),
+            _cmd("bot_difficulty", "Set Bot Difficulty", "bot_difficulty", "Players", "0 easy to 3 expert. Append the level.", False, "<0-3>"),
+            _cmd("bot_stop", "Freeze Bots", "bot_stop 1", "Players", "Stops bots from acting; send bot_stop 0 to resume."),
+        ],
+    },
+    {
+        "id": "competitive",
+        "label": "Competitive preset",
+        "aliases": ("competitive",),
+        "commands": [
+            _cmd("comp_rounds", "Competitive Rounds (24)", "mp_maxrounds 24", "In-game setting", "Restores the competitive round count."),
+            _cmd("comp_overtime", "Competitive Overtime (6)", "mp_overtime_maxrounds 6", "In-game setting", "Restores the competitive overtime length."),
+            _cmd("comp_roundtime", "Competitive Round Time", "mp_roundtime 1.55", "Next round", "Restores the competitive round time."),
+            _cmd("comp_gamemode", "Competitive Game Mode", "game_mode 1", "Next map", "Selects the competitive game mode. Takes effect on the next map.", True),
+        ],
+    },
+    {
+        "id": "wingman",
+        "label": "Wingman preset",
+        "aliases": ("wingman",),
+        "commands": [
+            _cmd("wm_rounds", "Wingman Rounds (16)", "mp_maxrounds 16", "In-game setting", "Restores the wingman round count."),
+            _cmd("wm_overtime", "Wingman Overtime (4)", "mp_overtime_maxrounds 4", "In-game setting", "Restores the wingman overtime length."),
+            _cmd("wm_roundtime", "Wingman Round Time", "mp_roundtime 1.5", "Next round", "Restores the wingman round time."),
+            _cmd("wm_gamemode", "Wingman Game Mode", "game_mode 2", "Next map", "Selects the 2v2 wingman game mode. Takes effect on the next map.", True),
+        ],
+    },
+    {
+        "id": "map",
+        "label": "Map",
+        "aliases": (),
+        "commands": [
+            _cmd("changelevel", "Change Level", "changelevel", "Map reload", "Loads a map now and disconnects nobody but interrupts the round. Append the map name.", True, "<map>"),
+            _cmd("vote_nextmap_off", "Disable Next-Map Vote", "mp_endmatch_votenextmap 0", "In-game setting", "Stops the end-of-match map vote."),
+            _cmd("match_end_restart", "Restart On Match End", "mp_match_end_restart 1", "In-game setting", "Restarts the same map when the match ends."),
+        ],
+    },
+    {
+        "id": "readonly",
+        "label": "Read only",
+        "aliases": (),
+        "commands": [
+            _cmd("status", "Server Status", "status", "Read only", "Prints players, map and uptime."),
+            _cmd("users", "Connected Users", "users", "Read only", "Prints the connected user list."),
+            _cmd("meta_list", "Metamod Plugins", "meta list", "Read only", "Lists loaded Metamod plugins."),
+            _cmd("css_list", "CounterStrikeSharp Plugins", "css_plugins list", "Read only", "Lists loaded CounterStrikeSharp plugins."),
+            _cmd("version", "Server Version", "version", "Read only", "Prints the build number."),
+            _cmd("stats", "Server Stats", "stats", "Read only", "Prints CPU and network statistics."),
+        ],
+    },
+]
+MODE_GROUP_LABELS = {
+    "match": "Match control",
+    "practice": "Practice",
+    "teams": "Teams",
+    "map": "Map",
+    "server": "Server",
+    "plugin": "Plugin",
+    "readonly": "Read only",
+}
+
+
+def command_catalog(mode: str | None, settings: dict | None) -> list[dict]:
+    """Group every RCON command the panel offers for the given mode."""
+    groups: list[dict] = []
+    if mode in MODES:
+        label = MODES[mode]["label"]
+        actions = MODE_ACTIONS.get(mode, [])
+        for group_id, group_label in MODE_GROUP_LABELS.items():
+            rows = [action for action in actions if action["group"] == group_id]
+            if rows:
+                groups.append({
+                    "id": f"{mode}_{group_id}",
+                    "label": f"{label} · {group_label}",
+                    "source": "plugin",
+                    "commands": [
+                        {key: action[key] for key in mode_defs.ACTION_PUBLIC_FIELDS if key != "group"}
+                        for action in rows
+                    ],
+                })
+    alias = (settings or {}).get("game_alias")
+    if mode in MODES and not alias:
+        alias = selected_format(mode, settings or {})["game_alias"]
+    for group in SHARED_COMMAND_GROUPS:
+        if group["aliases"] and alias not in group["aliases"]:
+            continue
+        groups.append({
+            "id": group["id"],
+            "label": group["label"],
+            "source": "server",
+            "commands": group["commands"],
+        })
+    return groups
 
 DEFAULT_SERVER = {
     "hostname": os.environ.get("CS2_SERVERNAME", "CS2 Server"),
@@ -270,28 +415,72 @@ def normalize_map(value: object) -> str:
     return name
 
 
+def normalize_map_pool(value: object, fallback: list[str]) -> list[str]:
+    raw = value if isinstance(value, list) else fallback
+    pool: list[str] = []
+    for item in raw:
+        name = normalize_map(item)
+        if name not in pool:
+            pool.append(name)
+    if not pool:
+        raise ValueError("Select at least one map for the pool")
+    return pool
+
+
+def normalize_friendly_fire(value: object, fallback: str) -> str:
+    if isinstance(value, bool):  # settings written before friendly fire had modes
+        return "regular" if value else "off"
+    mode = str(value or fallback).strip().lower()
+    if mode not in mode_defs.FRIENDLY_FIRE_MODES:
+        raise ValueError(
+            "Friendly fire must be one of " + ", ".join(mode_defs.FRIENDLY_FIRE_MODES)
+        )
+    return mode
+
+
+def _bounded_int(value: object, fallback: int, low: int, high: int, label: str) -> int:
+    number = int(fallback if value is None else value)
+    if not low <= number <= high:
+        raise ValueError(f"{label} must be between {low} and {high}")
+    return number
+
+
 def validate_mode_settings(mode: str, settings: dict) -> dict:
     defaults = DEFAULT_MODE_SETTINGS[mode]
-    out = {"map": normalize_map(settings.get("map", defaults["map"]))}
-    cap = int(settings.get("capacity", defaults["capacity"]))
-    cap_range = CAPACITY_RANGES[mode]
-    if not cap_range["min"] <= cap <= cap_range["max"]:
-        raise ValueError(f"Capacity must be between {cap_range['min']} and {cap_range['max']}")
-    out["capacity"] = cap
-    mr = int(settings.get("max_rounds", defaults["max_rounds"]))
-    if not 1 <= mr <= 120:
-        raise ValueError("Max rounds must be between 1 and 120")
-    out["max_rounds"] = mr
-    ft = int(settings.get("freezetime", defaults["freezetime"]))
-    if not 0 <= ft <= 60:
-        raise ValueError("Freeze time must be between 0 and 60 seconds")
-    out["freezetime"] = ft
-    bq = int(settings.get("bot_quota", defaults["bot_quota"]))
-    if not 0 <= bq <= 10:
-        raise ValueError("Bots must be between 0 and 10")
-    out["bot_quota"] = bq
-    out["friendly_fire"] = bool(settings.get("friendly_fire", defaults["friendly_fire"]))
-    return out
+    formats = MODE_FORMATS[mode]
+    key = str(settings.get("format", defaults["format"]))
+    if key not in formats:
+        raise ValueError(f"Match format must be one of {', '.join(formats)}")
+    match_format = formats[key]
+
+    pool = normalize_map_pool(settings.get("map_pool"), defaults["map_pool"])
+    round_time = float(settings.get("round_time", defaults["round_time"]))
+    if not math.isfinite(round_time) or not 0.5 <= round_time <= 60:
+        raise ValueError("Round time must be between 0.5 and 60 minutes")
+
+    return {
+        "format": key,
+        "map_pool": pool,
+        # Derived from the selections above so the runtime contract stays stable.
+        "map": pool[0],
+        "capacity": match_format["capacity"],
+        "game_alias": match_format["game_alias"],
+        "max_rounds": _bounded_int(settings.get("max_rounds"), defaults["max_rounds"], 1, 120, "Max rounds"),
+        "freezetime": _bounded_int(settings.get("freezetime"), defaults["freezetime"], 0, 60, "Freeze time"),
+        "warmup_time": _bounded_int(settings.get("warmup_time"), defaults["warmup_time"], 0, 600, "Warmup time"),
+        "round_time": round(round_time, 2),
+        "bot_quota": _bounded_int(settings.get("bot_quota"), defaults["bot_quota"], 0, 10, "Bots"),
+        "friendly_fire": normalize_friendly_fire(settings.get("friendly_fire"), defaults["friendly_fire"]),
+        "overtime": bool(settings.get("overtime", defaults["overtime"])),
+        "overtime_max_rounds": _bounded_int(
+            settings.get("overtime_max_rounds"), defaults["overtime_max_rounds"], 2, 30, "Overtime rounds"
+        ),
+    }
+
+
+def selected_format(mode: str, settings: dict) -> dict:
+    formats = MODE_FORMATS[mode]
+    return formats.get(settings.get("format"), formats[DEFAULT_MODE_SETTINGS[mode]["format"]])
 
 
 def runtime_cfg_path(mode: str) -> Path:
@@ -312,21 +501,45 @@ def validate_server_password(value: object, *, allow_empty: bool = False) -> str
     return password
 
 
+# "nades" keeps grenade friendly fire but zeroes bullet and other damage, which
+# is how the stock competitive friendly-fire scaling convars are meant to be used.
+FRIENDLY_FIRE_SCALING = {
+    "off": {"enabled": 0, "bullets": 0.33, "other": 0.4},
+    "nades": {"enabled": 1, "bullets": 0.0, "other": 0.0},
+    "regular": {"enabled": 1, "bullets": 0.33, "other": 0.4},
+}
+
+
 def hot_convar_lines(settings: dict) -> list[str]:
+    friendly_fire = FRIENDLY_FIRE_SCALING[
+        normalize_friendly_fire(settings.get("friendly_fire"), "off")
+    ]
+    round_time = float(settings.get("round_time", 1.55))
     return [
         f"bot_quota {settings.get('bot_quota', 0)}",
-        f"mp_friendlyfire {1 if settings.get('friendly_fire', False) else 0}",
+        f"mp_friendlyfire {friendly_fire['enabled']}",
+        f"ff_damage_reduction_bullets {friendly_fire['bullets']:g}",
+        f"ff_damage_reduction_other {friendly_fire['other']:g}",
         f"mp_maxrounds {settings.get('max_rounds', 24)}",
         f"mp_freezetime {settings.get('freezetime', 15)}",
+        f"mp_warmuptime {settings.get('warmup_time', 60)}",
+        f"mp_roundtime {round_time:g}",
+        f"mp_roundtime_defuse {round_time:g}",
+        f"mp_roundtime_hostage {round_time:g}",
+        f"mp_overtime_enable {1 if settings.get('overtime') else 0}",
+        f"mp_overtime_maxrounds {settings.get('overtime_max_rounds', 6)}",
     ]
 
 
 def generate_runtime_cfg(mode: str, settings: dict, password_line: str) -> str:
+    match_format = selected_format(mode, settings)
     lines = [
         "// Generated by CS2 Manager. Do not edit.",
         f'echo "[CS2 Manager] Applying {mode} runtime settings"',
+        f'echo "[CS2 Manager] Match format {match_format["key"]} ({match_format["game_alias"]})"',
         password_line,
         *hot_convar_lines(settings),
+        *match_format["cfg"],
         *MODE_DEFS[mode]["extra_cfg"],
     ]
     return "\n".join(lines) + "\n"
@@ -345,6 +558,46 @@ def write_runtime_cfg(mode: str, settings: dict) -> None:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(generate_runtime_cfg(mode, settings, password_line), encoding="utf-8", newline="\n")
     os.replace(tmp, path)
+
+
+def _set_json_path(document: dict, path: str, value) -> bool:
+    """Set a dotted path inside an already-existing plugin config object."""
+    node = document
+    parts = path.split(".")
+    for part in parts[:-1]:
+        child = node.get(part)
+        if not isinstance(child, dict):
+            raise ValueError(f"Plugin config has no object at {path!r}")
+        node = child
+    leaf = parts[-1]
+    if leaf not in node:
+        raise ValueError(f"Plugin config has no key at {path!r}")
+    if node[leaf] == value:
+        return False
+    node[leaf] = value
+    return True
+
+
+def apply_format_plugin_config(mode: str, settings: dict) -> str | None:
+    """Write the selected format's values into the mode's plugin config file.
+
+    Returns the config name when the file changed, so callers can decide whether
+    a live sync is worthwhile.
+    """
+    target = selected_format(mode, settings)["plugin_config"]
+    if not target:
+        return None
+    path = mode_config_path(mode, target["config"])
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValueError(f"{target['config']} is not a JSON object")
+    changed = False
+    for json_path, value in target["set"].items():
+        changed = _set_json_path(document, json_path, value) or changed
+    if not changed:
+        return None
+    _backup_and_write(path, document)
+    return target["config"]
 
 
 def write_active_mode_state(mode: str, settings: dict) -> None:
@@ -701,6 +954,10 @@ def _start_mode(mode: str, restart_if_running: bool) -> dict:
     settings = validate_mode_settings(mode, load_mode(mode))
     save_mode(mode, settings)
     write_runtime_cfg(mode, settings)
+    try:
+        apply_format_plugin_config(mode, settings)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Match format could not be written to the plugin config: {exc}") from exc
 
     previous_mode = selected_runtime_mode()
     previous_settings = None
@@ -916,7 +1173,12 @@ def api_status():
             "containers": states,
             "active": active,
             "server": server,
-            "password": {"enabled": bool(secret.get("password_enabled")), "policy": server.get("password_policy", "global")},
+            "password": {
+                "enabled": bool(secret.get("password_enabled")),
+                "has_password": bool(secret.get("server_password")),
+                "policy": server.get("password_policy", "global"),
+            },
+            "visibility": "private" if secret.get("password_enabled") else "public",
             "modes": {mode: load_mode(mode) for mode in MODES},
             "mode_order": MODE_ORDER,
             "mode_defaults": DEFAULT_MODE_SETTINGS,
@@ -927,6 +1189,10 @@ def api_status():
                     "container": GAME_CONTAINER,
                     "server_config": meta["server_config"],
                     "capacity": CAPACITY_RANGES[mode],
+                    "formats": [
+                        {key: entry[key] for key in mode_defs.FORMAT_PUBLIC_FIELDS}
+                        for entry in MODE_DEFS[mode]["formats"]
+                    ],
                     "requires": meta["requires"],
                     "plugins": [{"name": p["name"], "role": p["role"], "required": p["required"]} for p in MODE_DEFS[mode]["plugins"]],
                     "actions": [{key: action[key] for key in mode_defs.ACTION_PUBLIC_FIELDS} for action in MODE_ACTIONS.get(mode, [])],
@@ -935,6 +1201,7 @@ def api_status():
             },
             "mode_definition_errors": MODE_DEF_ERRORS,
             "apply_levels": APPLY_LEVELS,
+            "friendly_fire_modes": list(mode_defs.FRIENDLY_FIRE_MODES),
             "allowed_maps": ALLOWED_MAPS,
             "rcon_available": bool(RCON_PASSWORD),
             "timestamps": STATE_TIMESTAMPS,
@@ -1038,6 +1305,36 @@ def api_server_refresh():
     return jsonify({"ok": True})
 
 
+@app.get("/api/v3/commands")
+@require_auth
+def api_commands():
+    mode = selected_runtime_mode()
+    settings = load_mode(mode) if mode in MODES else None
+    return jsonify({"ok": True, "mode": mode, "groups": command_catalog(mode, settings)})
+
+
+@app.post("/api/v3/server/map")
+@require_auth
+def api_server_map():
+    active = active_container()
+    if not active:
+        return jsonify({"ok": False, "error": "No game mode is running"}), 409
+    mode = active["mode"]
+    try:
+        target = normalize_map((request.get_json(silent=True) or {}).get("map"))
+        pool = validate_mode_settings(mode, load_mode(mode))["map_pool"]
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    if target not in pool:
+        return jsonify({"ok": False, "error": "Map is not in the active map pool"}), 400
+    try:
+        output = rcon_command(GAME_CONTAINER, f"changelevel {target}")
+        audit("server.map", "ok", f"map={target}", target=mode)
+        return jsonify({"ok": True, "map": target, "output": redact(output)})
+    except (OSError, RuntimeError, ValueError, PermissionError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 502
+
+
 # ---------------------------------------------------------------------------
 # Routes: modes
 # ---------------------------------------------------------------------------
@@ -1096,6 +1393,10 @@ def api_mode_apply(mode):
         return jsonify({"ok": False, "error": str(exc)}), 400
     save_mode(mode, settings)
     write_runtime_cfg(mode, settings)
+    try:
+        changed_config = apply_format_plugin_config(mode, settings)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     if selected_runtime_mode() == mode:
         write_active_mode_state(mode, settings)
     active = active_container()
@@ -1112,9 +1413,21 @@ def api_mode_apply(mode):
             applied_hot = True
         except (OSError, RuntimeError, ValueError, PermissionError) as exc:
             app.logger.warning("hot apply failed: %s", exc)
+    if changed_config and active and active["mode"] == mode:
+        try:
+            sync_live_config(mode, changed_config)
+        except (DockerException, RuntimeError, OSError) as exc:
+            app.logger.warning("format plugin config sync failed: %s", exc)
     STATE_TIMESTAMPS["last_config_apply"] = now_iso()
     audit("mode.apply", "ok", f"hot={applied_hot} map_reload={map_reloaded}", target=mode)
-    return jsonify({"ok": True, "mode": mode, "applied_hot": applied_hot, "map_reloaded": map_reloaded, "note": "capacity applies on next restart"})
+    return jsonify({
+        "ok": True,
+        "mode": mode,
+        "applied_hot": applied_hot,
+        "map_reloaded": map_reloaded,
+        "plugin_config": changed_config,
+        "note": "the match format applies on the next start or restart",
+    })
 
 
 @app.post("/api/v3/modes/<mode>/start")
@@ -1563,6 +1876,54 @@ def api_password_disable():
     return jsonify({"ok": True, "enabled": False})
 
 
+@app.get("/api/v3/server/visibility")
+@require_auth
+def api_visibility_get():
+    secret = load_secrets()
+    return jsonify({
+        "ok": True,
+        "visibility": "private" if secret.get("password_enabled") else "public",
+        "has_password": bool(secret.get("server_password")),
+    })
+
+
+@app.put("/api/v3/server/visibility")
+@require_auth
+def api_visibility_set():
+    payload = request.get_json(silent=True) or {}
+    visibility = str(payload.get("visibility", "")).strip().lower()
+    if visibility not in VISIBILITY_MODES:
+        return jsonify({"ok": False, "error": "Visibility must be public or private"}), 400
+    secret = load_secrets()
+    if visibility == "public":
+        secret["password_enabled"] = False
+    else:
+        try:
+            if payload.get("password") is not None:
+                secret["server_password"] = validate_server_password(payload["password"])
+            elif secret.get("server_password"):
+                secret["server_password"] = validate_server_password(secret["server_password"])
+            else:
+                return jsonify({
+                    "ok": False,
+                    "error": "Set a lobby password before switching to Private",
+                }), 400
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        secret["password_enabled"] = True
+    save_secrets(secret)
+    server = load_server()
+    server["access_mode"] = visibility
+    save_server(server)
+    _apply_password_live(secret)
+    audit("server.visibility", "ok", f"visibility={visibility}")
+    return jsonify({
+        "ok": True,
+        "visibility": visibility,
+        "has_password": bool(secret.get("server_password")),
+    })
+
+
 LOG_SOURCES = {
     "game": {"label": "Game"},
     "docker": {"label": "Docker / container"},
@@ -1809,8 +2170,10 @@ def ensure_data_files() -> None:
         save_secrets({"password_enabled": bool(password), "server_password": password, "per_mode": {}})
     for mode in MODES:
         try:
-            write_runtime_cfg(mode, load_mode(mode))
-        except (OSError, ValueError) as exc:
+            settings = validate_mode_settings(mode, load_mode(mode))
+            save_mode(mode, settings)
+            write_runtime_cfg(mode, settings)
+        except (OSError, ValueError, TypeError) as exc:
             app.logger.warning("runtime cfg seed failed for %s: %s", mode, exc)
     last = load_server().get("last_mode")
     if last in MODES and not ACTIVE_MODE_JSON.exists():

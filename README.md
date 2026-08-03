@@ -56,11 +56,11 @@ The inventory is stored inside the persistent server installation:
 
 ## Modes
 
-| UI name | Mode id | Main plugin | Mode-only utilities | Capacity |
-|---|---|---|---|---:|
-| FaceIt | `faceit` | MatchZy | AutoReady | 2–10, default 10 |
-| Retake | `retake` | RetakesPlugin | Instadefuse, RetakesPluginShared | 3–10, default 9 |
-| HeroShift | `heroshift` | HeroShift | RayTrace native module, RayTraceImpl, RayTraceApi | 2–10, default 10 |
+| UI name | Mode id | Main plugin | Mode-only utilities | Match formats |
+|---|---|---|---|---|
+| FaceIt | `faceit` | MatchZy | AutoReady | 5v5 (default), 2v2, 1v1 |
+| Retake | `retake` | RetakesPlugin | Instadefuse, RetakesPluginShared | 5v4 (default), 4v3 |
+| HeroShift | `heroshift` | HeroShift | RayTrace native module, RayTraceImpl, RayTraceApi | 5v5 (default), 2v2, 1v1 |
 
 All three modes run in `cs2-game`. `PanelBridge` is declared as a shared utility
 by every mode. RayTrace is declared only by HeroShift and is removed from the
@@ -91,8 +91,25 @@ Exec order:
 server.cfg -> mode_<id>.cfg -> panel_runtime.cfg
 ```
 
-Capacity is owned by each manifest's `settings.defaults.capacity`; it is no
-longer duplicated as a per-service environment variable.
+### Match formats
+
+Each manifest declares its own `settings.formats` list, and the panel offers
+exactly those. A format owns the slot count and the game alias, and may carry
+extra convars or a plugin-config patch:
+
+| Mode | Format | Slots | Game alias | Also configures |
+|---|---|---:|---|---|
+| FaceIt | 5v5 / 2v2 / 1v1 | 10 / 4 / 2 | competitive / wingman / competitive | `matchzy_minimum_ready_required` |
+| Retake | 5v4 / 4v3 | 9 / 7 | competitive | `RetakesPlugin.json` → `MaxPlayers`, `TerroristRatio` |
+| HeroShift | 5v5 / 2v2 / 1v1 | 10 / 4 / 2 | competitive / wingman / competitive | — |
+
+The slot count, start map and game alias are derived, not stored by hand: the
+panel writes them into `active-mode.json`, and the launcher turns them into
+`-maxplayers`, `+map` and `+game_alias`. A format change therefore needs a
+container start or restart, which the panel labels as such.
+
+Plugin-config patches are written into the mode's declared config file and, when
+that mode is already running, synced into the live game tree by `mode-applier`.
 
 ## Mode manifests
 
@@ -112,7 +129,7 @@ The manifest declares:
 
 - installed framework requirements;
 - startup alias and cfg files;
-- capacity range and settings defaults;
+- match formats, and the settings defaults behind them;
 - plugin, utility, shared-library, gamedata and config deployment targets;
 - required-plugin health aliases;
 - whitelisted RCON quick actions.
@@ -182,20 +199,39 @@ are never hot-unloaded.
 
 ## Operating
 
-The panel exposes five areas:
+The panel exposes four areas:
 
-1. **Status** — `cs2-game` state, active mode, endpoint, resource use and health.
-2. **Game Mode** — select and start/switch FaceIt, Retake or HeroShift.
-3. **Server Config** — map, capacity, max rounds, freeze time, friendly fire,
-   bots and password where supported by the mode.
-4. **RCON Console** — player list, guarded console and manifest-defined quick
-   actions.
-5. **Maintenance** — verify sources/versions, backup, update/validate CS2,
+1. **Status** — `cs2-game` state, active mode, match format, endpoint,
+   visibility and plugin health.
+2. **Lobby Setup** — one stacked form, in this order:
+   1. *Game Mode* — FaceIt, Retake or HeroShift.
+   2. *Match Format* — only the formats the selected mode declares.
+   3. *Common Configuration* — freeze time, warmup time, max rounds, round time,
+      bots and overtime.
+   4. *Lobby Visibility* — Public, or Private with a join password.
+   5. *Friendly Fire* — Regular, Nades Only or Off.
+   6. *Map Pool* — the maps the lobby uses; the one marked `START` is the launch
+      map, and each pooled map gets a one-click switch button while running.
+
+   The primary button is **Start Server**, which becomes **Close Server** while
+   the selected mode is running and **Switch to …** while a different mode is.
+3. **Server Console** — visible only while the server runs: an RCON command line
+   plus every command the panel offers, grouped by source (the running mode's
+   plugin commands, then round/match, bots, the competitive or wingman preset
+   for the active format, map and read-only server commands). Selecting a command
+   loads it into the input; commands with a `<placeholder>` must be completed
+   before they can be sent. The player list with kick/ban lives here too.
+4. **Maintenance** — verify sources/versions, backup, update/validate CS2,
    repair Metamod and restart/rebuild the panel.
 
-Hot convars can be applied without a container restart. Capacity applies on the
-next start. A map change uses `changelevel`. Switching the selected mode restarts
-`cs2-game` and disconnects players.
+Freeze time, warmup time, rounds, round time, bots, overtime and friendly fire
+apply live over RCON. Match format applies on the next start or restart, because
+it changes `-maxplayers` and `+game_alias`. A start-map change uses `changelevel`.
+Switching the selected mode restarts `cs2-game` and disconnects players.
+
+Lobby visibility is server-wide: Private enables `sv_password` live over RCON,
+Public clears it. Passwords are stored server-side and never returned by the API,
+so a generated password cannot be read back — set a known one to share it.
 
 HeroShift's roster editor writes only whitelisted fields, keeps timestamped
 backups, synchronizes the declared live config files transactionally, and issues

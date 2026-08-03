@@ -24,14 +24,33 @@ BASE = {
         "runtime_cfg": "panel_runtime.cfg",
     },
     "settings": {
-        "capacity": {"min": 2, "max": 10},
+        "formats": [
+            {
+                "key": "5v5",
+                "label": "5v5",
+                "capacity": 10,
+                "team_size": 5,
+                "default": True,
+            },
+            {
+                "key": "2v2",
+                "label": "2v2",
+                "capacity": 4,
+                "team_size": 2,
+                "game_alias": "wingman",
+            },
+        ],
         "defaults": {
-            "map": "de_dust2",
-            "capacity": 10,
+            "format": "5v5",
+            "map_pool": ["de_dust2", "de_mirage"],
             "max_rounds": 24,
             "freezetime": 15,
-            "friendly_fire": False,
+            "warmup_time": 60,
+            "round_time": 1.55,
+            "friendly_fire": "off",
             "bot_quota": 0,
+            "overtime": True,
+            "overtime_max_rounds": 6,
         },
         "extra_cfg": [],
     },
@@ -90,6 +109,81 @@ class ModeDefinitionTests(unittest.TestCase):
     def test_empty_target_segment_is_rejected(self) -> None:
         raw = json.loads(json.dumps(BASE))
         raw["plugins"][0]["mounts"][0]["target"] = "addons//MatchZy"
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_capacity_range_is_derived_from_formats(self) -> None:
+        parsed = parse_definition(BASE, "faceit")
+        self.assertEqual(parsed["capacity"], {"min": 4, "max": 10})
+        self.assertEqual([entry["key"] for entry in parsed["formats"]], ["5v5", "2v2"])
+
+    def test_format_inherits_startup_alias_and_may_override_it(self) -> None:
+        parsed = parse_definition(BASE, "faceit")
+        aliases = {entry["key"]: entry["game_alias"] for entry in parsed["formats"]}
+        self.assertEqual(aliases, {"5v5": "competitive", "2v2": "wingman"})
+
+    def test_default_format_must_be_declared(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["defaults"]["format"] = "3v3"
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_duplicate_format_keys_are_rejected(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["formats"][1]["key"] = "5v5"
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_empty_map_pool_is_rejected(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["defaults"]["map_pool"] = []
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_friendly_fire_must_be_a_known_mode(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["defaults"]["friendly_fire"] = True
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_format_plugin_config_must_target_a_declared_config(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["formats"][0]["plugin_config"] = {
+            "config": "Unknown.json",
+            "set": {"GameSettings.MaxPlayers": 10},
+        }
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_format_plugin_config_rejects_unsafe_paths(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["configs"] = [{
+            "name": "Plugin.json",
+            "source": "config/Plugin.json",
+            "kind": "file",
+            "target": "addons/counterstrikesharp/configs/plugins/X/Plugin.json",
+        }]
+        raw["settings"]["formats"][0]["plugin_config"] = {
+            "config": "Plugin.json",
+            "set": {"../escape": 1},
+        }
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_format_cfg_rejects_command_chaining(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["formats"][0]["cfg"] = ["mp_maxrounds 16; quit"]
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_action_group_is_validated_and_defaulted(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["actions"] = [{
+            "key": "start", "label": "Start", "cmd": "css_start",
+            "impact": "Match", "description": "Starts.",
+        }]
+        self.assertEqual(parse_definition(raw, "faceit")["actions"][0]["group"], "match")
+        raw["actions"][0]["group"] = "nonsense"
         with self.assertRaises(DefinitionError):
             parse_definition(raw, "faceit")
 

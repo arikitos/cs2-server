@@ -12,8 +12,20 @@ CFG_FILE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*\.cfg$")
 ACTION_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]*$")
 COMMAND_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?: [A-Za-z0-9_.\-]+)*$")
+FORMAT_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+MAP_NAME_RE = re.compile(r"^[a-z0-9_]+$")
+ARG_HINT_RE = re.compile(r"^<[a-z][a-z_ ]*>$")
+JSON_PATH_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+CONFIG_VALUE_RE = re.compile(r"^[A-Za-z0-9_.@/ -]*$")
 
-SETTING_FIELDS = ("map", "capacity", "max_rounds", "freezetime", "friendly_fire", "bot_quota")
+# Panel-editable settings. 'map' and 'capacity' are no longer stored: they are
+# derived from map_pool[0] and from the selected match format.
+SETTING_FIELDS = (
+    "format", "map_pool", "max_rounds", "freezetime", "warmup_time",
+    "round_time", "bot_quota", "friendly_fire", "overtime", "overtime_max_rounds",
+)
+FRIENDLY_FIRE_MODES = ("off", "nades", "regular")
+ACTION_GROUPS = ("match", "practice", "teams", "bots", "server", "map", "readonly", "plugin")
 GAME_ALIASES = ("competitive", "casual", "wingman", "deathmatch")
 TARGET_PREFIXES = ("addons/", "cfg/")
 ABSOLUTE_TARGET_PREFIX = "/addons/"
@@ -29,16 +41,26 @@ _TOP_KEYS = {
     "settings", "plugins", "configs", "actions", "requires", "note",
 }
 _STARTUP_KEYS = {"game_alias", "mode_cfg", "runtime_cfg", "note"}
-_SETTINGS_KEYS = {"capacity", "defaults", "extra_cfg", "note"}
+_SETTINGS_KEYS = {"formats", "defaults", "extra_cfg", "note"}
+_FORMAT_KEYS = {
+    "key", "label", "detail", "capacity", "team_size", "game_alias",
+    "default", "cfg", "plugin_config", "note",
+}
+_PLUGIN_CONFIG_KEYS = {"config", "set", "note"}
 _PLUGIN_KEYS = {"name", "role", "verify", "mounts", "build", "note"}
 _BUILD_KEYS = {"project", "shared", "note"}
 _VERIFY_KEYS = {"required", "aliases", "note"}
 _MOUNT_KEYS = {"source", "target", "kind", "shared", "absolute", "note"}
 _CONFIG_KEYS = {"name", "source", "target", "kind", "shared", "absolute", "note"}
-_ACTION_KEYS = {"key", "label", "cmd", "impact", "description", "confirm", "note"}
+_ACTION_KEYS = {
+    "key", "label", "cmd", "impact", "description", "confirm", "group", "arg_hint", "note",
+}
 _REQUIRES_KEYS = {"metamod", "counterstrikesharp", "note"}
 
-ACTION_PUBLIC_FIELDS = ("key", "label", "cmd", "impact", "description", "confirm")
+ACTION_PUBLIC_FIELDS = (
+    "key", "label", "cmd", "impact", "description", "confirm", "group", "arg_hint",
+)
+FORMAT_PUBLIC_FIELDS = ("key", "label", "detail", "capacity", "team_size", "game_alias")
 
 
 class DefinitionError(ValueError):
@@ -81,6 +103,20 @@ def _int(container: dict, key: str, where: str, lo: int, hi: int,
     if not lo <= value <= hi:
         raise DefinitionError(f"{where}.{key}: must be between {lo} and {hi}")
     return value
+
+
+def _num(container: dict, key: str, where: str, lo: float, hi: float,
+         default: float | None = None) -> float:
+    if key not in container:
+        if default is not None:
+            return default
+        raise DefinitionError(f"{where}: missing '{key}'")
+    value = container[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise DefinitionError(f"{where}.{key}: expected a number")
+    if not lo <= value <= hi:
+        raise DefinitionError(f"{where}.{key}: must be between {lo:g} and {hi:g}")
+    return float(value)
 
 
 def _bool(container: dict, key: str, where: str, default: bool | None = None) -> bool:
@@ -139,6 +175,62 @@ def _mount(raw: object, where: str, allowed: set[str] = _MOUNT_KEYS) -> dict:
     }
 
 
+def _convar_lines(raw: object, where: str) -> list[str]:
+    if not isinstance(raw, list):
+        raise DefinitionError(f"{where}: expected a list")
+    lines: list[str] = []
+    for index, line in enumerate(raw):
+        if not isinstance(line, str) or not COMMAND_RE.fullmatch(line.strip()):
+            raise DefinitionError(f"{where}[{index}]: not a plain convar line")
+        lines.append(line.strip())
+    return lines
+
+
+def _plugin_config(raw: object, where: str, config_names: set[str]) -> dict:
+    entry = _obj(raw, _PLUGIN_CONFIG_KEYS, where)
+    name = _str(entry, "config", where)
+    if name not in config_names:
+        raise DefinitionError(f"{where}.config: {name!r} is not a declared config of this mode")
+    assignments = entry.get("set")
+    if not isinstance(assignments, dict) or not assignments:
+        raise DefinitionError(f"{where}.set: expected a non-empty object of JSON paths")
+    values: dict[str, object] = {}
+    for path, value in assignments.items():
+        if not isinstance(path, str) or not JSON_PATH_RE.fullmatch(path):
+            raise DefinitionError(f"{where}.set: {path!r} is not a dotted JSON path")
+        if isinstance(value, bool) or isinstance(value, (int, float)):
+            values[path] = value
+        elif isinstance(value, str) and CONFIG_VALUE_RE.fullmatch(value):
+            values[path] = value
+        else:
+            raise DefinitionError(f"{where}.set.{path}: expected a number, boolean or plain string")
+    return {"config": name, "set": values}
+
+
+def _format(raw: object, where: str, fallback_alias: str, config_names: set[str]) -> dict:
+    entry = _obj(raw, _FORMAT_KEYS, where)
+    key = _str(entry, "key", where, FORMAT_KEY_RE)
+    capacity = _int(entry, "capacity", where, 1, 64)
+    team_size = _int(entry, "team_size", where, 1, 32)
+    alias = _str(entry, "game_alias", where, default=fallback_alias)
+    if alias not in GAME_ALIASES:
+        raise DefinitionError(f"{where}.game_alias: expected one of {', '.join(GAME_ALIASES)}")
+    return {
+        "key": key,
+        "label": _str(entry, "label", where),
+        "detail": _str(entry, "detail", where, default=""),
+        "capacity": capacity,
+        "team_size": team_size,
+        "game_alias": alias,
+        "default": _bool(entry, "default", where, default=False),
+        "cfg": _convar_lines(entry.get("cfg", []), f"{where}.cfg"),
+        "plugin_config": (
+            _plugin_config(entry["plugin_config"], f"{where}.plugin_config", config_names)
+            if "plugin_config" in entry else None
+        ),
+    }
+
+
 def parse_definition(raw: object, mode_id: str) -> dict:
     where = f"modes/{mode_id}/mode.json"
     doc = _obj(raw, _TOP_KEYS, where)
@@ -152,56 +244,6 @@ def parse_definition(raw: object, mode_id: str) -> dict:
         raise DefinitionError(
             f"{where}.startup.game_alias: expected one of {', '.join(GAME_ALIASES)}"
         )
-
-    settings_raw = _obj(doc.get("settings"), _SETTINGS_KEYS, f"{where}.settings")
-    cap_raw = _obj(
-        settings_raw.get("capacity"), {"min", "max", "note"},
-        f"{where}.settings.capacity",
-    )
-    cap_min = _int(cap_raw, "min", f"{where}.settings.capacity", 1, 64)
-    cap_max = _int(cap_raw, "max", f"{where}.settings.capacity", 1, 64)
-    if cap_min > cap_max:
-        raise DefinitionError(f"{where}.settings.capacity: min is greater than max")
-
-    defaults_raw = _obj(
-        settings_raw.get("defaults"), set(SETTING_FIELDS) | {"note"},
-        f"{where}.settings.defaults",
-    )
-    missing = [field for field in SETTING_FIELDS if field not in defaults_raw]
-    if missing:
-        raise DefinitionError(f"{where}.settings.defaults: missing {', '.join(missing)}")
-    defaults = {
-        "map": _str(
-            defaults_raw, "map", f"{where}.settings.defaults",
-            re.compile(r"^[a-z0-9_]+$"),
-        ),
-        "capacity": _int(
-            defaults_raw, "capacity", f"{where}.settings.defaults", cap_min, cap_max,
-        ),
-        "max_rounds": _int(
-            defaults_raw, "max_rounds", f"{where}.settings.defaults", 1, 120,
-        ),
-        "freezetime": _int(
-            defaults_raw, "freezetime", f"{where}.settings.defaults", 0, 60,
-        ),
-        "bot_quota": _int(
-            defaults_raw, "bot_quota", f"{where}.settings.defaults", 0, 10,
-        ),
-        "friendly_fire": _bool(
-            defaults_raw, "friendly_fire", f"{where}.settings.defaults",
-        ),
-    }
-
-    extra_raw = settings_raw.get("extra_cfg", [])
-    if not isinstance(extra_raw, list):
-        raise DefinitionError(f"{where}.settings.extra_cfg: expected a list")
-    extra_cfg: list[str] = []
-    for index, line in enumerate(extra_raw):
-        if not isinstance(line, str) or not COMMAND_RE.fullmatch(line.strip()):
-            raise DefinitionError(
-                f"{where}.settings.extra_cfg[{index}]: not a plain convar line"
-            )
-        extra_cfg.append(line.strip())
 
     plugins_raw = doc.get("plugins")
     if not isinstance(plugins_raw, list) or not plugins_raw:
@@ -263,6 +305,71 @@ def parse_definition(raw: object, mode_id: str) -> dict:
         mount = _mount(config_obj, spot, _CONFIG_KEYS)
         mount["name"] = _str(config_obj, "name", spot)
         configs.append(mount)
+    config_names = {config["name"] for config in configs}
+
+    settings_raw = _obj(doc.get("settings"), _SETTINGS_KEYS, f"{where}.settings")
+    formats_raw = settings_raw.get("formats")
+    if not isinstance(formats_raw, list) or not formats_raw:
+        raise DefinitionError(f"{where}.settings.formats: expected a non-empty list")
+    formats, seen_formats = [], set()
+    for index, item in enumerate(formats_raw):
+        entry = _format(
+            item, f"{where}.settings.formats[{index}]", game_alias, config_names,
+        )
+        if entry["key"] in seen_formats:
+            raise DefinitionError(
+                f"{where}.settings.formats[{index}].key: declared twice"
+            )
+        seen_formats.add(entry["key"])
+        formats.append(entry)
+    if sum(1 for entry in formats if entry["default"]) > 1:
+        raise DefinitionError(f"{where}.settings.formats: more than one default format")
+
+    defaults_raw = _obj(
+        settings_raw.get("defaults"), set(SETTING_FIELDS) | {"note"},
+        f"{where}.settings.defaults",
+    )
+    missing = [field for field in SETTING_FIELDS if field not in defaults_raw]
+    if missing:
+        raise DefinitionError(f"{where}.settings.defaults: missing {', '.join(missing)}")
+    default_format = _str(
+        defaults_raw, "format", f"{where}.settings.defaults", FORMAT_KEY_RE,
+    )
+    if default_format not in seen_formats:
+        raise DefinitionError(
+            f"{where}.settings.defaults.format: {default_format!r} is not a declared format"
+        )
+    pool_raw = defaults_raw.get("map_pool")
+    if not isinstance(pool_raw, list) or not pool_raw:
+        raise DefinitionError(f"{where}.settings.defaults.map_pool: expected a non-empty list")
+    map_pool: list[str] = []
+    for index, name in enumerate(pool_raw):
+        if not isinstance(name, str) or not MAP_NAME_RE.fullmatch(name):
+            raise DefinitionError(f"{where}.settings.defaults.map_pool[{index}]: invalid map name")
+        if name not in map_pool:
+            map_pool.append(name)
+    friendly_fire = _str(defaults_raw, "friendly_fire", f"{where}.settings.defaults")
+    if friendly_fire not in FRIENDLY_FIRE_MODES:
+        raise DefinitionError(
+            f"{where}.settings.defaults.friendly_fire: expected one of "
+            f"{', '.join(FRIENDLY_FIRE_MODES)}"
+        )
+    spot = f"{where}.settings.defaults"
+    defaults = {
+        "format": default_format,
+        "map_pool": map_pool,
+        "max_rounds": _int(defaults_raw, "max_rounds", spot, 1, 120),
+        "freezetime": _int(defaults_raw, "freezetime", spot, 0, 60),
+        "warmup_time": _int(defaults_raw, "warmup_time", spot, 0, 600),
+        "round_time": _num(defaults_raw, "round_time", spot, 0.5, 60),
+        "bot_quota": _int(defaults_raw, "bot_quota", spot, 0, 10),
+        "friendly_fire": friendly_fire,
+        "overtime": _bool(defaults_raw, "overtime", spot),
+        "overtime_max_rounds": _int(defaults_raw, "overtime_max_rounds", spot, 2, 30),
+    }
+    extra_cfg = _convar_lines(
+        settings_raw.get("extra_cfg", []), f"{where}.settings.extra_cfg",
+    )
 
     actions_raw = doc.get("actions", [])
     if not isinstance(actions_raw, list):
@@ -275,6 +382,9 @@ def parse_definition(raw: object, mode_id: str) -> dict:
         if key in seen_keys:
             raise DefinitionError(f"{spot}.key: declared twice")
         seen_keys.add(key)
+        group = _str(entry, "group", spot, default="match")
+        if group not in ACTION_GROUPS:
+            raise DefinitionError(f"{spot}.group: expected one of {', '.join(ACTION_GROUPS)}")
         actions.append({
             "key": key,
             "label": _str(entry, "label", spot),
@@ -282,6 +392,8 @@ def parse_definition(raw: object, mode_id: str) -> dict:
             "impact": _str(entry, "impact", spot),
             "description": _str(entry, "description", spot),
             "confirm": _bool(entry, "confirm", spot, default=True),
+            "group": group,
+            "arg_hint": _str(entry, "arg_hint", spot, ARG_HINT_RE, default=""),
         })
 
     requires_raw = _obj(doc.get("requires"), _REQUIRES_KEYS, f"{where}.requires")
@@ -305,7 +417,11 @@ def parse_definition(raw: object, mode_id: str) -> dict:
                 startup_raw, "runtime_cfg", f"{where}.startup", CFG_FILE_RE,
             ),
         },
-        "capacity": {"min": cap_min, "max": cap_max},
+        "capacity": {
+            "min": min(entry["capacity"] for entry in formats),
+            "max": max(entry["capacity"] for entry in formats),
+        },
+        "formats": formats,
         "defaults": defaults,
         "extra_cfg": extra_cfg,
         "plugins": plugins,

@@ -3,7 +3,6 @@
   "label": "HeroShift",
   "implementation": "Random skill every round (HeroShift)",
   "order": 40,
-  "server_config": false,
   "requires": {
     "metamod": "2.0.0-git1410",
     "counterstrikesharp": "1.0.371"
@@ -14,14 +13,52 @@
     "runtime_cfg": "panel_runtime.cfg"
   },
   "settings": {
-    "capacity": { "min": 2, "max": 10 },
+    "formats": [
+      {
+        "key": "5v5",
+        "label": "5v5",
+        "detail": "10 players",
+        "capacity": 10,
+        "team_size": 5,
+        "game_alias": "competitive",
+        "default": true
+      },
+      {
+        "key": "2v2",
+        "label": "2v2",
+        "detail": "4 players - Wingman",
+        "capacity": 4,
+        "team_size": 2,
+        "game_alias": "wingman"
+      },
+      {
+        "key": "1v1",
+        "label": "1v1",
+        "detail": "2 players",
+        "capacity": 2,
+        "team_size": 1,
+        "game_alias": "competitive"
+      }
+    ],
     "defaults": {
-      "map": "de_dust2",
-      "capacity": 10,
+      "format": "5v5",
+      "map_pool": [
+        "de_dust2",
+        "de_mirage",
+        "de_inferno",
+        "de_nuke",
+        "de_ancient",
+        "de_anubis",
+        "de_overpass"
+      ],
       "max_rounds": 24,
       "freezetime": 15,
-      "friendly_fire": false,
-      "bot_quota": 0
+      "warmup_time": 20,
+      "round_time": 1.55,
+      "bot_quota": 0,
+      "friendly_fire": "off",
+      "overtime": false,
+      "overtime_max_rounds": 6
     },
     "extra_cfg": []
   },
@@ -92,9 +129,9 @@
     }
   ],
   "actions": [
-    { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config", "description": "Reloads HeroShift config files.", "confirm": false },
-    { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round", "description": "Restarts the game after one second.", "confirm": true },
-    { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase", "description": "Ends warmup.", "confirm": true },
-    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players", "description": "Removes all bots.", "confirm": true }
+    { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config", "description": "Reloads HeroShift config files.", "confirm": false, "group": "plugin" },
+    { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round", "description": "Restarts the game after one second.", "confirm": true, "group": "match" },
+    { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase", "description": "Ends warmup.", "confirm": true, "group": "match" },
+    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players", "description": "Removes all bots.", "confirm": true, "group": "bots" }
   ]
 }

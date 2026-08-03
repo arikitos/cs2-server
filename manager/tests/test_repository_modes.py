@@ -76,10 +76,21 @@ class RepositoryModeManifestTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
+    def runtime_settings(self, mode: str) -> dict:
+        """Mirror how the panel derives runtime state from the manifest defaults."""
+        settings = dict(self.manifests[mode]["settings"]["defaults"])
+        formats = {row["key"]: row for row in self.manifests[mode]["settings"]["formats"]}
+        chosen = formats[settings["format"]]
+        settings["map"] = settings["map_pool"][0]
+        settings["capacity"] = chosen["capacity"]
+        settings["game_alias"] = chosen.get(
+            "game_alias", self.manifests[mode]["startup"]["game_alias"]
+        )
+        return settings
+
     def apply(self, mode: str):
-        manifest = self.manifests[mode]
         state = self.data / "runtime/active-mode.json"
-        write_json(state, {"mode": mode, "settings": manifest["settings"]["defaults"]})
+        write_json(state, {"mode": mode, "settings": self.runtime_settings(mode)})
         return apply_mode(
             state_path=state,
             modes_root=self.modes,
@@ -123,6 +134,31 @@ class RepositoryModeManifestTests(unittest.TestCase):
         self.assertTrue((self.server / "game/csgo/addons/counterstrikesharp/plugins/RetakesPlugin").is_dir())
         inventory = json.loads((self.data / "runtime/managed-files.json").read_text())
         self.assertEqual(inventory["mode"], "retake")
+
+    def test_format_alias_reaches_the_launcher_env(self) -> None:
+        self.apply("faceit")
+        env = (self.data / "runtime/mode.env").read_text(encoding="utf-8")
+        self.assertIn("CS2_GAMEALIAS=competitive", env)
+        self.assertIn("CS2_MAXPLAYERS=10", env)
+
+        state = self.data / "runtime/active-mode.json"
+        settings = self.runtime_settings("faceit")
+        settings.update({"format": "2v2", "capacity": 4, "game_alias": "wingman"})
+        write_json(state, {"mode": "faceit", "settings": settings})
+        apply_mode(
+            state_path=state,
+            modes_root=self.modes,
+            shared_root=self.shared,
+            server_root=self.server,
+            inventory_path=self.data / "runtime/managed-files.json",
+            env_path=self.data / "runtime/mode.env",
+            absolute_root=self.absolute,
+            versions_path=self.versions,
+            installed_versions_path=self.installed,
+        )
+        env = (self.data / "runtime/mode.env").read_text(encoding="utf-8")
+        self.assertIn("CS2_GAMEALIAS=wingman", env)
+        self.assertIn("CS2_MAXPLAYERS=4", env)
 
 
 if __name__ == "__main__":

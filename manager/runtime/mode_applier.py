@@ -526,7 +526,9 @@ def _atomic_json(path: Path, value: dict) -> None:
 
 def _write_env(path: Path, *, mode: str, manifest: dict, settings: dict) -> None:
     startup = manifest["startup"]
-    alias = startup.get("game_alias")
+    # The selected match format may override the base alias (for example a 2v2
+    # format running the wingman game mode). Fall back to the mode default.
+    alias = settings.get("game_alias") or startup.get("game_alias")
     mode_cfg = startup.get("mode_cfg")
     runtime_cfg = startup.get("runtime_cfg")
     map_name = settings.get("map")

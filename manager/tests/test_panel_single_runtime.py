@@ -219,10 +219,177 @@ class PanelSingleRuntimeTests(unittest.TestCase):
             "/api/v3/server/start",
             "/api/v3/server/stop",
             "/api/v3/server/restart",
+            "/api/v3/server/map",
+            "/api/v3/server/visibility",
+            "/api/v3/commands",
             "/api/v3/modes/heroshift/skills",
             "/api/v3/maintenance/verify-mounts",
         }
         self.assertTrue(expected.issubset(rules))
+
+    def test_format_drives_capacity_alias_and_start_map(self):
+        settings = self.app.validate_mode_settings("faceit", {
+            "format": "2v2",
+            "map_pool": ["de_nuke", "de_mirage", "de_nuke"],
+        })
+        self.assertEqual(settings["capacity"], 4)
+        self.assertEqual(settings["game_alias"], "wingman")
+        self.assertEqual(settings["map"], "de_nuke")
+        # The pool is de-duplicated while keeping the operator's order.
+        self.assertEqual(settings["map_pool"], ["de_nuke", "de_mirage"])
+
+        five = self.app.validate_mode_settings("faceit", {"format": "5v5"})
+        self.assertEqual((five["capacity"], five["game_alias"]), (10, "competitive"))
+
+    def test_retake_formats_expose_only_the_declared_pair(self):
+        self.assertEqual(set(self.app.MODE_FORMATS["retake"]), {"5v4", "4v3"})
+        self.assertEqual(
+            self.app.validate_mode_settings("retake", {"format": "4v3"})["capacity"], 7
+        )
+        with self.assertRaises(ValueError):
+            self.app.validate_mode_settings("retake", {"format": "5v5"})
+
+    def test_derived_fields_cannot_be_forced_by_a_client(self):
+        settings = self.app.validate_mode_settings("faceit", {
+            "format": "1v1",
+            "map_pool": ["de_mirage"],
+            "capacity": 64,
+            "map": "de_dust2",
+            "game_alias": "deathmatch",
+        })
+        self.assertEqual(settings["capacity"], 2)
+        self.assertEqual(settings["map"], "de_mirage")
+        self.assertEqual(settings["game_alias"], "competitive")
+
+    def test_map_pool_rejects_maps_outside_the_allowlist(self):
+        with self.assertRaises(ValueError):
+            self.app.validate_mode_settings("faceit", {"map_pool": ["de_dust2", "de_evil"]})
+        with self.assertRaises(ValueError):
+            self.app.validate_mode_settings("faceit", {"map_pool": []})
+
+    def test_legacy_boolean_friendly_fire_is_migrated(self):
+        self.assertEqual(
+            self.app.validate_mode_settings("faceit", {"friendly_fire": True})["friendly_fire"],
+            "regular",
+        )
+        self.assertEqual(
+            self.app.validate_mode_settings("faceit", {"friendly_fire": False})["friendly_fire"],
+            "off",
+        )
+        with self.assertRaises(ValueError):
+            self.app.validate_mode_settings("faceit", {"friendly_fire": "sometimes"})
+
+    def test_nades_only_friendly_fire_zeroes_bullet_scaling(self):
+        lines = self.app.hot_convar_lines(
+            self.app.validate_mode_settings("faceit", {"friendly_fire": "nades"})
+        )
+        self.assertIn("mp_friendlyfire 1", lines)
+        self.assertIn("ff_damage_reduction_bullets 0", lines)
+        off = self.app.hot_convar_lines(
+            self.app.validate_mode_settings("faceit", {"friendly_fire": "off"})
+        )
+        self.assertIn("mp_friendlyfire 0", off)
+        self.assertIn("ff_damage_reduction_bullets 0.33", off)
+
+    def test_common_settings_reach_the_generated_runtime_cfg(self):
+        settings = self.app.validate_mode_settings("faceit", {
+            "format": "2v2",
+            "freezetime": 9,
+            "warmup_time": 45,
+            "max_rounds": 16,
+            "round_time": 1.5,
+            "bot_quota": 3,
+            "overtime": True,
+            "overtime_max_rounds": 4,
+        })
+        text = self.app.generate_runtime_cfg("faceit", settings, 'sv_password ""')
+        for expected in (
+            "mp_freezetime 9", "mp_warmuptime 45", "mp_maxrounds 16",
+            "mp_roundtime 1.5", "bot_quota 3", "mp_overtime_enable 1",
+            "mp_overtime_maxrounds 4",
+            "matchzy_minimum_ready_required 4",  # comes from the 2v2 format
+            "matchzy_autostart_mode 1",          # comes from the mode extra_cfg
+        ):
+            self.assertIn(expected, text)
+
+    def test_format_writes_the_retake_plugin_config(self):
+        path = self.app.mode_config_path("retake", "RetakesPlugin.json")
+        changed = self.app.apply_format_plugin_config(
+            "retake", self.app.validate_mode_settings("retake", {"format": "4v3"})
+        )
+        self.assertEqual(changed, "RetakesPlugin.json")
+        document = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(document["GameSettings"]["MaxPlayers"], 7)
+        self.assertEqual(document["TeamSettings"]["TerroristRatio"], 0.43)
+        # A second identical apply is a no-op, so no needless backup churn.
+        self.assertIsNone(self.app.apply_format_plugin_config(
+            "retake", self.app.validate_mode_settings("retake", {"format": "4v3"})
+        ))
+
+    def test_command_catalog_follows_the_format_game_alias(self):
+        wingman = self.app.validate_mode_settings("faceit", {"format": "2v2"})
+        groups = {g["id"] for g in self.app.command_catalog("faceit", wingman)}
+        self.assertIn("wingman", groups)
+        self.assertNotIn("competitive", groups)
+        self.assertIn("faceit_match", groups)
+        self.assertIn("bots", groups)
+
+        competitive = self.app.validate_mode_settings("faceit", {"format": "5v5"})
+        groups = {g["id"] for g in self.app.command_catalog("faceit", competitive)}
+        self.assertIn("competitive", groups)
+        self.assertNotIn("wingman", groups)
+
+    def test_command_catalog_exposes_bot_add_and_plugin_commands(self):
+        settings = self.app.validate_mode_settings("retake", {})
+        commands = {
+            command["cmd"]
+            for group in self.app.command_catalog("retake", settings)
+            for command in group["commands"]
+        }
+        self.assertIn("bot_add", commands)
+        self.assertIn("bot_kick", commands)
+        self.assertIn("css_forcebombsite A", commands)
+        self.assertIn("status", commands)
+
+    def test_status_payload_carries_everything_the_panel_ui_reads(self):
+        self.app.client = DummyClient(DummyContainer("exited"))
+        # api_status is behind require_auth, so present the configured credentials.
+        self.app.request.authorization = types.SimpleNamespace(
+            username=self.app.USERNAME, password=self.app.PASSWORD
+        )
+        self.addCleanup(setattr, self.app.request, "authorization", None)
+        payload = self.app.api_status()
+        self.assertEqual(payload["visibility"], "public")
+        self.assertIn("has_password", payload["password"])
+        self.assertEqual(payload["friendly_fire_modes"], ["off", "nades", "regular"])
+        self.assertEqual(
+            payload["apply_levels"]["format"], "game_restart",
+        )
+        for mode in payload["mode_order"]:
+            with self.subTest(mode=mode):
+                formats = payload["mode_meta"][mode]["formats"]
+                self.assertTrue(formats)
+                for entry in formats:
+                    self.assertEqual(
+                        set(entry), {"key", "label", "detail", "capacity", "team_size", "game_alias"},
+                    )
+                # The Lobby Setup form binds to exactly these fields.
+                for field in ("format", "map_pool", "max_rounds", "freezetime", "warmup_time",
+                              "round_time", "bot_quota", "friendly_fire", "overtime",
+                              "overtime_max_rounds"):
+                    self.assertIn(field, payload["modes"][mode])
+                    self.assertIn(field, payload["mode_defaults"][mode])
+
+    def test_stored_legacy_settings_are_upgraded_in_place(self):
+        legacy = {"map": "de_nuke", "capacity": 10, "max_rounds": 30, "friendly_fire": True}
+        self.app.save_mode("faceit", legacy)
+        settings = self.app.validate_mode_settings("faceit", self.app.load_mode("faceit"))
+        self.assertEqual(settings["format"], "5v5")
+        self.assertEqual(settings["friendly_fire"], "regular")
+        self.assertEqual(settings["max_rounds"], 30)
+        self.assertNotIn("legacy", settings)
+        # 'map' is derived from the pool, not carried over from the stale key.
+        self.assertEqual(settings["map"], settings["map_pool"][0])
 
 
 if __name__ == "__main__":

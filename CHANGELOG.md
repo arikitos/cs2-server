@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Declarative match formats. Each `mode.json` now owns a `settings.formats` list
+  and the panel offers exactly those: FaceIt and HeroShift expose 5v5, 2v2 and
+  1v1; Retake exposes 5v4 and 4v3. A format owns the slot count and the game
+  alias (2v2 runs the `wingman` alias), may add convars to the generated
+  `panel_runtime.cfg`, and may patch a declared plugin config — Retake's formats
+  write `GameSettings.MaxPlayers` and `TeamSettings.TerroristRatio` into
+  `RetakesPlugin.json` and sync it live when Retake is already running.
+- Panel map pool. Each mode stores an ordered `map_pool`; its first entry is the
+  launch map, and every pooled map gets a one-click `changelevel` button while the
+  server runs, served by a new `POST /api/v3/server/map` endpoint that rejects
+  maps outside the pool.
+- Lobby visibility as a first-class control, with `GET`/`PUT
+  /api/v3/server/visibility`. Private enables the join password live over RCON and
+  refuses to engage without one; Public clears it.
+- Warmup time, round time and overtime (enable plus overtime round count) as
+  panel-managed settings, applied live alongside freeze time, max rounds, bots
+  and friendly fire.
+- A three-way friendly fire control — Regular, Nades Only or Off. "Nades Only"
+  keeps `mp_friendlyfire 1` while zeroing `ff_damage_reduction_bullets` and
+  `ff_damage_reduction_other`.
+- A grouped RCON command catalog behind `GET /api/v3/commands`: the running mode's
+  plugin commands (expanded for MatchZy and RetakesPlugin, each tagged with a
+  `group`), plus round/match control, bots (`bot_add`, `bot_add_ct`, `bot_add_t`,
+  `bot_kick`, `bot_quota`, `bot_difficulty`, `bot_stop`), the competitive or
+  wingman preset matching the active format, map commands and read-only commands.
+  Commands that need an argument declare an `arg_hint` and cannot be sent until
+  the placeholder is replaced.
 - A transactional single-runtime mode applier (`manager/runtime/mode_applier.py`)
   that stages a complete mode, removes only paths owned by the previous managed
   inventory, atomically records the new inventory, and restores the previous
@@ -18,6 +45,32 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Reorganised the panel into a single Lobby Setup form — Game Mode, Match Format,
+  Common Configuration, Lobby Visibility, Friendly Fire, Map Pool — followed by one
+  primary button that reads **Start Server**, **Close Server** while the selected
+  mode is running, or **Switch to …** while another mode is. Status, live logs and
+  Owner Maintenance are unchanged.
+- The RCON console is now its own section, visible only while the server runs, and
+  carries the command catalog and the player list. Selecting a command loads it into
+  the input instead of firing immediately.
+- Removed the manual capacity and single-map fields from the panel. Slot count,
+  start map and game alias are now derived from the selected match format and map
+  pool, written into `active-mode.json`, and turned into `-maxplayers`, `+map` and
+  `+game_alias` by the launcher. `mode_applier` honours a state-provided
+  `game_alias` so a 2v2 format can run the wingman game mode.
+- `mode.json` schema: `settings.capacity` is replaced by `settings.formats` (the
+  capacity range is derived from it), `settings.defaults` now carries `format`,
+  `map_pool`, `warmup_time`, `round_time`, `overtime` and `overtime_max_rounds`,
+  `friendly_fire` became an enum (`off`, `nades`, `regular`), and actions take a
+  validated `group` plus an optional `arg_hint`.
+- HeroShift is no longer `server_config: false`; it gets the same match-format and
+  common-configuration controls as the other modes.
+- Warmup time and round time are no longer hardcoded in `mode_retake.cfg` and
+  `mode_heroshift.cfg`. They are panel defaults written into `panel_runtime.cfg`,
+  which still execs last and wins.
+- Stored per-mode settings written by an older panel are upgraded on read: a
+  boolean `friendly_fire` becomes `regular`/`off`, and stale `map`/`capacity` keys
+  are replaced by their derived values.
 - Replaced the three per-mode game services with one `cs2-game` service. Mode
   selection now writes an atomic active-mode state and restarts the same game
   container; its launcher deploys the selected manifest before starting CS2.
