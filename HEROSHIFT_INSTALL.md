@@ -18,13 +18,13 @@ To verify and stage the package without changing Docker containers:
 ## Linux
 
 ```bash
-./install-heroshift.sh
+bash ./install-heroshift.sh
 ```
 
 To verify and stage the package without changing Docker containers:
 
 ```bash
-./install-heroshift.sh --stage-only
+bash ./install-heroshift.sh --stage-only
 ```
 
 The installer performs the following operations.
