@@ -13,6 +13,16 @@ if ($LASTEXITCODE -ne 0) {
     throw "compose.yml is invalid"
 }
 
+docker compose --profile maintenance build cs2-updater
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build the local cs2-updater image"
+}
+
+docker image inspect cs2-manager-updater:pinned *> $null
+if ($LASTEXITCODE -ne 0) {
+    throw "The local cs2-manager-updater:pinned image was not created"
+}
+
 docker compose create --build cs2-game
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to build or create cs2-game"
@@ -31,4 +41,5 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "Panel started."
 Write-Host "cs2-game is created but not started."
+Write-Host "cs2-manager-updater:pinned is built locally."
 Write-Host "Open the panel, select a mode, and press Start."
