@@ -11,11 +11,14 @@
   --warn: #d29922;
 }
 * { box-sizing: border-box; }
+html { overflow-x: hidden; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
 }
-main { max-width: 1180px; margin: 0 auto; padding: 20px; }
+button, input, select { font: inherit; max-width: 100%; }
+main { width: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(12px, 2vw, 20px); }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 h1 { margin: 2px 0; font-size: 26px; }
@@ -33,7 +36,7 @@ h2 { margin: 0; font-size: 18px; }
 .state-badge.off { background: rgba(139,148,158,.12); color: var(--muted); }
 .state-badge.warn { background: rgba(210,153,34,.15); color: var(--warn); border-color: var(--warn); }
 
-.panel-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+.panel-card { min-width: 0; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
 details.collapsible > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; user-select: none; }
 details.collapsible > summary::-webkit-details-marker { display: none; }
 details.collapsible > summary .eyebrow { margin: 0; }
@@ -42,11 +45,12 @@ details.collapsible[open] > summary::after { transform: rotate(90deg); }
 details.collapsible[open] > summary { margin-bottom: 14px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .section-heading.compact { margin-bottom: 8px; }
+.section-heading > * { min-width: 0; }
 
 .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .info-cell { background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .info-cell span { display: block; font-size: 11px; color: var(--muted); }
-.info-cell strong { font-size: 15px; }
+.info-cell strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
 .warnings { margin-top: 12px; color: var(--warn); }
 
 .control-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -91,6 +95,7 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .btn {
   background: var(--card2); color: var(--text); border: 1px solid var(--border);
   border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer;
+  min-width: 0;
 }
 .btn:hover { border-color: var(--accent); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -107,7 +112,7 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .dot { color: var(--accent2); font-size: 12px; margin-top: 4px; }
 
 /* Lobby setup: one card, stacked labelled blocks. */
-.setup-block { padding: 14px 0; border-top: 1px solid var(--border); }
+.setup-block { min-width: 0; padding: 14px 0; border-top: 1px solid var(--border); }
 .setup-block:first-of-type { padding-top: 0; border-top: none; }
 .block-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .block-label {
@@ -118,8 +123,8 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .pool-count { color: var(--accent); font-size: 12px; }
 
 /* Segmented selector shared by mode / format / visibility / friendly fire. */
-.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.seg-lg { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; }
+.seg-lg { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
 .seg-option {
   text-align: left; background: var(--card2); border: 1px solid var(--border);
   border-radius: 10px; padding: 11px 13px; cursor: pointer; color: var(--text);
@@ -136,7 +141,7 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .seg-detail { color: var(--muted); font-size: 12px; }
 
 /* Map pool */
-.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 8px; }
+.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 8px; }
 .map-card {
   display: flex; align-items: center; gap: 8px; background: var(--card2);
   border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px;
@@ -151,8 +156,9 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .map-id { color: var(--muted); font-size: 11px; font-family: "Cascadia Code", Consolas, monospace; }
 .map-switch { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* Start / Close */
-.lifecycle-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
+/* Server lifecycle */
+.lifecycle-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.lifecycle-row .btn { width: 100%; }
 .btn.big { padding: 12px 26px; font-size: 15px; font-weight: 700; }
 
 /* Grouped command catalog */
@@ -173,9 +179,9 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 }
 
 .field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
-.field input[type=number], .field input[type=text], .field select, .console-input, .pw-row input {
+.field input[type=number], .field input[type=text], .field input[type=password], .field select, .console-input {
   background: var(--bg); color: var(--text); border: 1px solid var(--border);
-  border-radius: 7px; padding: 8px 10px; font-size: 14px;
+  width: 100%; min-width: 0; border-radius: 7px; padding: 8px 10px; font-size: 14px;
 }
 .switch-label { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
 .split-note { grid-column: 1 / -1; background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 13px; }
@@ -185,7 +191,8 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .chip { background: var(--card2); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); }
 .chip.mini { padding: 1px 6px; font-size: 10px; }
 
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; align-items: end; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px; align-items: end; }
+.identity-group .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .config-sections { display: flex; flex-direction: column; gap: 8px; }
 .config-group { background: var(--card2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; }
 .config-group > summary { cursor: pointer; color: var(--text); font-weight: 700; list-style: none; }
@@ -196,13 +203,12 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .derived-field { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 13px; }
 .derived-field strong { color: var(--text); font-size: 18px; }
 .derived-field small { color: var(--muted); }
-.nested-fields { margin-top: 14px; }
+.password-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.password-control .btn { white-space: nowrap; }
 .health-row { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .health-row .mini-label { margin-bottom: 8px; }
-.pw-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
-.pw-row input { flex: 1; min-width: 200px; }
 
-.players-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.players-table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13px; }
 .players-table th, .players-table td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
 .players-table th { color: var(--muted); font-weight: 600; }
 .players-table td.mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; color: var(--muted); }
@@ -219,7 +225,7 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .cline.out { color: var(--text); }
 .cline.err { color: var(--danger); }
 .console-input-row { display: flex; gap: 8px; }
-.console-input { flex: 1; font-family: "Cascadia Code", Consolas, monospace; }
+.console-input { flex: 1; min-width: 0; font-family: "Cascadia Code", Consolas, monospace; }
 
 .change-preview { background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 4px 0 12px; }
 .preview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -250,7 +256,19 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 @media (max-width: 820px) {
   .action-grid, .action-grid.compact-actions { grid-template-columns: 1fr; }
   .seg, .seg-lg { grid-template-columns: 1fr; }
-  .lifecycle-row .btn { width: 100%; }
+  .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  main { padding: 10px; }
+  .panel-card { padding: 14px; border-radius: 10px; }
+  .topbar, .section-heading, .block-heading { align-items: flex-start; flex-wrap: wrap; }
+  .state-badge { padding: 6px 12px; }
+  .settings-grid, .identity-group .settings-grid, .lifecycle-row { grid-template-columns: 1fr; }
+  .password-control, .console-input-row { grid-template-columns: 1fr; display: grid; }
+  .password-control .btn, .console-input-row .btn { width: 100%; }
+  .block-note { display: block; margin: 4px 0 0; }
+  .map-card { min-width: 0; }
 }
 
 /* --------------------------------------------------------- redesign additions */
@@ -262,7 +280,7 @@ details.collapsible[open] > summary { margin-bottom: 14px; }
 .chip.mini.active-chip { font-weight: 700; }
 
 /* Console */
-.cl-players { min-width: 0; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.cl-players { min-width: 0; overflow-x: auto; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .cmd-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
 .cmd-btn { text-align: left; background: var(--card2); border: 1px solid var(--border);
   border-radius: 8px; padding: 7px 10px; cursor: pointer; color: var(--text);

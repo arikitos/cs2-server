@@ -206,17 +206,17 @@ The panel exposes three focused areas:
 2. **Lobby Setup** — one stacked form, in this order:
    1. *Game Mode* — FaceIt, Retake or HeroShift.
    2. *Match Format* — only the formats the selected mode declares.
-   3. *Server Configuration* — collapsible groups for identity and connection,
-      players and teams, bots, timing and economy. Capacity and game alias stay
-      derived from the selected format.
-   4. *Lobby Visibility* — Public, or Private with a join password.
-   5. *Friendly Fire* — Regular, Nades Only or Off, with explicit damage scaling
-      and team-kill punishment controls.
-   6. *Map Pool* — the maps the lobby uses; the one marked `START` is the launch
+   3. *Server Configuration* — focused groups for hostname, server password,
+      timing and economy. Empty server password means public. Capacity, team
+      behavior and bot quota stay derived from the selected format.
+   4. *Friendly Fire* — On, Nades Only or Off. Damage scaling and team-kill
+      punishment use the competitive defaults.
+   5. *Map Pool* — the maps the lobby uses; the one marked `START` is the launch
       map, and each pooled map gets a one-click switch button while running.
 
-   The primary button is **Start Server**, which becomes **Close Server** while
-   the selected mode is running and **Switch to …** while a different mode is.
+   The lifecycle actions are **Start Server**, **Stop Server** and
+   **Reset & Stop**. Reset restores the selected mode defaults, clears the
+   server password and stops the game container.
 3. **Server Console** — an approved RCON command line plus the running mode's
    plugin commands and relevant server commands. Selecting a command without an
    argument runs it immediately; commands with a `<placeholder>` are loaded for
@@ -230,9 +230,9 @@ It also clears the panel's bounded console history. Docker rotates `cs2-game`
 logs at 10 MB with three retained files and panel logs at 5 MB with two retained
 files; the panel never deletes Docker's active internal log files.
 
-Lobby visibility is server-wide: Private enables `sv_password` live over RCON,
-Public clears it. Passwords are stored server-side and never returned by the API,
-so a generated password cannot be read back — set a known one to share it.
+Server password is server-wide. Applying a value enables `sv_password` live over
+RCON, while applying an empty value makes the server public. Passwords are
+stored server-side and never returned by the API.
 
 HeroShift's roster editor writes only whitelisted fields, keeps timestamped
 backups, synchronizes the declared live config files transactionally, and issues

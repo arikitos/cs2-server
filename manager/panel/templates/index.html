@@ -59,21 +59,9 @@
       <p id="validationMsg" class="validation" aria-live="polite"></p>
     </div>
 
-    <details class="setup-block config-group">
-      <summary>Lobby visibility and password</summary>
-      <div class="seg" id="visibilityRow"></div>
-      <div class="pw-row" id="pwRow">
-        <input type="password" id="pwValue" placeholder="Lobby password" autocomplete="off">
-        <button class="btn small" onclick="setLobbyPassword()">Set password</button>
-        <button class="btn small ghost" onclick="generateLobbyPassword()">Generate</button>
-      </div>
-      <p class="hint">Private requires a join password. It is applied live over RCON, and never returned by the API.</p>
-    </details>
-
     <details class="setup-block config-group" id="friendlyFireBlock">
       <summary>Friendly fire</summary>
       <div class="seg" id="friendlyFireRow"></div>
-      <div id="friendlyFireForm" class="settings-grid nested-fields"></div>
     </details>
 
     <div class="setup-block">
@@ -91,11 +79,9 @@
     </div>
 
     <div class="lifecycle-row">
-      <button class="btn big primary" id="lifecycleBtn" data-action onclick="toggleServer()">Start Server</button>
-      <button class="btn" data-action onclick="saveAndApply()">Save &amp; apply live</button>
-      <button class="btn danger" data-action onclick="applyAndRestart()">Save &amp; restart</button>
-      <button class="btn ghost" onclick="resetDefaults()">Reset to defaults</button>
-      <button class="btn ghost" onclick="loadSelectedMode()">Discard changes</button>
+      <button class="btn big primary" id="startServerBtn" data-action onclick="startSelectedServer()">Start Server</button>
+      <button class="btn big danger" id="stopServerBtn" data-action onclick="stopGameServer()">Stop Server</button>
+      <button class="btn big ghost" id="resetStopBtn" data-action onclick="resetAndStop()">Reset &amp; Stop</button>
     </div>
     <p class="hint" id="lifecycleHint"></p>
   </section>
@@ -156,6 +142,7 @@ let STATE = null;
 let selectedMode = null;
 let pending = {};          // edited (unsaved) config for selectedMode
 let busy = false;
+let serverPasswordDraft = '';
 
 // Mode list, match formats and defaults all come from the mode manifests
 // (manager/modes/<id>/mode.json) via /api/v3/status, so a new mode or a new
@@ -185,7 +172,7 @@ const FIELD_LABELS = {
   tk_punish: 'Team-kill punishment',
 };
 const FRIENDLY_FIRE_OPTIONS = [
-  { value: 'regular', label: 'Regular', detail: 'All team damage' },
+  { value: 'regular', label: 'On', detail: 'All team damage' },
   { value: 'nades', label: 'Nades Only', detail: 'Only grenade damage' },
   { value: 'off', label: 'Off', detail: 'No team damage' },
 ];
@@ -200,7 +187,11 @@ async function api(path, options = {}) {
   return body;
 }
 
-function setBusy(b) { busy = b; document.querySelectorAll('[data-action]').forEach(el => el.disabled = b); }
+function setBusy(b) {
+  busy = b;
+  document.querySelectorAll('[data-action]').forEach(el => el.disabled = b);
+  if (!b && STATE && selectedMode) renderLifecycle();
+}
 function show(text, type = 'info') { const e = document.getElementById('message'); e.textContent = text; e.dataset.type = type; }
 function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString() : '—'; }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -297,39 +288,34 @@ function fieldText(key, label, hint) {
     ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
 }
 
+function serverPasswordField() {
+  const enabled = !!(STATE && STATE.password && STATE.password.enabled);
+  const status = enabled
+    ? 'A server password is active. Enter a replacement, or apply an empty value to make the server public.'
+    : 'No server password is active. Leave empty to keep the server public.';
+  return `<div class="field password-field"><span>Server password</span>
+    <div class="password-control">
+      <input type="password" id="serverPassword" maxlength="64" value="${escapeHtml(serverPasswordDraft)}"
+        placeholder="Empty means public" autocomplete="new-password"
+        oninput="serverPasswordDraft = this.value">
+      <button class="btn small" data-action onclick="applyServerPassword()">Apply password</button>
+    </div>
+    <small class="field-hint" id="serverPasswordHint">${status}</small></div>`;
+}
+
 function fieldCheck(key, label, hint) {
   return `<label class="field switch-label"><input type="checkbox" ${pending[key] ? 'checked' : ''}
     onchange="editField('${key}', this.checked)"><span>${label}</span>
     ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
 }
 
-function fieldSelect(key, label, options, hint, numeric = false) {
-  return `<label class="field"><span>${label}</span><select onchange="editField('${key}', ${numeric ? 'Number(this.value)' : 'this.value'})">
-    ${options.map(([value, text]) => `<option value="${value}" ${pending[key] === value ? 'selected' : ''}>${text}</option>`).join('')}
-    </select>${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
-}
-
 function renderCommon() {
-  const category = (title, body, open = false) => `<details class="config-group" ${open ? 'open' : ''}>
+  const category = (title, body, open = false, className = '') => `<details class="config-group ${className}" ${open ? 'open' : ''}>
     <summary>${title}</summary><div class="settings-grid">${body}</div></details>`;
   document.getElementById('commonForm').innerHTML =
     category('Identity, security and connection',
         fieldText('hostname', 'Server hostname', 'The name shown in the server browser')
-      + fieldCheck('lan', 'LAN server', 'Restart required')
-      + fieldCheck('cheats', 'Enable sv_cheats', 'Keep disabled for competitive play')
-      + fieldCheck('allow_lobby_connect_only', 'Lobby connections only', 'Disabled allows direct connections')
-      + `<p class="split-note">RCON password stays managed by <code>CS2_RCON_PASSWORD</code> and is never exposed to the browser. Join password is managed in Lobby visibility below.</p>`, true)
-    + category('Players and teams',
-        `<div class="derived-field"><span>Player capacity</span><strong>${currentFormat().capacity || '—'}</strong><small>Derived from Match Format</small></div>`
-      + fieldNum('limit_teams', 'Maximum team difference', 0, 32, 1, '0 disables the limit')
-      + fieldCheck('auto_team_balance', 'Auto team balance')
-      + fieldNum('spectators_max', 'Maximum spectators', 0, 64, 1))
-    + category('Bots',
-        fieldNum('bot_quota', 'Bot quota', 0, 64, 1, '0 disables bots')
-      + fieldSelect('bot_quota_mode', 'Quota mode', [['fill', 'Fill'], ['match', 'Match'], ['normal', 'Normal']])
-      + fieldSelect('bot_difficulty', 'Difficulty', [[0, 'Easy'], [1, 'Medium'], [2, 'Hard'], [3, 'Expert']], '', true)
-      + fieldSelect('bot_chatter', 'Chatter', [['off', 'Off'], ['radio', 'Radio'], ['minimal', 'Minimal'], ['normal', 'Normal']])
-      + fieldCheck('bot_join_after_player', 'Bots wait for a real player'))
+      + serverPasswordField(), true, 'identity-group')
     + category('Timing and economy',
         fieldNum('freezetime', 'Freeze time (s)', 0, 60, 1)
       + fieldNum('warmup_time', 'Warmup time (s)', 0, 600, 1)
@@ -349,53 +335,24 @@ function renderCommon() {
   } else { note.hidden = true; }
 }
 
-// ---------------------------------------------------- 5 · Lobby visibility
-function renderVisibility(data) {
-  const current = data.visibility || 'public';
-  document.getElementById('visibilityRow').innerHTML = segmented([
-    { value: 'public', label: 'Public Lobby', detail: 'Anyone with the address can join' },
-    { value: 'private', label: 'Private Lobby', detail: 'Join password required' },
-  ], current, 'setVisibility');
-  // Nothing to do in the row when the lobby is public and a password already exists.
-  document.getElementById('pwRow').hidden = current === 'public' && !!data.password.has_password;
-}
-
-async function setVisibility(value) {
-  const body = { visibility: value };
-  const input = document.getElementById('pwValue');
-  if (value === 'private' && input.value) body.password = input.value;
+// ------------------------------------------------------ 5 · Server password
+async function applyServerPassword() {
+  const password = serverPasswordDraft;
+  const body = password ? { visibility: 'private', password } : { visibility: 'public' };
+  setBusy(true);
   try {
     await api('/api/v3/server/visibility', { method: 'PUT', body: JSON.stringify(body) });
-    input.value = '';
-    show(value === 'private' ? 'Lobby is private; the join password is active.' : 'Lobby is public.', 'success');
-    refresh();
-  } catch (e) { show(e.message, 'error'); }
-}
-async function setLobbyPassword() {
-  const input = document.getElementById('pwValue');
-  if (!input.value) { show('Enter a password first.', 'error'); return; }
-  try {
-    await api('/api/v3/server/visibility', { method: 'PUT', body: JSON.stringify({ visibility: 'private', password: input.value }) });
-    input.value = ''; show('Password set; the lobby is private.', 'success'); refresh();
-  } catch (e) { show(e.message, 'error'); }
-}
-async function generateLobbyPassword() {
-  try {
-    await api('/api/v3/server/password-policy', { method: 'PUT', body: JSON.stringify({ action: 'generate' }) });
-    show('Password generated and enabled. It is stored server-side and never returned — set your own if you need to share it.', 'warn');
-    refresh();
-  } catch (e) { show(e.message, 'error'); }
+    serverPasswordDraft = '';
+    show(password ? 'Server password applied.' : 'Server is public.', 'success');
+    await refresh();
+    renderCommon();
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
 }
 
-// ------------------------------------------------------ 6 · Friendly fire
+// ------------------------------------------------------- 6 · Friendly fire
 function renderFriendlyFire() {
   document.getElementById('friendlyFireRow').innerHTML =
     segmented(FRIENDLY_FIRE_OPTIONS, pending.friendly_fire, 'pickFriendlyFire');
-  document.getElementById('friendlyFireForm').innerHTML =
-      fieldNum('ff_bullet_reduction', 'Bullet reduction', 0, 1, 0.01, '0.33 means 33 percent')
-    + fieldNum('ff_grenade_reduction', 'Grenade reduction', 0, 1, 0.01, '0.25 means 25 percent')
-    + fieldNum('ff_other_reduction', 'Other damage reduction', 0, 1, 0.01)
-    + fieldCheck('tk_punish', 'Kick on team kill');
 }
 function pickFriendlyFire(value) { editField('friendly_fire', value); renderFriendlyFire(); }
 
@@ -442,14 +399,6 @@ function loadSelectedMode() {
   markUnsaved(false);
 }
 function clone(v) { return Array.isArray(v) ? v.slice() : v; }
-
-function resetDefaults() {
-  if (!selectedMode || !STATE) return;
-  const d = (STATE.mode_defaults || {})[selectedMode] || {};
-  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = clone(d[k]));
-  renderSetup(); markUnsaved(true); validateLive();
-  show('Defaults loaded into the form — not saved yet.', 'info');
-}
 
 function renderSetup() {
   const meta = modeMeta(selectedMode);
@@ -518,92 +467,67 @@ async function saveSettings() {
   pending = result.settings;
   return result;
 }
-async function saveAndApply() {
-  if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
-  setBusy(true);
-  try {
-    await saveSettings();
-    const r = await api(`/api/v3/modes/${selectedMode}/apply`, { method: 'POST' });
-    show(r.applied_hot ? (r.map_reloaded ? 'Applied live; map reloaded.' : 'Applied live.')
-                       : 'Saved. Applies when this mode starts.', 'success');
-    markUnsaved(false); setTimeout(refresh, 500);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-async function applyAndRestart() {
-  if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
-  if (!confirmImpact('Save settings and restart the container?',
-      `${modeMeta(selectedMode).label} game container`,
-      'Connected players are disconnected. The panel stays online; SteamCMD does not run.')) return;
-  setBusy(true);
-  try {
-    await saveSettings();
-    await api(`/api/v3/modes/${selectedMode}/start`, { method: 'POST' });
-    show('Saved and restarted.', 'success'); markUnsaved(false);
-    setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-
-// --------------------------------------------------- Start / Close server
+// ---------------------------------------------------------- Server lifecycle
 function renderLifecycle() {
   const active = STATE && STATE.active;
-  const btn = document.getElementById('lifecycleBtn');
+  const startBtn = document.getElementById('startServerBtn');
+  const stopBtn = document.getElementById('stopServerBtn');
   const hint = document.getElementById('lifecycleHint');
   const label = modeMeta(selectedMode).label || 'the selected mode';
-  if (active) {
-    const same = active.mode === selectedMode;
-    btn.textContent = same ? 'Close Server' : `Switch to ${label}`;
-    btn.className = 'btn big ' + (same ? 'danger' : 'primary');
-    hint.textContent = same
-      ? `${modeMeta(active.mode).label} is running. Closing stops the game container; the panel stays online.`
-      : `${modeMeta(active.mode).label} is running. Switching stops it and disconnects its players.`;
-  } else {
-    btn.textContent = 'Start Server';
-    btn.className = 'btn big primary';
-    hint.textContent = `Starts the CS2 container with ${label} and the settings above.`;
-  }
+  startBtn.textContent = 'Start Server';
+  stopBtn.disabled = busy || !active;
+  hint.textContent = active
+    ? `${modeMeta(active.mode).label} is running. Start Server applies the selected ${label} configuration and restarts the game container.`
+    : `Start Server launches the CS2 container with ${label} and the settings above.`;
 }
 
-async function toggleServer() {
-  const active = STATE && STATE.active;
-  if (active && active.mode === selectedMode) return stopGameServer();
-  if (active) return switchMode();
-  return startServer();
-}
-
-async function startServer() {
+async function startSelectedServer() {
   if (!selectedMode) { show('Select a game mode first.', 'error'); return; }
   if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
+  const active = STATE && STATE.active;
+  if (active && !confirmImpact('Start the selected server configuration?', 'CS2 game runtime',
+      'The running game container restarts and connected players are disconnected.')) return;
   setBusy(true);
   try {
+    if (active && active.mode !== selectedMode) clearTransientLogs();
     await saveSettings();
-    await api('/api/v3/server/start', { method: 'POST', body: JSON.stringify({ mode: selectedMode }) });
+    await api(`/api/v3/modes/${selectedMode}/start`, { method: 'POST' });
     markUnsaved(false);
     show(`${modeMeta(selectedMode).label} is starting.`, 'success'); setTimeout(refresh, 800);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-async function switchMode() {
-  const active = STATE.active;
-  if (!confirmImpact(`Switch to ${modeMeta(selectedMode).label}?`, 'CS2 game runtime',
-      `Stops ${modeMeta(active.mode).label} (disconnecting its players), then starts ${modeMeta(selectedMode).label}.`)) return;
-  setBusy(true);
-  try {
-    clearTransientLogs();
-    await saveSettings();
-    await api('/api/v3/modes/switch', { method: 'POST', body: JSON.stringify({ mode: selectedMode }) });
-    markUnsaved(false);
-    show(`Switched to ${modeMeta(selectedMode).label}.`, 'success');
-    setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
+    setTimeout(() => loadLogs(true), 1200);
   } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
 }
 async function stopGameServer() {
   if (!STATE || !STATE.active) { show('No game server is running.', 'error'); return; }
-  if (!confirmImpact('Close the game server?', `${STATE.active.name} (entire CS2 container)`,
+  if (!confirmImpact('Stop the game server?', `${STATE.active.name} (entire CS2 container)`,
       'All connected players are disconnected. The panel stays online.')) return;
   setBusy(true);
   try {
     await api('/api/v3/server/stop', { method: 'POST' });
     show('Game container stopped. The panel is still running.', 'warn');
     setTimeout(refresh, 500); setTimeout(() => loadLogs(true), 800);
+  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
+}
+
+async function resetAndStop() {
+  if (!selectedMode || !STATE) return;
+  if (!confirmImpact('Reset settings and stop the server?', 'Selected mode and CS2 game runtime',
+      'Restores the selected mode defaults, makes the server public, and disconnects all players.')) return;
+  const defaults = (STATE.mode_defaults || {})[selectedMode] || {};
+  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = clone(defaults[k]));
+  setBusy(true);
+  try {
+    await saveSettings();
+    await api('/api/v3/server/visibility', {
+      method: 'PUT', body: JSON.stringify({ visibility: 'public' })
+    });
+    if (STATE.active) await api('/api/v3/server/stop', { method: 'POST' });
+    serverPasswordDraft = '';
+    markUnsaved(false);
+    show('Defaults restored and game server stopped.', 'success');
+    await refresh();
+    renderCommon();
+    loadLogs(true);
   } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
 }
 // ---------------------------------------------------------------- Players
@@ -771,7 +695,6 @@ async function refresh() {
     if (!selectedMode) selectedMode = (data.active && data.active.mode) || data.server.last_mode || modeOrder(data)[0];
     renderStatus(data);
     renderModes(data);
-    renderVisibility(data);
     if (!Object.keys(pending).length) loadSelectedMode();
     else { renderLifecycle(); renderPreview(); }
 

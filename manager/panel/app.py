@@ -532,22 +532,14 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
         "capacity": match_format["capacity"],
         "game_alias": match_format["game_alias"],
         "hostname": validate_hostname(settings.get("hostname", defaults["hostname"])),
-        "lan": _validated_bool(settings.get("lan"), defaults["lan"], "LAN mode"),
-        "cheats": _validated_bool(settings.get("cheats"), defaults["cheats"], "Cheats"),
-        "allow_lobby_connect_only": _validated_bool(
-            settings.get("allow_lobby_connect_only"),
-            defaults["allow_lobby_connect_only"],
-            "Lobby-only connections",
-        ),
-        "limit_teams": _bounded_int(
-            settings.get("limit_teams"), defaults["limit_teams"], 0, 32, "Team limit"
-        ),
-        "auto_team_balance": _validated_bool(
-            settings.get("auto_team_balance"), defaults["auto_team_balance"], "Auto team balance"
-        ),
-        "spectators_max": _bounded_int(
-            settings.get("spectators_max"), defaults["spectators_max"], 0, 64, "Spectators"
-        ),
+        # These settings are intentionally fixed because the streamlined panel
+        # no longer exposes their former advanced controls.
+        "lan": False,
+        "cheats": False,
+        "allow_lobby_connect_only": False,
+        "limit_teams": 0,
+        "auto_team_balance": False,
+        "spectators_max": defaults["spectators_max"],
         "max_rounds": _bounded_int(settings.get("max_rounds"), defaults["max_rounds"], 1, 120, "Max rounds"),
         "freezetime": _bounded_int(settings.get("freezetime"), defaults["freezetime"], 0, 60, "Freeze time"),
         "warmup_time": _bounded_int(settings.get("warmup_time"), defaults["warmup_time"], 0, 600, "Warmup time"),
@@ -556,30 +548,16 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
         "c4_timer": _bounded_int(settings.get("c4_timer"), defaults["c4_timer"], 10, 90, "C4 timer"),
         "start_money": start_money,
         "max_money": max_money,
-        "bot_quota": _bounded_int(settings.get("bot_quota"), defaults["bot_quota"], 0, 64, "Bots"),
-        "bot_quota_mode": _enum_value(
-            settings.get("bot_quota_mode"), defaults["bot_quota_mode"], mode_defs.BOT_QUOTA_MODES, "Bot quota mode"
-        ),
-        "bot_difficulty": _bounded_int(
-            settings.get("bot_difficulty"), defaults["bot_difficulty"], 0, 3, "Bot difficulty"
-        ),
-        "bot_chatter": _enum_value(
-            settings.get("bot_chatter"), defaults["bot_chatter"], mode_defs.BOT_CHATTER_MODES, "Bot chatter"
-        ),
-        "bot_join_after_player": _validated_bool(
-            settings.get("bot_join_after_player"), defaults["bot_join_after_player"], "Bot join after player"
-        ),
+        "bot_quota": match_format["capacity"],
+        "bot_quota_mode": "fill",
+        "bot_difficulty": 3,
+        "bot_chatter": "normal",
+        "bot_join_after_player": True,
         "friendly_fire": normalize_friendly_fire(settings.get("friendly_fire"), defaults["friendly_fire"]),
-        "ff_bullet_reduction": _bounded_float(
-            settings.get("ff_bullet_reduction"), defaults["ff_bullet_reduction"], 0, 1, "Bullet damage reduction"
-        ),
-        "ff_grenade_reduction": _bounded_float(
-            settings.get("ff_grenade_reduction"), defaults["ff_grenade_reduction"], 0, 1, "Grenade damage reduction"
-        ),
-        "ff_other_reduction": _bounded_float(
-            settings.get("ff_other_reduction"), defaults["ff_other_reduction"], 0, 1, "Other damage reduction"
-        ),
-        "tk_punish": _validated_bool(settings.get("tk_punish"), defaults["tk_punish"], "Team-kill punishment"),
+        "ff_bullet_reduction": defaults["ff_bullet_reduction"],
+        "ff_grenade_reduction": defaults["ff_grenade_reduction"],
+        "ff_other_reduction": defaults["ff_other_reduction"],
+        "tk_punish": defaults["tk_punish"],
         "overtime": _validated_bool(settings.get("overtime"), defaults["overtime"], "Overtime"),
         "overtime_max_rounds": _bounded_int(
             settings.get("overtime_max_rounds"), defaults["overtime_max_rounds"], 2, 30, "Overtime rounds"
@@ -618,7 +596,7 @@ def hot_convar_lines(settings: dict) -> list[str]:
     bullets = 0.0 if friendly_fire == "nades" else float(settings.get("ff_bullet_reduction", 0.33))
     other = 0.0 if friendly_fire == "nades" else float(settings.get("ff_other_reduction", 0.4))
     grenades = float(settings.get("ff_grenade_reduction", 0.25))
-    round_time = float(settings.get("round_time", 1.55))
+    round_time = float(settings.get("round_time", 1.92))
     return [
         f'hostname "{validate_hostname(settings.get("hostname", "CS2 Server"))}"',
         f"sv_lan {1 if settings.get('lan') else 0}",
@@ -628,10 +606,10 @@ def hot_convar_lines(settings: dict) -> list[str]:
         f"mp_limitteams {settings.get('limit_teams', 0)}",
         f"mp_autoteambalance {1 if settings.get('auto_team_balance') else 0}",
         f"mp_spectators_max {settings.get('spectators_max', 2)}",
-        f"bot_quota {settings.get('bot_quota', 0)}",
+        f"bot_quota {settings.get('bot_quota', settings.get('capacity', 10))}",
         f"bot_quota_mode {settings.get('bot_quota_mode', 'fill')}",
-        f"bot_difficulty {settings.get('bot_difficulty', 1)}",
-        f"bot_chatter {settings.get('bot_chatter', 'off')}",
+        f"bot_difficulty {settings.get('bot_difficulty', 3)}",
+        f"bot_chatter {settings.get('bot_chatter', 'normal')}",
         f"bot_join_after_player {1 if settings.get('bot_join_after_player', True) else 0}",
         f"mp_friendlyfire {enabled}",
         f"ff_damage_reduction_bullets {bullets:g}",
