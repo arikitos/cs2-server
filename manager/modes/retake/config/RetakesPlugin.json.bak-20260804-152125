@@ -1,6 +1,6 @@
 {
   "GameSettings": {
-    "MaxPlayers": 9,
+    "MaxPlayers": 7,
     "ShouldBreakBreakables": false,
     "ShouldOpenDoors": false,
     "EnableFallbackAllocation": true
@@ -24,7 +24,7 @@
     "ShouldAutoJoinSpectators": true
   },
   "TeamSettings": {
-    "TerroristRatio": 0.45,
+    "TerroristRatio": 0.43,
     "RoundsToScramble": 5,
     "IsScrambleEnabled": true,
     "IsBalanceEnabled": true,
