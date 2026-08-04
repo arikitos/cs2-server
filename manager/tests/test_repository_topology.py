@@ -25,6 +25,27 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertIn('max-size: "5m"', text)
         self.assertIn('max-file: "2"', text)
 
+    def test_updater_image_is_explicit_and_never_pulled_by_compose(self) -> None:
+        text = (ROOT / "compose.yml").read_text(encoding="utf-8")
+        updater = text.split("  cs2-updater:\n", 1)[1].split(
+            "\n  cs2-modinstaller:",
+            1,
+        )[0]
+        self.assertIn("image: cs2-manager-updater:pinned", updater)
+        self.assertIn("pull_policy: never", updater)
+        panel = text.split("  panel:\n", 1)[1]
+        self.assertIn("UPDATER_IMAGE: cs2-manager-updater:pinned", panel)
+        self.assertIn("UPDATER_BUILD_CONTEXT: /project/updater", panel)
+        self.assertIn("CS2_BASE_IMAGE:", panel)
+
+    def test_setup_builds_and_verifies_updater_before_panel_start(self) -> None:
+        script = (ROOT / "setup.ps1").read_text(encoding="utf-8")
+        build = script.index("build cs2-updater")
+        inspect = script.index("image inspect cs2-manager-updater:pinned")
+        panel = script.index("up -d --build --no-deps panel")
+        self.assertLess(build, inspect)
+        self.assertLess(inspect, panel)
+
     def test_framework_installer_never_follows_latest(self) -> None:
         script = (MANAGER / "scripts/install-mods-linux.sh").read_text(encoding="utf-8")
         self.assertNotIn("releases/latest", script)
@@ -77,6 +98,32 @@ class RepositoryTopologyTests(unittest.TestCase):
             "/usr/local/bin/mode-applier",
             dockerfile,
         )
+
+    def test_updater_image_normalizes_windows_line_endings(self) -> None:
+        dockerfile = (MANAGER / "updater/Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "sed -i 's/\\r$//' /usr/local/bin/updater.sh",
+            dockerfile,
+        )
+
+    def test_updater_verifies_metamod_inside_searchpaths(self) -> None:
+        updater = (MANAGER / "updater/updater.sh").read_text(encoding="utf-8")
+        self.assertIn("metamod_search_path_present", updater)
+        self.assertIn("insert_metamod_search_path", updater)
+        self.assertNotIn(
+            'grep -q "csgo/addons/metamod" "${GAMEINFO}"',
+            updater,
+        )
+
+    def test_panel_uses_guarded_wsgi_entrypoint(self) -> None:
+        dockerfile = (MANAGER / "panel/Dockerfile").read_text(encoding="utf-8")
+        wsgi = (MANAGER / "panel/wsgi.py").read_text(encoding="utf-8")
+        self.assertIn("COPY maintenance_guard.py .", dockerfile)
+        self.assertIn("COPY wsgi.py .", dockerfile)
+        self.assertIn('"wsgi:app"', dockerfile)
+        self.assertIn("install(panel)", wsgi)
 
     def test_runtime_launcher_avoids_python_310_path_write_text_newline(
         self,
