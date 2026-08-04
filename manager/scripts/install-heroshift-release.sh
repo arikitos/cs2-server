@@ -14,7 +14,7 @@ for argument in "$@"; do
   fi
 done
 
-command=("$ROOT/install-heroshift.sh")
+command=("bash" "$ROOT/install-heroshift.sh")
 if [[ -n "$PACKAGE_PATH" ]]; then
   command+=("$PACKAGE_PATH")
 fi
