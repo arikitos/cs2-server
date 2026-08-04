@@ -71,6 +71,7 @@ services:
       args:
         <<: *cs2-base-image
     image: cs2-manager-updater:pinned
+    pull_policy: never
     container_name: cs2-updater
     restart: "no"
     profiles: ["maintenance"]
@@ -128,7 +129,9 @@ services:
       LOG_TAIL_DEFAULT: "300"
       CS2_DATA_PATH: ${CS2_DATA_PATH}
       MANAGER_PATH: ${MANAGER_PATH:-}
+      CS2_BASE_IMAGE: ${CS2_BASE_IMAGE:-joedwards32/cs2@sha256:41b826d6280d1aa9e41c866a6d88cc7f523e027f16c47a313b20c2d7a17f2680}
       UPDATER_IMAGE: cs2-manager-updater:pinned
+      UPDATER_BUILD_CONTEXT: /project/updater
       COMPOSE_PROJECT: cs2-server
     ports:
       - "${PANEL_BIND:-127.0.0.1}:${PANEL_PORT:-8080}:8080"
