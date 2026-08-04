@@ -87,9 +87,9 @@
       "role": "plugin",
       "verify": { "required": true, "aliases": ["heroshift", "hero shift"] },
       "mounts": [
-        { "source": "plugins/HeroShift", "target": "addons/counterstrikesharp/plugins/HeroShift" },
+        { "source": "release/plugins/HeroShift", "target": "addons/counterstrikesharp/plugins/HeroShift" },
         {
-          "source": "gamedata/HeroShift.gamedata.json",
+          "source": "release/gamedata/HeroShift.gamedata.json",
           "kind": "file",
           "target": "addons/counterstrikesharp/gamedata/HeroShift.gamedata.json"
         }
@@ -100,16 +100,16 @@
       "role": "util",
       "verify": { "required": true, "aliases": ["raytrace", "ray trace"] },
       "mounts": [
-        { "source": "utils/RayTrace/addons/metamod/RayTrace.vdf", "kind": "file", "target": "addons/metamod/RayTrace.vdf" },
-        { "source": "utils/RayTrace/addons/RayTrace", "target": "addons/RayTrace" },
+        { "source": "release/utils/RayTrace/addons/metamod/RayTrace.vdf", "kind": "file", "target": "addons/metamod/RayTrace.vdf" },
+        { "source": "release/utils/RayTrace/addons/RayTrace", "target": "addons/RayTrace" },
         {
-          "source": "utils/RayTrace/addons/RayTrace/gamedata.json",
+          "source": "release/utils/RayTrace/addons/RayTrace/gamedata.json",
           "kind": "file",
           "absolute": true,
           "target": "/addons/RayTrace/gamedata.json"
         },
-        { "source": "utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl", "target": "addons/counterstrikesharp/plugins/RayTraceImpl" },
-        { "source": "utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi", "target": "addons/counterstrikesharp/shared/RayTraceApi" }
+        { "source": "release/utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl", "target": "addons/counterstrikesharp/plugins/RayTraceImpl" },
+        { "source": "release/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi", "target": "addons/counterstrikesharp/shared/RayTraceApi" }
       ]
     },
     {
