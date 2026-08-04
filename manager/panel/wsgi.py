@@ -1,7 +1,9 @@
-"""WSGI entrypoint that installs maintenance safeguards before serving."""
+"""WSGI entrypoint that installs panel safeguards before serving."""
 
 import app as panel
-from maintenance_guard import install
+from config_guard import install as install_config_guard
+from maintenance_guard import install as install_maintenance_guard
 
-install(panel)
+install_maintenance_guard(panel)
+install_config_guard(panel)
 app = panel.app
