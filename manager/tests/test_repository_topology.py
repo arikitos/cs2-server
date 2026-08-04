@@ -46,6 +46,43 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertLess(build, inspect)
         self.assertLess(inspect, panel)
 
+    def test_heroshift_release_overlay_is_versioned_and_mounted(self) -> None:
+        compose = (ROOT / "compose.yml").read_text(encoding="utf-8")
+        self.assertEqual(compose.count("HEROSHIFT_RELEASE_PATH"), 2)
+        self.assertIn("target: /manager/modes/heroshift/release", compose)
+        self.assertIn("target: /modes/heroshift/release", compose)
+
+        env = (ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertIn("HEROSHIFT_RELEASE_PATH=./manager/modes/heroshift", env)
+
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("manager/releases/heroshift/", ignored)
+
+        manifest = json.loads(
+            (MANAGER / "modes/heroshift/mode.json").read_text(encoding="utf-8")
+        )
+        release_sources = [
+            mount["source"]
+            for plugin in manifest["plugins"]
+            if plugin["name"] in {"HeroShift", "RayTrace"}
+            for mount in plugin["mounts"]
+        ]
+        self.assertTrue(release_sources)
+        self.assertTrue(all(source.startswith("release/") for source in release_sources))
+
+    def test_heroshift_installer_pins_and_verifies_the_uploaded_release(self) -> None:
+        script = (MANAGER / "scripts/install-heroshift-release.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('ExpectedVersion = "v1.0.1"', script)
+        self.assertIn(
+            "5e4e2901757a234c43b0c844a99e118985a1f2474244c0d3dcedabc6f4770b0e",
+            script,
+        )
+        self.assertIn("Manifest SHA256 mismatch", script)
+        self.assertIn("Unsafe ZIP path", script)
+        self.assertIn("HEROSHIFT_RELEASE_PATH", script)
+
     def test_framework_installer_never_follows_latest(self) -> None:
         script = (MANAGER / "scripts/install-mods-linux.sh").read_text(encoding="utf-8")
         self.assertNotIn("releases/latest", script)
