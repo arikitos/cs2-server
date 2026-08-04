@@ -53,6 +53,10 @@ services:
         target: /manager/modes
         read_only: true
       - type: bind
+        source: ${HEROSHIFT_RELEASE_PATH:-./manager/modes/heroshift}
+        target: /manager/modes/heroshift/release
+        read_only: true
+      - type: bind
         source: ./manager/shared
         target: /manager/shared
         read_only: true
@@ -139,5 +143,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${MANAGER_PATH}/data:/data
       - ${MANAGER_PATH}/modes:/modes
+      - type: bind
+        source: ${HEROSHIFT_RELEASE_PATH:-./manager/modes/heroshift}
+        target: /modes/heroshift/release
+        read_only: true
       - ${MANAGER_PATH}:/project
       - ${CS2_DATA_PATH}:/server:ro
