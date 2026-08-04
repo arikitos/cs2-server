@@ -27,4 +27,4 @@ manager/data/console_history.json
 __pycache__/
 *.py[cod]
 
-server/
+server/*
