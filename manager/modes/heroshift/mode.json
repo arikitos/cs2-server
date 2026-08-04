@@ -85,9 +85,18 @@
     {
       "name": "HeroShift",
       "role": "plugin",
-      "verify": { "required": true, "aliases": ["heroshift", "hero shift"] },
+      "verify": {
+        "required": true,
+        "aliases": [
+          "heroshift",
+          "hero shift"
+        ]
+      },
       "mounts": [
-        { "source": "release/plugins/HeroShift", "target": "addons/counterstrikesharp/plugins/HeroShift" },
+        {
+          "source": "release/plugins/HeroShift",
+          "target": "addons/counterstrikesharp/plugins/HeroShift"
+        },
         {
           "source": "release/gamedata/HeroShift.gamedata.json",
           "kind": "file",
@@ -98,25 +107,53 @@
     {
       "name": "RayTrace",
       "role": "util",
-      "verify": { "required": true, "aliases": ["raytrace", "ray trace"] },
+      "verify": {
+        "required": true,
+        "aliases": [
+          "raytrace",
+          "ray trace"
+        ]
+      },
       "mounts": [
-        { "source": "release/utils/RayTrace/addons/metamod/RayTrace.vdf", "kind": "file", "target": "addons/metamod/RayTrace.vdf" },
-        { "source": "release/utils/RayTrace/addons/RayTrace", "target": "addons/RayTrace" },
+        {
+          "source": "release/utils/RayTrace/addons/metamod/RayTrace.vdf",
+          "kind": "file",
+          "target": "addons/metamod/RayTrace.vdf"
+        },
+        {
+          "source": "release/utils/RayTrace/addons/RayTrace",
+          "target": "addons/RayTrace"
+        },
         {
           "source": "release/utils/RayTrace/addons/RayTrace/gamedata.json",
           "kind": "file",
           "absolute": true,
           "target": "/addons/RayTrace/gamedata.json"
         },
-        { "source": "release/utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl", "target": "addons/counterstrikesharp/plugins/RayTraceImpl" },
-        { "source": "release/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi", "target": "addons/counterstrikesharp/shared/RayTraceApi" }
+        {
+          "source": "release/utils/RayTrace/addons/counterstrikesharp/plugins/RayTraceImpl",
+          "target": "addons/counterstrikesharp/plugins/RayTraceImpl"
+        },
+        {
+          "source": "release/utils/RayTrace/addons/counterstrikesharp/shared/RayTraceApi",
+          "target": "addons/counterstrikesharp/shared/RayTraceApi"
+        }
       ]
     },
     {
       "name": "PanelBridge",
       "role": "util",
-      "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
-      "build": { "project": "plugins-src/PanelBridge", "shared": true },
+      "verify": {
+        "required": false,
+        "aliases": [
+          "panel bridge",
+          "panelbridge"
+        ]
+      },
+      "build": {
+        "project": "plugins-src/PanelBridge",
+        "shared": true
+      },
       "mounts": [
         {
           "source": "plugins/PanelBridge",
@@ -135,22 +172,48 @@
       "target": "cfg/server.cfg"
     },
     {
-      "name": "skillsInfo.json",
-      "source": "plugins/HeroShift/configs/skillsInfo.json",
+      "name": "heroshift.json",
+      "source": "plugins/HeroShift/configs/heroshift.json",
       "kind": "file",
-      "target": "addons/counterstrikesharp/plugins/HeroShift/configs/skillsInfo.json"
-    },
-    {
-      "name": "config.json",
-      "source": "plugins/HeroShift/configs/config.json",
-      "kind": "file",
-      "target": "addons/counterstrikesharp/plugins/HeroShift/configs/config.json"
+      "target": "addons/counterstrikesharp/plugins/HeroShift/configs/heroshift.json"
     }
   ],
   "actions": [
-    { "key": "reload_skills", "label": "Reload Hero Config", "cmd": "css_heroshift_reload", "impact": "Plugin config", "description": "Reloads HeroShift config files.", "confirm": false, "group": "plugin" },
-    { "key": "restart_round", "label": "Restart Current Game", "cmd": "mp_restartgame 1", "impact": "In-game round", "description": "Restarts the game after one second.", "confirm": true, "group": "match" },
-    { "key": "warmup_end", "label": "End Warmup", "cmd": "mp_warmup_end", "impact": "In-game phase", "description": "Ends warmup.", "confirm": true, "group": "match" },
-    { "key": "kick_bots", "label": "Kick All Bots", "cmd": "bot_kick", "impact": "Players", "description": "Removes all bots.", "confirm": true, "group": "bots" }
+    {
+      "key": "reload_skills",
+      "label": "Reload HeroShift Config",
+      "cmd": "css_reload",
+      "impact": "Plugin config",
+      "description": "Reloads heroshift.json atomically.",
+      "confirm": false,
+      "group": "plugin"
+    },
+    {
+      "key": "restart_round",
+      "label": "Restart Current Game",
+      "cmd": "mp_restartgame 1",
+      "impact": "In-game round",
+      "description": "Restarts the game after one second.",
+      "confirm": true,
+      "group": "match"
+    },
+    {
+      "key": "warmup_end",
+      "label": "End Warmup",
+      "cmd": "mp_warmup_end",
+      "impact": "In-game phase",
+      "description": "Ends warmup.",
+      "confirm": true,
+      "group": "match"
+    },
+    {
+      "key": "kick_bots",
+      "label": "Kick All Bots",
+      "cmd": "bot_kick",
+      "impact": "Players",
+      "description": "Removes all bots.",
+      "confirm": true,
+      "group": "bots"
+    }
   ]
 }
