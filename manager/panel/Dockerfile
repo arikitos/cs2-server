@@ -5,6 +5,7 @@ RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pyth
 COPY app.py .
 COPY mode_defs.py .
 COPY maintenance_guard.py .
+COPY config_guard.py .
 COPY wsgi.py .
 COPY templates templates
 COPY static static
