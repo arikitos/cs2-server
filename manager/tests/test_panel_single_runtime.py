@@ -327,14 +327,51 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         text = self.app.generate_runtime_cfg("faceit", settings, 'sv_password ""')
         for expected in (
             "mp_freezetime 9", "mp_warmuptime 45", "mp_maxrounds 16",
-            "mp_roundtime 1.5", "bot_quota 3", "mp_overtime_enable 1",
-            'hostname "Practice Server"', "bot_quota_mode match", "bot_difficulty 2",
+            "mp_roundtime 1.5", "bot_quota 4", "mp_overtime_enable 1",
+            'hostname "Practice Server"', "bot_quota_mode fill", "bot_difficulty 3",
+            "bot_chatter normal", "bot_join_after_player 1", "mp_autoteambalance 0",
             "mp_buytime 25", "mp_c4timer 35", "mp_startmoney 1000", "mp_maxmoney 12000",
             "mp_overtime_maxrounds 4",
             "matchzy_minimum_ready_required 4",  # comes from the 2v2 format
             "matchzy_autostart_mode 1",          # comes from the mode extra_cfg
         ):
             self.assertIn(expected, text)
+
+    def test_hidden_server_settings_are_enforced_from_match_format(self):
+        settings = self.app.validate_mode_settings("faceit", {
+            "format": "1v1",
+            "lan": True,
+            "cheats": True,
+            "allow_lobby_connect_only": True,
+            "limit_teams": 5,
+            "auto_team_balance": True,
+            "spectators_max": 64,
+            "bot_quota": 1,
+            "bot_quota_mode": "match",
+            "bot_difficulty": 0,
+            "bot_chatter": "off",
+            "bot_join_after_player": False,
+            "ff_bullet_reduction": 1,
+            "ff_grenade_reduction": 1,
+            "ff_other_reduction": 1,
+            "tk_punish": True,
+        })
+        self.assertEqual(settings["capacity"], 2)
+        self.assertEqual(settings["bot_quota"], 2)
+        self.assertEqual(settings["bot_quota_mode"], "fill")
+        self.assertEqual(settings["bot_difficulty"], 3)
+        self.assertEqual(settings["bot_chatter"], "normal")
+        self.assertTrue(settings["bot_join_after_player"])
+        self.assertFalse(settings["lan"])
+        self.assertFalse(settings["cheats"])
+        self.assertFalse(settings["allow_lobby_connect_only"])
+        self.assertEqual(settings["limit_teams"], 0)
+        self.assertFalse(settings["auto_team_balance"])
+        self.assertEqual(settings["spectators_max"], 2)
+        self.assertEqual(settings["ff_bullet_reduction"], 0.33)
+        self.assertEqual(settings["ff_grenade_reduction"], 0.25)
+        self.assertEqual(settings["ff_other_reduction"], 0.4)
+        self.assertFalse(settings["tk_punish"])
 
     def test_format_writes_the_retake_plugin_config(self):
         path = self.app.mode_config_path("retake", "RetakesPlugin.json")
