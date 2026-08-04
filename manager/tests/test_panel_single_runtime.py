@@ -211,6 +211,12 @@ class PanelSingleRuntimeTests(unittest.TestCase):
                     self.app.validate_server_password(value)
         self.assertEqual(self.app.validate_server_password("safe password"), "safe password")
 
+    def test_hostname_and_economy_validation_reject_unsafe_values(self):
+        with self.assertRaises(ValueError):
+            self.app.validate_mode_settings("faceit", {"hostname": 'server"; quit'})
+        with self.assertRaises(ValueError):
+            self.app.validate_mode_settings("faceit", {"start_money": 16000, "max_money": 800})
+
     def test_expected_api_routes_remain_registered(self):
         rules = {rule for rule, _methods, _name in self.app.app.routes}
         expected = {
@@ -226,6 +232,14 @@ class PanelSingleRuntimeTests(unittest.TestCase):
             "/api/v3/maintenance/verify-mounts",
         }
         self.assertTrue(expected.issubset(rules))
+
+    def test_panel_hides_container_maintenance_and_embeds_game_logs(self):
+        text = (PANEL / "templates/index.html").read_text(encoding="utf-8")
+        self.assertNotIn("MAINTENANCE · OWNER", text)
+        self.assertNotIn('id="logSource"', text)
+        self.assertIn("CS2 GAME LOGS", text)
+        self.assertIn("source=container%3Acs2-game", text)
+        self.assertIn("sendConsole();", text)
 
     def test_format_drives_capacity_alias_and_start_map(self):
         settings = self.app.validate_mode_settings("faceit", {
@@ -285,6 +299,7 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         )
         self.assertIn("mp_friendlyfire 1", lines)
         self.assertIn("ff_damage_reduction_bullets 0", lines)
+        self.assertIn("ff_damage_reduction_grenade 0.25", lines)
         off = self.app.hot_convar_lines(
             self.app.validate_mode_settings("faceit", {"friendly_fire": "off"})
         )
@@ -298,7 +313,14 @@ class PanelSingleRuntimeTests(unittest.TestCase):
             "warmup_time": 45,
             "max_rounds": 16,
             "round_time": 1.5,
+            "hostname": "Practice Server",
+            "buy_time": 25,
+            "c4_timer": 35,
+            "start_money": 1000,
+            "max_money": 12000,
             "bot_quota": 3,
+            "bot_quota_mode": "match",
+            "bot_difficulty": 2,
             "overtime": True,
             "overtime_max_rounds": 4,
         })
@@ -306,6 +328,8 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         for expected in (
             "mp_freezetime 9", "mp_warmuptime 45", "mp_maxrounds 16",
             "mp_roundtime 1.5", "bot_quota 3", "mp_overtime_enable 1",
+            'hostname "Practice Server"', "bot_quota_mode match", "bot_difficulty 2",
+            "mp_buytime 25", "mp_c4timer 35", "mp_startmoney 1000", "mp_maxmoney 12000",
             "mp_overtime_maxrounds 4",
             "matchzy_minimum_ready_required 4",  # comes from the 2v2 format
             "matchzy_autostart_mode 1",          # comes from the mode extra_cfg
@@ -314,6 +338,9 @@ class PanelSingleRuntimeTests(unittest.TestCase):
 
     def test_format_writes_the_retake_plugin_config(self):
         path = self.app.mode_config_path("retake", "RetakesPlugin.json")
+        self.app.apply_format_plugin_config(
+            "retake", self.app.validate_mode_settings("retake", {"format": "5v4"})
+        )
         changed = self.app.apply_format_plugin_config(
             "retake", self.app.validate_mode_settings("retake", {"format": "4v3"})
         )
@@ -326,18 +353,17 @@ class PanelSingleRuntimeTests(unittest.TestCase):
             "retake", self.app.validate_mode_settings("retake", {"format": "4v3"})
         ))
 
-    def test_command_catalog_follows_the_format_game_alias(self):
-        wingman = self.app.validate_mode_settings("faceit", {"format": "2v2"})
-        groups = {g["id"] for g in self.app.command_catalog("faceit", wingman)}
-        self.assertIn("wingman", groups)
-        self.assertNotIn("competitive", groups)
-        self.assertIn("faceit_match", groups)
-        self.assertIn("bots", groups)
-
-        competitive = self.app.validate_mode_settings("faceit", {"format": "5v5"})
-        groups = {g["id"] for g in self.app.command_catalog("faceit", competitive)}
-        self.assertIn("competitive", groups)
-        self.assertNotIn("wingman", groups)
+    def test_command_catalog_prefers_plugin_match_controls(self):
+        settings = self.app.validate_mode_settings("faceit", {"format": "2v2"})
+        commands = {
+            command["cmd"]
+            for group in self.app.command_catalog("faceit", settings)
+            for command in group["commands"]
+        }
+        self.assertIn("css_pause", commands)
+        self.assertIn("css_unpause", commands)
+        self.assertNotIn("mp_pause_match", commands)
+        self.assertNotIn("mp_unpause_match", commands)
 
     def test_command_catalog_exposes_bot_add_and_plugin_commands(self):
         settings = self.app.validate_mode_settings("retake", {})
@@ -348,8 +374,18 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         }
         self.assertIn("bot_add", commands)
         self.assertIn("bot_kick", commands)
+        self.assertIn("bot_kill", commands)
+        self.assertIn("banid", commands)
+        self.assertIn("mp_buy_anywhere", commands)
         self.assertIn("css_forcebombsite A", commands)
         self.assertIn("status", commands)
+
+    def test_console_catalog_allows_only_declared_commands(self):
+        settings = self.app.validate_mode_settings("retake", {})
+        self.assertTrue(self.app.catalog_allows_command("retake", settings, "bot_add"))
+        self.assertTrue(self.app.catalog_allows_command("retake", settings, "banid 0 STEAM_1:0:1"))
+        self.assertFalse(self.app.catalog_allows_command("retake", settings, "exec server.cfg"))
+        self.assertFalse(self.app.catalog_allows_command("retake", settings, "sv_cheats 1"))
 
     def test_status_payload_carries_everything_the_panel_ui_reads(self):
         self.app.client = DummyClient(DummyContainer("exited"))
@@ -373,10 +409,7 @@ class PanelSingleRuntimeTests(unittest.TestCase):
                     self.assertEqual(
                         set(entry), {"key", "label", "detail", "capacity", "team_size", "game_alias"},
                     )
-                # The Lobby Setup form binds to exactly these fields.
-                for field in ("format", "map_pool", "max_rounds", "freezetime", "warmup_time",
-                              "round_time", "bot_quota", "friendly_fire", "overtime",
-                              "overtime_max_rounds"):
+                for field in self.app.mode_defs.SETTING_FIELDS:
                     self.assertIn(field, payload["modes"][mode])
                     self.assertIn(field, payload["mode_defaults"][mode])
 

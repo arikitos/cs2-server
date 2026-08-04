@@ -43,12 +43,31 @@ BASE = {
         "defaults": {
             "format": "5v5",
             "map_pool": ["de_dust2", "de_mirage"],
+            "hostname": "FaceIt Server",
+            "lan": False,
+            "cheats": False,
+            "allow_lobby_connect_only": False,
+            "limit_teams": 0,
+            "auto_team_balance": False,
+            "spectators_max": 2,
             "max_rounds": 24,
             "freezetime": 15,
             "warmup_time": 60,
             "round_time": 1.55,
+            "buy_time": 20,
+            "c4_timer": 40,
+            "start_money": 800,
+            "max_money": 16000,
             "friendly_fire": "off",
             "bot_quota": 0,
+            "bot_quota_mode": "fill",
+            "bot_difficulty": 1,
+            "bot_chatter": "off",
+            "bot_join_after_player": True,
+            "ff_bullet_reduction": 0.33,
+            "ff_grenade_reduction": 0.25,
+            "ff_other_reduction": 0.4,
+            "tk_punish": False,
             "overtime": True,
             "overtime_max_rounds": 6,
         },
@@ -143,6 +162,16 @@ class ModeDefinitionTests(unittest.TestCase):
     def test_friendly_fire_must_be_a_known_mode(self) -> None:
         raw = json.loads(json.dumps(BASE))
         raw["settings"]["defaults"]["friendly_fire"] = True
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
+    def test_hostname_and_bot_modes_are_validated(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["defaults"]["hostname"] = 'server"; quit'
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+        raw = json.loads(json.dumps(BASE))
+        raw["settings"]["defaults"]["bot_quota_mode"] = "unbounded"
         with self.assertRaises(DefinitionError):
             parse_definition(raw, "faceit")
 

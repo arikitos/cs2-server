@@ -21,20 +21,13 @@
     <div class="section-heading compact">
       <p class="eyebrow">STATUS</p>
       <div class="control-row">
-        <button class="btn small danger" data-action onclick="restartGameContainer()">Restart</button>
         <button class="btn small ghost" onclick="refresh(); loadLogs(true)">Refresh</button>
       </div>
     </div>
     <div class="info-grid" id="infoGrid"><!-- filled by JS --></div>
-    <div class="status-split">
-      <div>
-        <p class="mini-label">CONTAINERS</p>
-        <div id="containerList" class="container-list"><span class="muted">—</span></div>
-      </div>
-      <div>
-        <p class="mini-label">HEALTH</p>
-        <div id="pluginHealth" class="health-chips"><span class="muted">Server stopped.</span></div>
-      </div>
+    <div class="health-row">
+      <p class="mini-label">HEALTH</p>
+      <div id="pluginHealth" class="health-chips"><span class="muted">Server stopped.</span></div>
     </div>
     <p id="message" class="message" aria-live="polite"></p>
   </section>
@@ -60,14 +53,14 @@
     </div>
 
     <div class="setup-block" id="commonBlock">
-      <p class="block-label">COMMON CONFIGURATION</p>
-      <div id="commonForm" class="settings-grid"></div>
+      <p class="block-label">SERVER CONFIGURATION <span class="block-note">Open only the category you need</span></p>
+      <div id="commonForm" class="config-sections"></div>
       <p id="configNote" class="hint" hidden></p>
       <p id="validationMsg" class="validation" aria-live="polite"></p>
     </div>
 
-    <div class="setup-block">
-      <p class="block-label">LOBBY VISIBILITY</p>
+    <details class="setup-block config-group">
+      <summary>Lobby visibility and password</summary>
       <div class="seg" id="visibilityRow"></div>
       <div class="pw-row" id="pwRow">
         <input type="password" id="pwValue" placeholder="Lobby password" autocomplete="off">
@@ -75,12 +68,13 @@
         <button class="btn small ghost" onclick="generateLobbyPassword()">Generate</button>
       </div>
       <p class="hint">Private requires a join password. It is applied live over RCON, and never returned by the API.</p>
-    </div>
+    </details>
 
-    <div class="setup-block" id="friendlyFireBlock">
-      <p class="block-label">FRIENDLY FIRE</p>
+    <details class="setup-block config-group" id="friendlyFireBlock">
+      <summary>Friendly fire</summary>
       <div class="seg" id="friendlyFireRow"></div>
-    </div>
+      <div id="friendlyFireForm" class="settings-grid nested-fields"></div>
+    </details>
 
     <div class="setup-block">
       <div class="block-heading">
@@ -107,7 +101,7 @@
   </section>
 
   <!-- ======================= 3 · SERVER CONSOLE ========================= -->
-  <section class="panel-card" id="consoleSection" hidden>
+  <section class="panel-card" id="consoleSection">
     <div class="section-heading compact">
       <div>
         <p class="eyebrow">SERVER CONSOLE</p>
@@ -115,8 +109,8 @@
       </div>
       <span id="consoleTarget" class="chip">—</span>
     </div>
-    <p class="section-help">Type a command, or pick one below to load it into the input. Commands with a
-      <code>&lt;placeholder&gt;</code> need you to replace it before sending.</p>
+    <p class="section-help">Commands without a value run immediately when selected. Commands with a
+      <code>&lt;placeholder&gt;</code> are loaded into the input for you to complete and send.</p>
 
     <div class="console-input-row">
       <input id="consoleInput" class="console-input" type="text" autocomplete="off" spellcheck="false"
@@ -145,14 +139,9 @@
         <tbody id="playersBody"><tr><td colspan="4" class="muted">No active server.</td></tr></tbody>
       </table>
     </div>
-  </section>
-
-  <!-- ========================== 4 · LIVE LOGS ========================== -->
-  <section class="panel-card">
     <div class="logs-block">
       <div class="log-toolbar">
-        <p class="mini-label" style="margin:0">LIVE LOGS</p>
-        <select id="logSource" onchange="loadLogs(true)"></select>
+        <p class="mini-label" style="margin:0">CS2 GAME LOGS</p>
         <label class="switch-label"><input type="checkbox" id="pauseLogs"><span>Pause</span></label>
         <label class="switch-label"><input type="checkbox" id="followLogs" checked><span>Auto-scroll</span></label>
         <button class="btn small" onclick="loadLogs(true)">Refresh</button>
@@ -160,54 +149,6 @@
       <pre id="logs" class="logs">Loading…</pre>
     </div>
   </section>
-
-  <!-- ======================= 5 · MAINTENANCE =========================== -->
-  <details class="panel-card collapsible">
-    <summary><span class="eyebrow">MAINTENANCE · OWNER</span></summary>
-    <p class="section-help">Owner operations. Each says when to run it. “Game outage” items stop cs2-game while the job runs; every step is backed up first.</p>
-    <div class="maint-grid">
-      <div class="maint-item">
-        <button class="btn" onclick="verifyMounts()">Verify mounts</button>
-        <span class="when">When: the server won’t start or after moving files.</span>
-      </div>
-      <div class="maint-item">
-        <button class="btn" onclick="startBackup()">Create backup</button>
-        <span class="when">When: before any risky change or update.</span>
-      </div>
-      <div class="maint-item">
-        <button class="btn danger" onclick="repairMetamod()">Repair Metamod</button>
-        <span class="when">When: plugins stop loading after a CS2 update. <em>Game outage.</em></span>
-      </div>
-      <div class="maint-item">
-        <button class="btn danger" onclick="runUpdate('update')">Update CS2 files</button>
-        <span class="when">When: a new CS2 build is out. <em>Game outage · SteamCMD.</em></span>
-      </div>
-      <div class="maint-item">
-        <button class="btn danger" onclick="runUpdate('validate')">Validate CS2 files</button>
-        <span class="when">When: files look corrupted or the server crashes on load. <em>Game outage.</em></span>
-      </div>
-      <div class="maint-item">
-        <button class="btn ghost" onclick="restartPanel()">Restart web panel</button>
-        <span class="when">When: the panel is stuck but the game is fine.</span>
-      </div>
-      <div class="maint-item">
-        <button class="btn ghost" onclick="rebuildPanel()">Rebuild web panel</button>
-        <span class="when">When: after changing panel code.</span>
-      </div>
-    </div>
-    <div id="mountResult" class="health-chips" style="margin-top:10px"></div>
-    <div class="two-col" style="margin-top:14px">
-      <div>
-        <p class="mini-label">JOBS</p>
-        <div id="jobsList" class="jobs-list"><span class="muted">No jobs yet.</span></div>
-      </div>
-      <div>
-        <p class="mini-label">JOB LOG <span id="jobLogTitle" class="muted"></span></p>
-        <pre id="jobLog" class="logs" style="height:220px">Select a job to view its live log.</pre>
-      </div>
-    </div>
-    <p class="hint">Update / Validate / Repair / Restore need the Owner confirmation phrase and run the isolated updater — the only place SteamCMD executes.</p>
-  </details>
 </main>
 
 <script>
@@ -220,13 +161,28 @@ let busy = false;
 // (manager/modes/<id>/mode.json) via /api/v3/status, so a new mode or a new
 // match format needs no change here.
 function modeOrder(data) { return (data && data.mode_order) || Object.keys((data && data.modes) || {}); }
-const CONFIG_FIELDS = ['format', 'map_pool', 'max_rounds', 'freezetime', 'warmup_time',
-                       'round_time', 'bot_quota', 'friendly_fire', 'overtime', 'overtime_max_rounds'];
+const CONFIG_FIELDS = [
+  'format', 'map_pool', 'hostname', 'lan', 'cheats', 'allow_lobby_connect_only',
+  'limit_teams', 'auto_team_balance', 'spectators_max', 'max_rounds', 'freezetime',
+  'warmup_time', 'round_time', 'buy_time', 'c4_timer', 'start_money', 'max_money',
+  'bot_quota', 'bot_quota_mode', 'bot_difficulty', 'bot_chatter',
+  'bot_join_after_player', 'friendly_fire', 'ff_bullet_reduction',
+  'ff_grenade_reduction', 'ff_other_reduction', 'tk_punish', 'overtime',
+  'overtime_max_rounds'
+];
 const FIELD_LABELS = {
   format: 'Match format', map_pool: 'Map pool', max_rounds: 'Max rounds',
   freezetime: 'Freeze time', warmup_time: 'Warmup time', round_time: 'Round time',
   bot_quota: 'Bots', friendly_fire: 'Friendly fire', overtime: 'Overtime',
-  overtime_max_rounds: 'Overtime rounds',
+  overtime_max_rounds: 'Overtime rounds', hostname: 'Hostname', lan: 'LAN mode',
+  cheats: 'Cheats', allow_lobby_connect_only: 'Lobby-only connections',
+  limit_teams: 'Team difference limit', auto_team_balance: 'Auto team balance',
+  spectators_max: 'Spectators', buy_time: 'Buy time', c4_timer: 'C4 timer',
+  start_money: 'Start money', max_money: 'Max money', bot_quota_mode: 'Bot quota mode',
+  bot_difficulty: 'Bot difficulty', bot_chatter: 'Bot chatter',
+  bot_join_after_player: 'Bots wait for a player', ff_bullet_reduction: 'Bullet reduction',
+  ff_grenade_reduction: 'Grenade reduction', ff_other_reduction: 'Other reduction',
+  tk_punish: 'Team-kill punishment',
 };
 const FRIENDLY_FIRE_OPTIONS = [
   { value: 'regular', label: 'Regular', detail: 'All team damage' },
@@ -289,17 +245,6 @@ function renderStatus(data) {
   document.getElementById('infoGrid').innerHTML = rows.map(([k, v]) =>
     `<div class="info-cell"><span>${k}</span><strong>${escapeHtml(v)}</strong></div>`).join('');
 
-  const list = document.getElementById('containerList');
-  list.innerHTML = (data.containers || []).map(c => {
-    const cls = c.running ? 'ok' : (c.status === 'not-created' ? 'unk' : 'off');
-    const isActive = active && active.name === c.name;
-    return `<div class="container-row">
-      <span class="dot-${cls}"></span>
-      <strong>${escapeHtml(modeMeta(c.mode).label || c.label)}</strong>
-      <span class="muted">${escapeHtml(c.status)}</span>
-      ${isActive ? '<span class="chip mini active-chip">ACTIVE</span>' : ''}
-    </div>`;
-  }).join('');
 }
 
 // ------------------------------------------------------- 2 · Game mode
@@ -335,7 +280,7 @@ function renderFormats() {
     ? `${f.capacity} slots · ${f.game_alias} game mode · applies on start / restart`
     : '';
 }
-function pickFormat(key) { editField('format', key); renderFormats(); }
+function pickFormat(key) { editField('format', key); renderFormats(); renderCommon(); }
 
 // ------------------------------------------------- 4 · Common configuration
 function fieldNum(key, label, min, max, step, hint) {
@@ -345,16 +290,57 @@ function fieldNum(key, label, min, max, step, hint) {
     ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
 }
 
+function fieldText(key, label, hint) {
+  return `<label class="field"><span>${label}</span>
+    <input type="text" maxlength="100" value="${escapeHtml(pending[key] ?? '')}"
+      oninput="editField('${key}', this.value)">
+    ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
+}
+
+function fieldCheck(key, label, hint) {
+  return `<label class="field switch-label"><input type="checkbox" ${pending[key] ? 'checked' : ''}
+    onchange="editField('${key}', this.checked)"><span>${label}</span>
+    ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
+}
+
+function fieldSelect(key, label, options, hint, numeric = false) {
+  return `<label class="field"><span>${label}</span><select onchange="editField('${key}', ${numeric ? 'Number(this.value)' : 'this.value'})">
+    ${options.map(([value, text]) => `<option value="${value}" ${pending[key] === value ? 'selected' : ''}>${text}</option>`).join('')}
+    </select>${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
+}
+
 function renderCommon() {
+  const category = (title, body, open = false) => `<details class="config-group" ${open ? 'open' : ''}>
+    <summary>${title}</summary><div class="settings-grid">${body}</div></details>`;
   document.getElementById('commonForm').innerHTML =
-      fieldNum('freezetime', 'Freeze time (s)', 0, 60, 1, 'Buy/planning time before each round')
-    + fieldNum('warmup_time', 'Warmup time (s)', 0, 600, 1, 'Length of warmup after a map load')
-    + fieldNum('max_rounds', 'Max rounds', 1, 120, 1, 'Regulation round count')
-    + fieldNum('round_time', 'Round time (min)', 0.5, 60, 0.05, '1.55 = 1 min 33 s')
-    + fieldNum('bot_quota', 'Bots', 0, 10, 1, 'Bots the server keeps filled')
-    + `<label class="field switch-label"><input type="checkbox" ${pending.overtime ? 'checked' : ''}
-         onchange="editField('overtime', this.checked)"><span>Overtime enabled</span></label>`
-    + fieldNum('overtime_max_rounds', 'Overtime rounds', 2, 30, 1, 'Rounds per overtime half-set');
+    category('Identity, security and connection',
+        fieldText('hostname', 'Server hostname', 'The name shown in the server browser')
+      + fieldCheck('lan', 'LAN server', 'Restart required')
+      + fieldCheck('cheats', 'Enable sv_cheats', 'Keep disabled for competitive play')
+      + fieldCheck('allow_lobby_connect_only', 'Lobby connections only', 'Disabled allows direct connections')
+      + `<p class="split-note">RCON password stays managed by <code>CS2_RCON_PASSWORD</code> and is never exposed to the browser. Join password is managed in Lobby visibility below.</p>`, true)
+    + category('Players and teams',
+        `<div class="derived-field"><span>Player capacity</span><strong>${currentFormat().capacity || '—'}</strong><small>Derived from Match Format</small></div>`
+      + fieldNum('limit_teams', 'Maximum team difference', 0, 32, 1, '0 disables the limit')
+      + fieldCheck('auto_team_balance', 'Auto team balance')
+      + fieldNum('spectators_max', 'Maximum spectators', 0, 64, 1))
+    + category('Bots',
+        fieldNum('bot_quota', 'Bot quota', 0, 64, 1, '0 disables bots')
+      + fieldSelect('bot_quota_mode', 'Quota mode', [['fill', 'Fill'], ['match', 'Match'], ['normal', 'Normal']])
+      + fieldSelect('bot_difficulty', 'Difficulty', [[0, 'Easy'], [1, 'Medium'], [2, 'Hard'], [3, 'Expert']], '', true)
+      + fieldSelect('bot_chatter', 'Chatter', [['off', 'Off'], ['radio', 'Radio'], ['minimal', 'Minimal'], ['normal', 'Normal']])
+      + fieldCheck('bot_join_after_player', 'Bots wait for a real player'))
+    + category('Timing and economy',
+        fieldNum('freezetime', 'Freeze time (s)', 0, 60, 1)
+      + fieldNum('warmup_time', 'Warmup time (s)', 0, 600, 1)
+      + fieldNum('max_rounds', 'Max rounds', 1, 120, 1)
+      + fieldNum('round_time', 'Round time (min)', 0.5, 60, 0.01, '1.92 is approximately 1 min 55 s')
+      + fieldNum('buy_time', 'Buy time (s)', 0, 600, 1)
+      + fieldNum('c4_timer', 'C4 timer (s)', 10, 90, 1)
+      + fieldNum('start_money', 'Start money', 0, 65535, 50)
+      + fieldNum('max_money', 'Maximum money', 0, 65535, 50)
+      + fieldCheck('overtime', 'Overtime enabled')
+      + fieldNum('overtime_max_rounds', 'Overtime rounds', 2, 30, 1));
 
   const note = document.getElementById('configNote');
   if (selectedMode === 'faceit') {
@@ -405,6 +391,11 @@ async function generateLobbyPassword() {
 function renderFriendlyFire() {
   document.getElementById('friendlyFireRow').innerHTML =
     segmented(FRIENDLY_FIRE_OPTIONS, pending.friendly_fire, 'pickFriendlyFire');
+  document.getElementById('friendlyFireForm').innerHTML =
+      fieldNum('ff_bullet_reduction', 'Bullet reduction', 0, 1, 0.01, '0.33 means 33 percent')
+    + fieldNum('ff_grenade_reduction', 'Grenade reduction', 0, 1, 0.01, '0.25 means 25 percent')
+    + fieldNum('ff_other_reduction', 'Other damage reduction', 0, 1, 0.01)
+    + fieldCheck('tk_punish', 'Kick on team kill');
 }
 function pickFriendlyFire(value) { editField('friendly_fire', value); renderFriendlyFire(); }
 
@@ -488,7 +479,14 @@ function validateLive() {
   else if (!(pending.freezetime >= 0 && pending.freezetime <= 60)) err = 'Freeze time must be 0–60s.';
   else if (!(pending.warmup_time >= 0 && pending.warmup_time <= 600)) err = 'Warmup time must be 0–600s.';
   else if (!(pending.round_time >= 0.5 && pending.round_time <= 60)) err = 'Round time must be 0.5–60 min.';
-  else if (!(pending.bot_quota >= 0 && pending.bot_quota <= 10)) err = 'Bots must be 0–10.';
+  else if (!String(pending.hostname || '').trim()) err = 'Server hostname is required.';
+  else if (!(pending.bot_quota >= 0 && pending.bot_quota <= 64)) err = 'Bots must be 0–64.';
+  else if (!(pending.bot_difficulty >= 0 && pending.bot_difficulty <= 3)) err = 'Bot difficulty must be 0–3.';
+  else if (!(pending.buy_time >= 0 && pending.buy_time <= 600)) err = 'Buy time must be 0–600s.';
+  else if (!(pending.c4_timer >= 10 && pending.c4_timer <= 90)) err = 'C4 timer must be 10–90s.';
+  else if (!(pending.max_money >= pending.start_money)) err = 'Maximum money cannot be lower than start money.';
+  else if (![pending.ff_bullet_reduction, pending.ff_grenade_reduction, pending.ff_other_reduction]
+      .every(value => value >= 0 && value <= 1)) err = 'Friendly-fire reductions must be between 0 and 1.';
   else if (!(pending.overtime_max_rounds >= 2 && pending.overtime_max_rounds <= 30)) err = 'Overtime rounds must be 2–30.';
   msg.textContent = err; msg.dataset.type = err ? 'error' : 'info';
   return !err;
@@ -516,7 +514,9 @@ function renderPreview() {
 }
 
 async function saveSettings() {
-  await api(`/api/v3/modes/${selectedMode}/settings`, { method: 'PUT', body: JSON.stringify(pending) });
+  const result = await api(`/api/v3/modes/${selectedMode}/settings`, { method: 'PUT', body: JSON.stringify(pending) });
+  pending = result.settings;
+  return result;
 }
 async function saveAndApply() {
   if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
@@ -587,6 +587,7 @@ async function switchMode() {
       `Stops ${modeMeta(active.mode).label} (disconnecting its players), then starts ${modeMeta(selectedMode).label}.`)) return;
   setBusy(true);
   try {
+    clearTransientLogs();
     await saveSettings();
     await api('/api/v3/modes/switch', { method: 'POST', body: JSON.stringify({ mode: selectedMode }) });
     markUnsaved(false);
@@ -605,18 +606,6 @@ async function stopGameServer() {
     setTimeout(refresh, 500); setTimeout(() => loadLogs(true), 800);
   } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
 }
-async function restartGameContainer() {
-  if (!STATE || !STATE.active) { show('No game server is running.', 'error'); return; }
-  if (!confirmImpact('Restart the game container?', `${STATE.active.name} (entire CS2 container)`,
-      'All connected players are disconnected. Runtime settings are reapplied; SteamCMD does not run.')) return;
-  setBusy(true);
-  try {
-    await api('/api/v3/server/restart', { method: 'POST' });
-    show('Game container restarting; players were disconnected.', 'warn');
-    setTimeout(refresh, 800); setTimeout(() => loadLogs(true), 1200);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-
 // ---------------------------------------------------------------- Players
 async function loadPlayers() {
   if (!STATE || !STATE.active) return;
@@ -680,7 +669,7 @@ async function loadCommands(force = false) {
           <span class="chip mini">${g.commands.length}</span></summary>
         <div class="cmd-list">${g.commands.map(c => `
           <button class="cmd-btn ${c.confirm ? 'warn' : ''}" title="${escapeHtml(c.description)} — ${escapeHtml(c.impact)}"
-                  onclick="injectCommand('${escapeHtml(c.cmd)}', '${escapeHtml(c.arg_hint || '')}')">
+                  onclick="injectCommand('${escapeHtml(c.cmd)}', '${escapeHtml(c.arg_hint || '')}', ${c.confirm ? 'true' : 'false'}, '${escapeHtml(c.label)}')">
             <span class="cmd-label">${escapeHtml(c.label)}</span>
             <code>${escapeHtml(c.cmd)}${c.arg_hint ? ' ' + escapeHtml(c.arg_hint) : ''}</code>
           </button>`).join('')}</div>
@@ -709,7 +698,7 @@ async function switchMap(name) {
 
 const PLACEHOLDER_RE = /<[^>]{1,24}>/;
 
-function injectCommand(cmd, argHint) {
+function injectCommand(cmd, argHint, needsConfirm, label) {
   const input = document.getElementById('consoleInput');
   input.value = argHint ? `${cmd} ${argHint}` : cmd;
   input.focus();
@@ -717,7 +706,8 @@ function injectCommand(cmd, argHint) {
     input.setSelectionRange(cmd.length + 1, input.value.length);
     show(`Replace ${argHint} with a value, then Send.`, 'info');
   } else {
-    show('Command loaded into the console — review, then Send.', 'info');
+    if (needsConfirm && !window.confirm(`${label}\n\nRun ${cmd} now?`)) return;
+    sendConsole();
   }
 }
 
@@ -742,21 +732,19 @@ function appendConsole(text, cls) {
 document.getElementById('consoleInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendConsole(); } });
 
 // ------------------------------------------------------------------- Logs
-async function loadLogSources() {
-  try {
-    const d = await api('/api/v3/logs/sources');
-    document.getElementById('logSource').innerHTML = d.sources.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
-  } catch (e) {}
-}
 async function loadLogs(force = false) {
   if (document.getElementById('pauseLogs').checked && !force) return;
-  const source = document.getElementById('logSource').value || 'game';
   try {
-    const d = await api(`/api/v3/logs/stream?source=${encodeURIComponent(source)}&tail=400`);
+    const d = await api('/api/v3/logs/stream?source=container%3Acs2-game&tail=400');
     const el = document.getElementById('logs');
     el.textContent = d.logs || '(empty)';
     if (document.getElementById('followLogs').checked) el.scrollTop = el.scrollHeight;
   } catch (e) { document.getElementById('logs').textContent = e.message; }
+}
+
+function clearTransientLogs() {
+  document.getElementById('consoleHistory').replaceChildren();
+  document.getElementById('logs').textContent = 'Mode changed. Loading fresh cs2-game logs…';
 }
 
 // ----------------------------------------------------------- Plugin health
@@ -775,75 +763,6 @@ async function loadHealth() {
   } catch (e) { box.innerHTML = `<span class="muted">${escapeHtml(e.message)}</span>`; }
 }
 
-// ------------------------------------------------------------- Maintenance
-let selectedJob = null, jobPollTimer = null;
-const CONFIRM_PHRASE = 'UPDATE CS2';
-
-async function verifyMounts() {
-  const box = document.getElementById('mountResult');
-  box.innerHTML = '<span class="muted">Checking…</span>';
-  try {
-    const d = await api('/api/v3/maintenance/verify-mounts');
-    box.innerHTML = Object.entries(d.checks).map(([k, v]) =>
-      `<span class="hchip ${v === true ? 'ok' : (v === false ? 'bad' : 'unk')}">${escapeHtml(k)}</span>`).join('');
-    show(d.all_present ? 'All mounts present.' : 'Some mounts missing — see chips.', d.all_present ? 'success' : 'warn');
-  } catch (e) { box.innerHTML = `<span class="hchip bad">${escapeHtml(e.message)}</span>`; }
-}
-async function startBackup() {
-  try { const d = await api('/api/v3/maintenance/backup', { method: 'POST' }); watchJob(d.job.id); show('Backup started.', 'success'); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function repairMetamod() {
-  if (!confirm('Repair Metamod? Stops the game, backs up, repairs gameinfo.gi, then restarts the current mode.')) return;
-  try { const d = await api('/api/v3/maintenance/repair-metamod', { method: 'POST' }); watchJob(d.job.id); show('Metamod repair started.', 'success'); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function runUpdate(mode) {
-  const verb = mode === 'update' ? 'update CS2 via SteamCMD' : 'validate game files';
-  const phrase = prompt(`This will ${verb}. It stops the server and runs SteamCMD.\nType the confirmation phrase to proceed:`, '');
-  if (phrase === null) return;
-  if (phrase !== CONFIRM_PHRASE) { show(`Confirmation must be exactly "${CONFIRM_PHRASE}".`, 'error'); return; }
-  try { const d = await api(`/api/v3/maintenance/${mode}`, { method: 'POST', body: JSON.stringify({ confirm: phrase }) });
-    watchJob(d.job.id); show(`${mode} started.`, 'success'); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function restartPanel() {
-  if (!confirm('Restart the panel? The game server keeps running; reconnect in a few seconds.')) return;
-  try { await api('/api/v3/panel/restart', { method: 'POST' }); show('Panel restarting — reconnect shortly.', 'warn'); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function rebuildPanel() {
-  if (!confirm('Rebuild the panel image from source, health-check it, and recreate the panel? The game server is untouched.')) return;
-  try { const d = await api('/api/v3/panel/rebuild', { method: 'POST' }); watchJob(d.job.id); show('Panel rebuild started.', 'success'); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function loadJobs() {
-  try {
-    const d = await api('/api/v3/maintenance/jobs');
-    const list = document.getElementById('jobsList');
-    if (!d.jobs.length) { list.innerHTML = '<span class="muted">No jobs yet.</span>'; return; }
-    list.innerHTML = d.jobs.map(j => `
-      <button class="job-row ${j.id === selectedJob ? 'sel' : ''} st-${j.status}" onclick="openJob('${j.id}')">
-        <span class="job-type">${escapeHtml(j.type)}</span>
-        <span class="job-status">${j.status}${j.percent && j.status === 'Running' ? ' ' + j.percent + '%' : ''}</span>
-      </button>`).join('');
-  } catch (e) {}
-}
-async function openJob(id) {
-  selectedJob = id; loadJobs();
-  try {
-    const d = await api(`/api/v3/maintenance/jobs/${id}`);
-    const j = d.job;
-    document.getElementById('jobLogTitle').textContent = `${j.type} · ${j.status}${j.step ? ' · ' + j.step : ''}`;
-    const el = document.getElementById('jobLog');
-    el.textContent = (j.log || []).join('\n') + (j.error ? `\n\nERROR: ${j.error}` : '') + (j.rollback_status ? `\nROLLBACK: ${j.rollback_status}` : '');
-    el.scrollTop = el.scrollHeight;
-    if (j.status === 'Running' || j.status === 'Queued') { clearTimeout(jobPollTimer); jobPollTimer = setTimeout(() => openJob(id), 2000); }
-    else { loadJobs(); }
-  } catch (e) {}
-}
-function watchJob(id) { openJob(id); }
-
 // ------------------------------------------------------------------ Refresh
 async function refresh() {
   try {
@@ -854,10 +773,9 @@ async function refresh() {
     renderModes(data);
     renderVisibility(data);
     if (!Object.keys(pending).length) loadSelectedMode();
-    else renderSetup();
+    else { renderLifecycle(); renderPreview(); }
 
     const active = data.active;
-    document.getElementById('consoleSection').hidden = !active;
     document.getElementById('consoleTarget').textContent = active ? modeMeta(active.mode).label : 'no active server';
     document.getElementById('consoleInput').disabled = !active;
     document.getElementById('consoleSend').disabled = !active;
@@ -867,17 +785,14 @@ async function refresh() {
 }
 
 (async function init() {
-  await loadLogSources();
   await refresh();
   loadLogs(true);
   loadPlayers();
   loadHealth();
-  loadJobs();
   setInterval(refresh, 4000);
   setInterval(() => loadLogs(false), 3000);
   setInterval(loadPlayers, 5000);
   setInterval(loadHealth, 6000);
-  setInterval(loadJobs, 5000);
 })();
 </script>
 </body>

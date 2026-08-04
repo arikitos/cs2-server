@@ -6,6 +6,11 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Mode-scoped server controls for hostname, LAN and direct connection policy,
+  cheats, team limits and balancing, spectator capacity, bot behavior, friendly
+  fire scaling and punishment, and match economy. The panel writes the validated
+  values to `panel_runtime.cfg`, which remains last in the config execution order.
+
 - Declarative match formats. Each `mode.json` now owns a `settings.formats` list
   and the panel offers exactly those: FaceIt and HeroShift expose 5v5, 2v2 and
   1v1; Retake exposes 5v4 and 4v3. A format owns the slot count and the game
@@ -45,14 +50,24 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Simplified the panel to status, mode setup, and one live console area. Server
+  settings are grouped into compact collapsible sections, container maintenance
+  controls are no longer shown, and `cs2-game` logs now appear directly below the
+  RCON controls and player list.
+- Command buttons without arguments now send immediately after any required
+  confirmation. Commands with arguments still populate the console input and
+  select the placeholder for manual completion.
+- Mode switches clear the panel-managed console history. Docker Compose now
+  rotates game logs at 10 MB across three files and panel logs at 5 MB across two
+  files, without deleting Docker's active log files.
+
 - Reorganised the panel into a single Lobby Setup form — Game Mode, Match Format,
-  Common Configuration, Lobby Visibility, Friendly Fire, Map Pool — followed by one
+  Server Configuration, Lobby Visibility, Friendly Fire, Map Pool — followed by one
   primary button that reads **Start Server**, **Close Server** while the selected
-  mode is running, or **Switch to …** while another mode is. Status, live logs and
-  Owner Maintenance are unchanged.
-- The RCON console is now its own section, visible only while the server runs, and
-  carries the command catalog and the player list. Selecting a command loads it into
-  the input instead of firing immediately.
+  mode is running, or **Switch to …** while another mode is. A compact status area
+  remains at the top of the page.
+- The RCON console is now its own section and carries the command catalog, player
+  list and game logs.
 - Removed the manual capacity and single-map fields from the panel. Slot count,
   start map and game alias are now derived from the selected match format and map
   pool, written into `active-mode.json`, and turned into `-maxplayers`, `+map` and
@@ -94,6 +109,10 @@ All notable changes to this project are documented in this file.
   config files into the live mode layer before issuing `css_heroshift_reload`.
 
 ### Security
+
+- The live console now accepts only exact commands or argument-bearing command
+  prefixes present in the approved catalog for the active mode. Command chaining,
+  blocked process commands, secret mutation and unrestricted RCON remain rejected.
 
 - Mode switches and topology rollback no longer use broad plugin-directory cleanup. Target paths are
   validated, staged before mutation, and deleted only when present in the prior

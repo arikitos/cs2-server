@@ -21,10 +21,17 @@ CONFIG_VALUE_RE = re.compile(r"^[A-Za-z0-9_.@/ -]*$")
 # Panel-editable settings. 'map' and 'capacity' are no longer stored: they are
 # derived from map_pool[0] and from the selected match format.
 SETTING_FIELDS = (
-    "format", "map_pool", "max_rounds", "freezetime", "warmup_time",
-    "round_time", "bot_quota", "friendly_fire", "overtime", "overtime_max_rounds",
+    "format", "map_pool", "hostname", "lan", "cheats", "allow_lobby_connect_only",
+    "limit_teams", "auto_team_balance", "spectators_max", "max_rounds", "freezetime",
+    "warmup_time", "round_time", "buy_time", "c4_timer", "start_money", "max_money",
+    "bot_quota", "bot_quota_mode", "bot_difficulty", "bot_chatter",
+    "bot_join_after_player", "friendly_fire", "ff_bullet_reduction",
+    "ff_grenade_reduction", "ff_other_reduction", "tk_punish", "overtime",
+    "overtime_max_rounds",
 )
 FRIENDLY_FIRE_MODES = ("off", "nades", "regular")
+BOT_QUOTA_MODES = ("fill", "match", "normal")
+BOT_CHATTER_MODES = ("off", "radio", "minimal", "normal")
 ACTION_GROUPS = ("match", "practice", "teams", "bots", "server", "map", "readonly", "plugin")
 GAME_ALIASES = ("competitive", "casual", "wingman", "deathmatch")
 TARGET_PREFIXES = ("addons/", "cfg/")
@@ -355,15 +362,50 @@ def parse_definition(raw: object, mode_id: str) -> dict:
             f"{', '.join(FRIENDLY_FIRE_MODES)}"
         )
     spot = f"{where}.settings.defaults"
+    hostname = defaults_raw.get("hostname")
+    if not isinstance(hostname, str) or not hostname.strip() or len(hostname.strip()) > 100:
+        raise DefinitionError(f"{spot}.hostname: expected a non-empty string up to 100 characters")
+    hostname = hostname.strip()
+    if any(char in hostname for char in ('"', ';', '\\', "\0", "\n", "\r")):
+        raise DefinitionError(f"{spot}.hostname: contains a reserved command character")
+    bot_quota_mode = _str(defaults_raw, "bot_quota_mode", spot)
+    if bot_quota_mode not in BOT_QUOTA_MODES:
+        raise DefinitionError(
+            f"{spot}.bot_quota_mode: expected one of {', '.join(BOT_QUOTA_MODES)}"
+        )
+    bot_chatter = _str(defaults_raw, "bot_chatter", spot)
+    if bot_chatter not in BOT_CHATTER_MODES:
+        raise DefinitionError(
+            f"{spot}.bot_chatter: expected one of {', '.join(BOT_CHATTER_MODES)}"
+        )
     defaults = {
         "format": default_format,
         "map_pool": map_pool,
+        "hostname": hostname,
+        "lan": _bool(defaults_raw, "lan", spot),
+        "cheats": _bool(defaults_raw, "cheats", spot),
+        "allow_lobby_connect_only": _bool(defaults_raw, "allow_lobby_connect_only", spot),
+        "limit_teams": _int(defaults_raw, "limit_teams", spot, 0, 32),
+        "auto_team_balance": _bool(defaults_raw, "auto_team_balance", spot),
+        "spectators_max": _int(defaults_raw, "spectators_max", spot, 0, 64),
         "max_rounds": _int(defaults_raw, "max_rounds", spot, 1, 120),
         "freezetime": _int(defaults_raw, "freezetime", spot, 0, 60),
         "warmup_time": _int(defaults_raw, "warmup_time", spot, 0, 600),
         "round_time": _num(defaults_raw, "round_time", spot, 0.5, 60),
-        "bot_quota": _int(defaults_raw, "bot_quota", spot, 0, 10),
+        "buy_time": _int(defaults_raw, "buy_time", spot, 0, 600),
+        "c4_timer": _int(defaults_raw, "c4_timer", spot, 10, 90),
+        "start_money": _int(defaults_raw, "start_money", spot, 0, 65535),
+        "max_money": _int(defaults_raw, "max_money", spot, 0, 65535),
+        "bot_quota": _int(defaults_raw, "bot_quota", spot, 0, 64),
+        "bot_quota_mode": bot_quota_mode,
+        "bot_difficulty": _int(defaults_raw, "bot_difficulty", spot, 0, 3),
+        "bot_chatter": bot_chatter,
+        "bot_join_after_player": _bool(defaults_raw, "bot_join_after_player", spot),
         "friendly_fire": friendly_fire,
+        "ff_bullet_reduction": _num(defaults_raw, "ff_bullet_reduction", spot, 0, 1),
+        "ff_grenade_reduction": _num(defaults_raw, "ff_grenade_reduction", spot, 0, 1),
+        "ff_other_reduction": _num(defaults_raw, "ff_other_reduction", spot, 0, 1),
+        "tk_punish": _bool(defaults_raw, "tk_punish", spot),
         "overtime": _bool(defaults_raw, "overtime", spot),
         "overtime_max_rounds": _int(defaults_raw, "overtime_max_rounds", spot, 2, 30),
     }
