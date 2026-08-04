@@ -119,12 +119,31 @@ GAME_CONTAINERS = [GAME_CONTAINER]  # retained for response compatibility
 APPLY_LEVELS = {
     "format": "game_restart",
     "map_pool": "map_reload",
+    "lan": "game_restart",
+    "hostname": "hot",
+    "cheats": "hot",
+    "allow_lobby_connect_only": "hot",
+    "limit_teams": "hot",
+    "auto_team_balance": "hot",
+    "spectators_max": "hot",
     "max_rounds": "hot",
     "freezetime": "hot",
     "warmup_time": "hot",
     "round_time": "hot",
+    "buy_time": "hot",
+    "c4_timer": "hot",
+    "start_money": "hot",
+    "max_money": "hot",
     "friendly_fire": "hot",
+    "ff_bullet_reduction": "hot",
+    "ff_grenade_reduction": "hot",
+    "ff_other_reduction": "hot",
+    "tk_punish": "hot",
     "bot_quota": "hot",
+    "bot_quota_mode": "hot",
+    "bot_difficulty": "hot",
+    "bot_chatter": "hot",
+    "bot_join_after_player": "hot",
     "overtime": "hot",
     "overtime_max_rounds": "hot",
 }
@@ -156,8 +175,18 @@ SHARED_COMMAND_GROUPS = [
             _cmd("warmup_end", "End Warmup", "mp_warmup_end", "In-game phase", "Ends warmup and starts the match."),
             _cmd("pause", "Pause Match", "mp_pause_match", "In-game match", "Freezes the match at the next round."),
             _cmd("unpause", "Unpause Match", "mp_unpause_match", "In-game match", "Resumes a paused match."),
-            _cmd("swap_teams", "Swap Teams", "mp_swapteams", "Players", "Swaps CT and T rosters.", True),
-            _cmd("scramble_teams", "Scramble Teams", "mp_scrambleteams", "Players", "Randomly reassigns both teams.", True),
+        ],
+    },
+    {
+        "id": "players",
+        "label": "Players & bans",
+        "aliases": (),
+        "commands": [
+            _cmd("status", "Server Status", "status", "Read only", "Prints players, Steam IDs, map and uptime."),
+            _cmd("kick", "Kick Player", "kick", "Players", "Disconnects a player by username or userid.", True, "<username or userid>"),
+            _cmd("banid", "Ban Player", "banid", "Players", "Bans a userid or SteamID for a number of minutes. Use 0 for permanent.", True, "<minutes userid or steamid>"),
+            _cmd("removeid", "Remove Ban", "removeid", "Ban list", "Removes a SteamID from the ban list.", True, "<steamid>"),
+            _cmd("writeid", "Save Ban List", "writeid", "Ban list", "Writes the in-memory ban list to disk.", True),
         ],
     },
     {
@@ -169,31 +198,21 @@ SHARED_COMMAND_GROUPS = [
             _cmd("bot_add_ct", "Add CT Bot", "bot_add_ct", "Players", "Adds one bot to the CT side."),
             _cmd("bot_add_t", "Add T Bot", "bot_add_t", "Players", "Adds one bot to the T side."),
             _cmd("bot_kick", "Kick All Bots", "bot_kick", "Players", "Removes every bot.", True),
+            _cmd("bot_kill", "Kill All Bots", "bot_kill", "In-game round", "Kills all bots in the current round.", True),
             _cmd("bot_quota", "Set Bot Quota", "bot_quota", "Players", "Sets how many bots the server keeps filled. Append a number.", False, "<count>"),
             _cmd("bot_difficulty", "Set Bot Difficulty", "bot_difficulty", "Players", "0 easy to 3 expert. Append the level.", False, "<0-3>"),
-            _cmd("bot_stop", "Freeze Bots", "bot_stop 1", "Players", "Stops bots from acting; send bot_stop 0 to resume."),
+            _cmd("bot_stop", "Freeze or Resume Bots", "bot_stop", "Players", "Use 1 to freeze bots and 0 to resume them.", False, "<0 or 1>"),
         ],
     },
     {
-        "id": "competitive",
-        "label": "Competitive preset",
-        "aliases": ("competitive",),
+        "id": "live",
+        "label": "Live overrides",
+        "aliases": (),
         "commands": [
-            _cmd("comp_rounds", "Competitive Rounds (24)", "mp_maxrounds 24", "In-game setting", "Restores the competitive round count."),
-            _cmd("comp_overtime", "Competitive Overtime (6)", "mp_overtime_maxrounds 6", "In-game setting", "Restores the competitive overtime length."),
-            _cmd("comp_roundtime", "Competitive Round Time", "mp_roundtime 1.55", "Next round", "Restores the competitive round time."),
-            _cmd("comp_gamemode", "Competitive Game Mode", "game_mode 1", "Next map", "Selects the competitive game mode. Takes effect on the next map.", True),
-        ],
-    },
-    {
-        "id": "wingman",
-        "label": "Wingman preset",
-        "aliases": ("wingman",),
-        "commands": [
-            _cmd("wm_rounds", "Wingman Rounds (16)", "mp_maxrounds 16", "In-game setting", "Restores the wingman round count."),
-            _cmd("wm_overtime", "Wingman Overtime (4)", "mp_overtime_maxrounds 4", "In-game setting", "Restores the wingman overtime length."),
-            _cmd("wm_roundtime", "Wingman Round Time", "mp_roundtime 1.5", "Next round", "Restores the wingman round time."),
-            _cmd("wm_gamemode", "Wingman Game Mode", "game_mode 2", "Next map", "Selects the 2v2 wingman game mode. Takes effect on the next map.", True),
+            _cmd("friendly_fire", "Set Friendly Fire", "mp_friendlyfire", "In-game setting", "Use 1 to enable team damage and 0 to disable it.", False, "<0 or 1>"),
+            _cmd("respawn_ct", "CT Respawn", "mp_respawn_on_death_ct", "In-game setting", "Use 1 to enable immediate CT respawn and 0 to disable it.", False, "<0 or 1>"),
+            _cmd("respawn_t", "T Respawn", "mp_respawn_on_death_t", "In-game setting", "Use 1 to enable immediate T respawn and 0 to disable it.", False, "<0 or 1>"),
+            _cmd("buy_anywhere", "Buy Anywhere", "mp_buy_anywhere", "In-game setting", "Use 1 to buy anywhere and 0 to restore buy zones.", False, "<0 or 1>"),
         ],
     },
     {
@@ -211,7 +230,6 @@ SHARED_COMMAND_GROUPS = [
         "label": "Read only",
         "aliases": (),
         "commands": [
-            _cmd("status", "Server Status", "status", "Read only", "Prints players, map and uptime."),
             _cmd("users", "Connected Users", "users", "Read only", "Prints the connected user list."),
             _cmd("meta_list", "Metamod Plugins", "meta list", "Read only", "Lists loaded Metamod plugins."),
             _cmd("css_list", "CounterStrikeSharp Plugins", "css_plugins list", "Read only", "Lists loaded CounterStrikeSharp plugins."),
@@ -228,6 +246,10 @@ MODE_GROUP_LABELS = {
     "server": "Server",
     "plugin": "Plugin",
     "readonly": "Read only",
+}
+MODE_COMMAND_REPLACEMENTS = {
+    "faceit": {"pause", "unpause"},
+    "retake": {"scramble_teams"},
 }
 
 
@@ -255,11 +277,15 @@ def command_catalog(mode: str | None, settings: dict | None) -> list[dict]:
     for group in SHARED_COMMAND_GROUPS:
         if group["aliases"] and alias not in group["aliases"]:
             continue
+        replacements = MODE_COMMAND_REPLACEMENTS.get(mode, set())
+        commands = [command for command in group["commands"] if command["key"] not in replacements]
+        if not commands:
+            continue
         groups.append({
             "id": group["id"],
             "label": group["label"],
             "source": "server",
-            "commands": group["commands"],
+            "commands": commands,
         })
     return groups
 
@@ -445,6 +471,38 @@ def _bounded_int(value: object, fallback: int, low: int, high: int, label: str) 
     return number
 
 
+def _bounded_float(value: object, fallback: float, low: float, high: float, label: str) -> float:
+    number = float(fallback if value is None else value)
+    if not math.isfinite(number) or not low <= number <= high:
+        raise ValueError(f"{label} must be between {low:g} and {high:g}")
+    return round(number, 2)
+
+
+def _validated_bool(value: object, fallback: bool, label: str) -> bool:
+    value = fallback if value is None else value
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be true or false")
+    return value
+
+
+def _enum_value(value: object, fallback: str, allowed: tuple[str, ...], label: str) -> str:
+    selected = str(fallback if value is None else value).strip().lower()
+    if selected not in allowed:
+        raise ValueError(f"{label} must be one of {', '.join(allowed)}")
+    return selected
+
+
+def validate_hostname(value: object) -> str:
+    hostname = str(value or "").strip()
+    if not hostname or len(hostname) > 100:
+        raise ValueError("Hostname must be between 1 and 100 characters")
+    if any(char in hostname for char in ('"', ';', '\\', "\0", "\n", "\r")):
+        raise ValueError("Hostname contains a reserved command character")
+    if not hostname.isprintable():
+        raise ValueError("Hostname contains a non-printable character")
+    return hostname
+
+
 def validate_mode_settings(mode: str, settings: dict) -> dict:
     defaults = DEFAULT_MODE_SETTINGS[mode]
     formats = MODE_FORMATS[mode]
@@ -454,9 +512,17 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
     match_format = formats[key]
 
     pool = normalize_map_pool(settings.get("map_pool"), defaults["map_pool"])
-    round_time = float(settings.get("round_time", defaults["round_time"]))
-    if not math.isfinite(round_time) or not 0.5 <= round_time <= 60:
-        raise ValueError("Round time must be between 0.5 and 60 minutes")
+    round_time = _bounded_float(
+        settings.get("round_time"), defaults["round_time"], 0.5, 60, "Round time"
+    )
+    start_money = _bounded_int(
+        settings.get("start_money"), defaults["start_money"], 0, 65535, "Start money"
+    )
+    max_money = _bounded_int(
+        settings.get("max_money"), defaults["max_money"], 0, 65535, "Max money"
+    )
+    if max_money < start_money:
+        raise ValueError("Max money must be greater than or equal to start money")
 
     return {
         "format": key,
@@ -465,13 +531,56 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
         "map": pool[0],
         "capacity": match_format["capacity"],
         "game_alias": match_format["game_alias"],
+        "hostname": validate_hostname(settings.get("hostname", defaults["hostname"])),
+        "lan": _validated_bool(settings.get("lan"), defaults["lan"], "LAN mode"),
+        "cheats": _validated_bool(settings.get("cheats"), defaults["cheats"], "Cheats"),
+        "allow_lobby_connect_only": _validated_bool(
+            settings.get("allow_lobby_connect_only"),
+            defaults["allow_lobby_connect_only"],
+            "Lobby-only connections",
+        ),
+        "limit_teams": _bounded_int(
+            settings.get("limit_teams"), defaults["limit_teams"], 0, 32, "Team limit"
+        ),
+        "auto_team_balance": _validated_bool(
+            settings.get("auto_team_balance"), defaults["auto_team_balance"], "Auto team balance"
+        ),
+        "spectators_max": _bounded_int(
+            settings.get("spectators_max"), defaults["spectators_max"], 0, 64, "Spectators"
+        ),
         "max_rounds": _bounded_int(settings.get("max_rounds"), defaults["max_rounds"], 1, 120, "Max rounds"),
         "freezetime": _bounded_int(settings.get("freezetime"), defaults["freezetime"], 0, 60, "Freeze time"),
         "warmup_time": _bounded_int(settings.get("warmup_time"), defaults["warmup_time"], 0, 600, "Warmup time"),
-        "round_time": round(round_time, 2),
-        "bot_quota": _bounded_int(settings.get("bot_quota"), defaults["bot_quota"], 0, 10, "Bots"),
+        "round_time": round_time,
+        "buy_time": _bounded_int(settings.get("buy_time"), defaults["buy_time"], 0, 600, "Buy time"),
+        "c4_timer": _bounded_int(settings.get("c4_timer"), defaults["c4_timer"], 10, 90, "C4 timer"),
+        "start_money": start_money,
+        "max_money": max_money,
+        "bot_quota": _bounded_int(settings.get("bot_quota"), defaults["bot_quota"], 0, 64, "Bots"),
+        "bot_quota_mode": _enum_value(
+            settings.get("bot_quota_mode"), defaults["bot_quota_mode"], mode_defs.BOT_QUOTA_MODES, "Bot quota mode"
+        ),
+        "bot_difficulty": _bounded_int(
+            settings.get("bot_difficulty"), defaults["bot_difficulty"], 0, 3, "Bot difficulty"
+        ),
+        "bot_chatter": _enum_value(
+            settings.get("bot_chatter"), defaults["bot_chatter"], mode_defs.BOT_CHATTER_MODES, "Bot chatter"
+        ),
+        "bot_join_after_player": _validated_bool(
+            settings.get("bot_join_after_player"), defaults["bot_join_after_player"], "Bot join after player"
+        ),
         "friendly_fire": normalize_friendly_fire(settings.get("friendly_fire"), defaults["friendly_fire"]),
-        "overtime": bool(settings.get("overtime", defaults["overtime"])),
+        "ff_bullet_reduction": _bounded_float(
+            settings.get("ff_bullet_reduction"), defaults["ff_bullet_reduction"], 0, 1, "Bullet damage reduction"
+        ),
+        "ff_grenade_reduction": _bounded_float(
+            settings.get("ff_grenade_reduction"), defaults["ff_grenade_reduction"], 0, 1, "Grenade damage reduction"
+        ),
+        "ff_other_reduction": _bounded_float(
+            settings.get("ff_other_reduction"), defaults["ff_other_reduction"], 0, 1, "Other damage reduction"
+        ),
+        "tk_punish": _validated_bool(settings.get("tk_punish"), defaults["tk_punish"], "Team-kill punishment"),
+        "overtime": _validated_bool(settings.get("overtime"), defaults["overtime"], "Overtime"),
         "overtime_max_rounds": _bounded_int(
             settings.get("overtime_max_rounds"), defaults["overtime_max_rounds"], 2, 30, "Overtime rounds"
         ),
@@ -503,29 +612,42 @@ def validate_server_password(value: object, *, allow_empty: bool = False) -> str
 
 # "nades" keeps grenade friendly fire but zeroes bullet and other damage, which
 # is how the stock competitive friendly-fire scaling convars are meant to be used.
-FRIENDLY_FIRE_SCALING = {
-    "off": {"enabled": 0, "bullets": 0.33, "other": 0.4},
-    "nades": {"enabled": 1, "bullets": 0.0, "other": 0.0},
-    "regular": {"enabled": 1, "bullets": 0.33, "other": 0.4},
-}
-
-
 def hot_convar_lines(settings: dict) -> list[str]:
-    friendly_fire = FRIENDLY_FIRE_SCALING[
-        normalize_friendly_fire(settings.get("friendly_fire"), "off")
-    ]
+    friendly_fire = normalize_friendly_fire(settings.get("friendly_fire"), "off")
+    enabled = 0 if friendly_fire == "off" else 1
+    bullets = 0.0 if friendly_fire == "nades" else float(settings.get("ff_bullet_reduction", 0.33))
+    other = 0.0 if friendly_fire == "nades" else float(settings.get("ff_other_reduction", 0.4))
+    grenades = float(settings.get("ff_grenade_reduction", 0.25))
     round_time = float(settings.get("round_time", 1.55))
     return [
+        f'hostname "{validate_hostname(settings.get("hostname", "CS2 Server"))}"',
+        f"sv_lan {1 if settings.get('lan') else 0}",
+        f"sv_cheats {1 if settings.get('cheats') else 0}",
+        f"sv_allow_lobby_connect_only {1 if settings.get('allow_lobby_connect_only') else 0}",
+        f"sv_maxplayers {settings.get('capacity', 10)}",
+        f"mp_limitteams {settings.get('limit_teams', 0)}",
+        f"mp_autoteambalance {1 if settings.get('auto_team_balance') else 0}",
+        f"mp_spectators_max {settings.get('spectators_max', 2)}",
         f"bot_quota {settings.get('bot_quota', 0)}",
-        f"mp_friendlyfire {friendly_fire['enabled']}",
-        f"ff_damage_reduction_bullets {friendly_fire['bullets']:g}",
-        f"ff_damage_reduction_other {friendly_fire['other']:g}",
+        f"bot_quota_mode {settings.get('bot_quota_mode', 'fill')}",
+        f"bot_difficulty {settings.get('bot_difficulty', 1)}",
+        f"bot_chatter {settings.get('bot_chatter', 'off')}",
+        f"bot_join_after_player {1 if settings.get('bot_join_after_player', True) else 0}",
+        f"mp_friendlyfire {enabled}",
+        f"ff_damage_reduction_bullets {bullets:g}",
+        f"ff_damage_reduction_grenade {grenades:g}",
+        f"ff_damage_reduction_other {other:g}",
+        f"mp_tkpunish {1 if settings.get('tk_punish') else 0}",
         f"mp_maxrounds {settings.get('max_rounds', 24)}",
         f"mp_freezetime {settings.get('freezetime', 15)}",
         f"mp_warmuptime {settings.get('warmup_time', 60)}",
         f"mp_roundtime {round_time:g}",
         f"mp_roundtime_defuse {round_time:g}",
         f"mp_roundtime_hostage {round_time:g}",
+        f"mp_buytime {settings.get('buy_time', 20)}",
+        f"mp_c4timer {settings.get('c4_timer', 40)}",
+        f"mp_startmoney {settings.get('start_money', 800)}",
+        f"mp_maxmoney {settings.get('max_money', 16000)}",
         f"mp_overtime_enable {1 if settings.get('overtime') else 0}",
         f"mp_overtime_maxrounds {settings.get('overtime_max_rounds', 6)}",
     ]
@@ -1463,6 +1585,7 @@ def api_mode_switch():
         return jsonify({"ok": False, "error": "Unknown mode"}), 400
     try:
         settings = _start_mode(mode, restart_if_running=True)
+        write_json(CONSOLE_HISTORY_JSON, {"items": []})
         audit("mode.switch", "ok", target=mode)
         return jsonify({"ok": True, "mode": mode, "settings": settings})
     except NotFound:
@@ -1719,6 +1842,19 @@ def validate_console_command(value: object) -> str:
     return command
 
 
+def catalog_allows_command(mode: str, settings: dict, command: str) -> bool:
+    normalized = command.strip().lower()
+    for group in command_catalog(mode, settings):
+        for entry in group["commands"]:
+            base = entry["cmd"].strip().lower()
+            if entry.get("arg_hint"):
+                if normalized.startswith(base + " "):
+                    return True
+            elif normalized == base:
+                return True
+    return False
+
+
 @app.post("/api/v3/console/command")
 @require_auth
 def api_console():
@@ -1732,6 +1868,16 @@ def api_console():
     active = active_container()
     if not active:
         return jsonify({"ok": False, "error": "No game mode is running"}), 409
+    try:
+        settings = validate_mode_settings(active["mode"], load_mode(active["mode"]))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc), "risk": risk}), 400
+    if not catalog_allows_command(active["mode"], settings, command):
+        return jsonify({
+            "ok": False,
+            "error": "Command is not in the approved catalog for the active mode",
+            "risk": risk,
+        }), 403
     try:
         output = rcon_command(GAME_CONTAINER, command)
         history = read_json(CONSOLE_HISTORY_JSON, {"items": []}).get("items", [])

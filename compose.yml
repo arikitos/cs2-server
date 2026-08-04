@@ -16,6 +16,11 @@ services:
     restart: "no"
     stdin_open: true
     tty: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
     environment:
       SRCDS_TOKEN: ${SRCDS_TOKEN}
@@ -101,6 +106,11 @@ services:
     build: ./manager/panel
     container_name: cs2-panel
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
     environment:
       PANEL_USERNAME: ${PANEL_USERNAME}
       PANEL_PASSWORD: ${PANEL_PASSWORD}

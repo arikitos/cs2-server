@@ -18,6 +18,13 @@ class RepositoryTopologyTests(unittest.TestCase):
         for old in ("cs2-faceit", "cs2-retakes", "cs2-heroshift"):
             self.assertNotIn(f"  {old}:", text)
 
+    def test_compose_bounds_game_and_panel_logs(self) -> None:
+        text = (ROOT / "compose.yml").read_text(encoding="utf-8")
+        self.assertIn('max-size: "10m"', text)
+        self.assertIn('max-file: "3"', text)
+        self.assertIn('max-size: "5m"', text)
+        self.assertIn('max-file: "2"', text)
+
     def test_framework_installer_never_follows_latest(self) -> None:
         script = (MANAGER / "scripts/install-mods-linux.sh").read_text(encoding="utf-8")
         self.assertNotIn("releases/latest", script)

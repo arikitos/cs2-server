@@ -199,35 +199,36 @@ are never hot-unloaded.
 
 ## Operating
 
-The panel exposes four areas:
+The panel exposes three focused areas:
 
 1. **Status** — `cs2-game` state, active mode, match format, endpoint,
    visibility and plugin health.
 2. **Lobby Setup** — one stacked form, in this order:
    1. *Game Mode* — FaceIt, Retake or HeroShift.
    2. *Match Format* — only the formats the selected mode declares.
-   3. *Common Configuration* — freeze time, warmup time, max rounds, round time,
-      bots and overtime.
+   3. *Server Configuration* — collapsible groups for identity and connection,
+      players and teams, bots, timing and economy. Capacity and game alias stay
+      derived from the selected format.
    4. *Lobby Visibility* — Public, or Private with a join password.
-   5. *Friendly Fire* — Regular, Nades Only or Off.
+   5. *Friendly Fire* — Regular, Nades Only or Off, with explicit damage scaling
+      and team-kill punishment controls.
    6. *Map Pool* — the maps the lobby uses; the one marked `START` is the launch
       map, and each pooled map gets a one-click switch button while running.
 
    The primary button is **Start Server**, which becomes **Close Server** while
    the selected mode is running and **Switch to …** while a different mode is.
-3. **Server Console** — visible only while the server runs: an RCON command line
-   plus every command the panel offers, grouped by source (the running mode's
-   plugin commands, then round/match, bots, the competitive or wingman preset
-   for the active format, map and read-only server commands). Selecting a command
-   loads it into the input; commands with a `<placeholder>` must be completed
-   before they can be sent. The player list with kick/ban lives here too.
-4. **Maintenance** — verify sources/versions, backup, update/validate CS2,
-   repair Metamod and restart/rebuild the panel.
+3. **Server Console** — an approved RCON command line plus the running mode's
+   plugin commands and relevant server commands. Selecting a command without an
+   argument runs it immediately; commands with a `<placeholder>` are loaded for
+   completion. The player list and the fixed `cs2-game` log stream live below it.
 
 Freeze time, warmup time, rounds, round time, bots, overtime and friendly fire
 apply live over RCON. Match format applies on the next start or restart, because
 it changes `-maxplayers` and `+game_alias`. A start-map change uses `changelevel`.
 Switching the selected mode restarts `cs2-game` and disconnects players.
+It also clears the panel's bounded console history. Docker rotates `cs2-game`
+logs at 10 MB with three retained files and panel logs at 5 MB with two retained
+files; the panel never deletes Docker's active internal log files.
 
 Lobby visibility is server-wide: Private enables `sv_password` live over RCON,
 Public clears it. Passwords are stored server-side and never returned by the API,
