@@ -228,10 +228,32 @@ class PanelSingleRuntimeTests(unittest.TestCase):
             "/api/v3/server/map",
             "/api/v3/server/visibility",
             "/api/v3/commands",
-            "/api/v3/modes/heroshift/skills",
+            "/api/v3/modes/heroshift/diag",
             "/api/v3/maintenance/verify-mounts",
         }
         self.assertTrue(expected.issubset(rules))
+
+    def test_heroshift_reload_action_syncs_new_config_before_rcon(self):
+        events = []
+        self.app.request.get_json = lambda silent=True: {"action": "reload_skills"}
+        self.app.active_container = lambda: {"mode": "heroshift"}
+        self.app.sync_live_config = lambda mode, name: events.append(
+            ("sync", mode, name)
+        )
+        self.app.rcon_command = lambda container, command, timeout: events.append(
+            ("rcon", container, command, timeout)
+        ) or "ok"
+
+        response = self.app.api_mode_action.__wrapped__("heroshift")
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(
+            events,
+            [
+                ("sync", "heroshift", "heroshift.json"),
+                ("rcon", "cs2-game", "css_reload", 6),
+            ],
+        )
 
     def test_panel_hides_container_maintenance_and_embeds_game_logs(self):
         text = (PANEL / "templates/index.html").read_text(encoding="utf-8")

@@ -8,6 +8,14 @@ if (-not (Test-Path ".env")) {
     Write-Host "Review the values in .env before exposing the server publicly."
 }
 
+$heroShiftRelease = Join-Path $PSScriptRoot "manager\releases\heroshift\v1.0.0\installed-release.json"
+if (-not (Test-Path -LiteralPath $heroShiftRelease -PathType Leaf)) {
+    & (Join-Path $PSScriptRoot "manager\scripts\install-heroshift-release.ps1") `
+        (Join-Path $PSScriptRoot "manager\scripts\HeroShift-v1.0.0.zip") `
+        $PSScriptRoot `
+        -StageOnly
+}
+
 docker compose config --quiet
 if ($LASTEXITCODE -ne 0) {
     throw "compose.yml is invalid"

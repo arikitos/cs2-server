@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_ZIP_SHA256="5e4e2901757a234c43b0c844a99e118985a1f2474244c0d3dcedabc6f4770b0e"
-EXPECTED_VERSION="v1.0.1"
+EXPECTED_ZIP_SHA256="42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b"
+EXPECTED_VERSION="v1.0.0"
 
 usage() {
-    echo "Usage: $0 /path/to/HeroShift-v1.0.1.zip [project-root]" >&2
+    echo "Usage: $0 /path/to/HeroShift-v1.0.0.zip [project-root] [--stage-only]" >&2
     exit 2
 }
 
-[[ $# -ge 1 && $# -le 2 ]] || usage
+[[ $# -ge 1 && $# -le 3 ]] || usage
+[[ $# -lt 3 || "$3" == "--stage-only" ]] || usage
 PACKAGE_PATH="$(realpath "$1")"
 PROJECT_ROOT="$(realpath "${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}")"
+STAGE_ONLY="${3:-}"
 ENV_FILE="${PROJECT_ROOT}/.env"
-RELEASE_RELATIVE="./manager/releases/heroshift/v1.0.1"
-RELEASE_ROOT="${PROJECT_ROOT}/manager/releases/heroshift/v1.0.1"
+RELEASE_RELATIVE="./manager/releases/heroshift/v1.0.0"
+RELEASE_ROOT="${PROJECT_ROOT}/manager/releases/heroshift/v1.0.0"
 
 [[ -f "${PACKAGE_PATH}" ]] || { echo "Package not found: ${PACKAGE_PATH}" >&2; exit 1; }
 [[ -f "${PROJECT_ROOT}/compose.yml" ]] || { echo "compose.yml not found under ${PROJECT_ROOT}" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
-command -v docker >/dev/null || { echo "docker is required" >&2; exit 1; }
+if [[ "${STAGE_ONLY}" != "--stage-only" ]]; then
+    command -v docker >/dev/null || { echo "docker is required" >&2; exit 1; }
+fi
 
 actual_zip_sha="$(sha256sum "${PACKAGE_PATH}" | awk '{print $1}')"
 [[ "${actual_zip_sha}" == "${EXPECTED_ZIP_SHA256}" ]] || {
@@ -75,7 +79,7 @@ with zipfile.ZipFile(package) as archive:
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
-        prefix=".heroshift-v1.0.1-", dir=destination.parent
+        prefix=".heroshift-v1.0.0-", dir=destination.parent
     ) as temporary:
         temporary_path = Path(temporary)
         extracted = temporary_path / "package"
@@ -136,9 +140,14 @@ with zipfile.ZipFile(package) as archive:
             json.dumps(marker, indent=2) + "\n", encoding="utf-8"
         )
 
-        if destination.exists():
+        existing_releases = sorted(
+            path for path in destination.parent.glob("v*") if path.is_dir()
+        )
+        if existing_releases:
             backup.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(destination), str(backup))
+            backup.mkdir(parents=True, exist_ok=False)
+            for existing in existing_releases:
+                shutil.move(str(existing), str(backup / existing.name))
         os.replace(staged, destination)
 
 print(f"Installed verified release overlay at {destination}")
@@ -170,6 +179,11 @@ if not replaced:
     updated.append(f"{key}={value}")
 path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 PY
+
+if [[ "${STAGE_ONLY}" == "--stage-only" ]]; then
+    echo "HeroShift ${EXPECTED_VERSION} is staged as the active release overlay."
+    exit 0
+fi
 
 cd "${PROJECT_ROOT}"
 docker compose config --quiet

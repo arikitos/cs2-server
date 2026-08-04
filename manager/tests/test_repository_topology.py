@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+import subprocess
+import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,7 +57,10 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertIn("target: /modes/heroshift/release", compose)
 
         env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        self.assertIn("HEROSHIFT_RELEASE_PATH=./manager/modes/heroshift", env)
+        self.assertIn(
+            "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/v1.0.0",
+            env,
+        )
 
         ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("manager/releases/heroshift/", ignored)
@@ -70,18 +77,87 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertTrue(release_sources)
         self.assertTrue(all(source.startswith("release/") for source in release_sources))
 
+        mode_root = MANAGER / "modes/heroshift"
+        self.assertEqual(
+            sorted(path.name for path in mode_root.iterdir()),
+            ["README.md", "cfg", "config", "mode.json"],
+        )
+        self.assertEqual(
+            json.loads((mode_root / "config/heroshift.json").read_text(encoding="utf-8")),
+            {"schemaVersion": 1},
+        )
+
     def test_heroshift_installer_pins_and_verifies_the_uploaded_release(self) -> None:
         script = (MANAGER / "scripts/install-heroshift-release.ps1").read_text(
             encoding="utf-8"
         )
-        self.assertIn('ExpectedVersion = "v1.0.1"', script)
+        self.assertIn('ExpectedVersion = "v1.0.0"', script)
         self.assertIn(
-            "5e4e2901757a234c43b0c844a99e118985a1f2474244c0d3dcedabc6f4770b0e",
+            "42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b",
             script,
         )
         self.assertIn("Manifest SHA256 mismatch", script)
         self.assertIn("Unsafe ZIP path", script)
         self.assertIn("HEROSHIFT_RELEASE_PATH", script)
+
+        archive = MANAGER / "scripts/HeroShift-v1.0.0.zip"
+        self.assertEqual(
+            hashlib.sha256(archive.read_bytes()).hexdigest(),
+            "42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b",
+        )
+        with zipfile.ZipFile(archive) as package:
+            manifest = json.loads(package.read("package-manifest.json"))
+        self.assertEqual(manifest["version"], "v1.0.0")
+        self.assertEqual(len(manifest["files"]), 99)
+
+    def test_bootstrap_stages_the_verified_heroshift_release(self) -> None:
+        setup = (ROOT / "setup.ps1").read_text(encoding="utf-8")
+        start = (MANAGER / "scripts/start.sh").read_text(encoding="utf-8")
+        for script in (setup, start):
+            self.assertIn("HeroShift-v1.0.0.zip", script)
+            self.assertIn("install-heroshift-release", script)
+        self.assertIn("-StageOnly", setup)
+        self.assertIn("--stage-only", start)
+
+    def test_linux_stage_only_install_replaces_old_overlay_safely(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            (project / "compose.yml").write_text("services: {}\n", encoding="utf-8")
+            (project / ".env.example").write_text(
+                "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/v1.0.0\n",
+                encoding="utf-8",
+            )
+            old = project / "manager/releases/heroshift/v1.0.1"
+            old.mkdir(parents=True)
+            (old / "installed-release.json").write_text("{}\n", encoding="utf-8")
+
+            subprocess.run(
+                [
+                    "bash",
+                    str(MANAGER / "scripts/install-heroshift-release.sh"),
+                    str(MANAGER / "scripts/HeroShift-v1.0.0.zip"),
+                    str(project),
+                    "--stage-only",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            marker = json.loads(
+                (project / "manager/releases/heroshift/v1.0.0/installed-release.json")
+                .read_text(encoding="utf-8")
+            )
+            self.assertEqual(marker["version"], "v1.0.0")
+            self.assertFalse(old.exists())
+            self.assertEqual(
+                len(list((project / "manager/backups").glob("*/v1.0.1"))),
+                1,
+            )
+            self.assertIn(
+                "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/v1.0.0",
+                (project / ".env").read_text(encoding="utf-8"),
+            )
 
     def test_framework_installer_never_follows_latest(self) -> None:
         script = (MANAGER / "scripts/install-mods-linux.sh").read_text(encoding="utf-8")
@@ -160,7 +236,8 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertIn("COPY maintenance_guard.py .", dockerfile)
         self.assertIn("COPY wsgi.py .", dockerfile)
         self.assertIn('"wsgi:app"', dockerfile)
-        self.assertIn("install(panel)", wsgi)
+        self.assertIn("install_maintenance_guard(panel)", wsgi)
+        self.assertIn("install_config_guard(panel)", wsgi)
 
     def test_runtime_launcher_avoids_python_310_path_write_text_newline(
         self,

@@ -1,41 +1,53 @@
-HeroShift v1.0.1 server deployment
+HeroShift v1.0.0 server deployment
 ==================================
 
-Prerequisite
-------------
-Pull the latest main branch of arikitos/cs2-server first. The current main branch
-contains the versioned HeroShift release overlay mounts and installer scripts.
+The repository contains the official HeroShift v1.0.0 release archive and
+installers for Windows PowerShell and Linux.
 
 Windows PowerShell
 ------------------
-Open PowerShell in the repository root and run:
 
-  .\manager\scripts\install-heroshift-release.ps1 .\HeroShift-v1.0.1.zip
+Run from the repository root.
+
+  ./manager/scripts/install-heroshift-release.ps1 ./manager/scripts/HeroShift-v1.0.0.zip
 
 Linux
 -----
-Open a shell in the repository root and run:
+
+Run from the repository root.
 
   chmod +x ./manager/scripts/install-heroshift-release.sh
-  ./manager/scripts/install-heroshift-release.sh ./HeroShift-v1.0.1.zip
+  ./manager/scripts/install-heroshift-release.sh ./manager/scripts/HeroShift-v1.0.0.zip
 
 What the installer does
 -----------------------
-1. Verifies the exact archive SHA256.
+
+1. Verifies the archive SHA256.
 2. Rejects unsafe ZIP paths.
-3. Verifies all 99 package files against package-manifest.json.
-4. Installs a versioned overlay under manager/releases/heroshift/v1.0.1.
-5. Updates HEROSHIFT_RELEASE_PATH in .env.
-6. Recreates the panel and game container while preserving whether the game was running.
-7. Keeps the previous overlay under manager/backups when replacing one.
+3. Verifies all 99 runtime files against package-manifest.json.
+4. Backs up older release overlays.
+5. Installs manager/releases/heroshift/v1.0.0.
+6. Updates HEROSHIFT_RELEASE_PATH in .env.
+7. Recreates the panel and game container while preserving whether the game was running.
 
 Expected archive SHA256
 -----------------------
-5e4e2901757a234c43b0c844a99e118985a1f2474244c0d3dcedabc6f4770b0e
 
-Configuration compatibility
----------------------------
-HeroShift v1.0.1 ships configs/heroshift.json. The current panel roster editor
-still targets the legacy config.json and skillsInfo.json files. Those legacy
-files are retained for rollback, but edits made through that editor are not
-expected to configure v1.0.1.
+42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b
+
+Configuration
+-------------
+
+HeroShift v1.0.0 reads only heroshift.json. The manager-owned file is
+manager/modes/heroshift/config/heroshift.json. config.json and skillsInfo.json
+are legacy formats and are intentionally absent.
+
+The previous tracked legacy files matched HeroShift v1.0.0 canonical defaults,
+so the minimal schemaVersion-only override preserves the effective behavior.
+
+Bootstrap
+---------
+
+setup.ps1 and manager/scripts/start.sh use the stage-only installer mode when
+the verified release overlay is missing. Stage-only verifies, extracts, backs
+up, and updates .env without starting or recreating containers.

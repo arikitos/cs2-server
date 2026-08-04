@@ -75,6 +75,7 @@ class ConfigGuardTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
+        self.assertEqual(configs["heroshift.json"]["source"], "config/heroshift.json")
         self.assertEqual(config, {"schemaVersion": 1})
 
     def test_guard_is_loaded_by_wsgi_image(self) -> None:

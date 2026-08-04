@@ -234,9 +234,16 @@ Server password is server-wide. Applying a value enables `sv_password` live over
 RCON, while applying an empty value makes the server public. Passwords are
 stored server-side and never returned by the API.
 
-HeroShift's roster editor writes only whitelisted fields, keeps timestamped
-backups, synchronizes the declared live config files transactionally, and issues
-`css_heroshift_reload` when HeroShift is active.
+HeroShift v1.0.0 uses the single manager-owned `heroshift.json` override file.
+The panel reload action synchronizes that file transactionally and issues
+`css_reload` when HeroShift is active. Legacy `config.json` and
+`skillsInfo.json` files are not deployed.
+
+The verified HeroShift release is stored as a versioned local overlay rather
+than duplicated inside the tracked mode tree. Fresh runs of `setup.ps1` and
+`manager/scripts/start.sh` stage the bundled v1.0.0 package automatically.
+Existing installations can run the matching installer under `manager/scripts`
+to verify, back up, deploy, and activate the new overlay.
 
 ## Updating CS2 and frameworks
 
@@ -314,6 +321,7 @@ bash -n manager/runtime/runtime-launcher.sh
 bash -n manager/scripts/start.sh
 bash -n manager/scripts/stop.sh
 bash -n manager/scripts/install-mods-linux.sh
+bash -n manager/scripts/install-heroshift-release.sh
 bash -n manager/scripts/smoke-test.sh
 ```
 

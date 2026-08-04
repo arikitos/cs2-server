@@ -173,7 +173,7 @@
     },
     {
       "name": "heroshift.json",
-      "source": "plugins/HeroShift/configs/heroshift.json",
+      "source": "config/heroshift.json",
       "kind": "file",
       "target": "addons/counterstrikesharp/plugins/HeroShift/configs/heroshift.json"
     }

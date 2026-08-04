@@ -1595,6 +1595,8 @@ def api_mode_action(mode):
     if not active or active["mode"] != mode:
         return jsonify({"ok": False, "error": f"{MODES[mode]['label']} is not the active mode"}), 409
     try:
+        if mode == "heroshift" and key == "reload_skills":
+            sync_live_config("heroshift", "heroshift.json")
         output = rcon_command(GAME_CONTAINER, action["cmd"], 6)
         audit("mode.action", "ok", f"{mode}:{key}", target=mode)
         return jsonify({"ok": True, "action": key, "command": action["cmd"], "output": redact(output)})
@@ -1622,19 +1624,7 @@ def api_mode_preview(mode):
 # ---------------------------------------------------------------------------
 # HeroShift config
 # ---------------------------------------------------------------------------
-SKILL_RARITIES = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"]
-_HS_CONFIG_BOOLS = {
-    "your_skill_chat_info": "YourSkillChatInfo",
-    "killer_skill_chat_info": "KillerSkillChatInfo",
-    "teammate_skill_chat_info": "TeamMateSkillChatInfo",
-    "summary_after_round": "SummaryAfterTheRound",
-    "enable_bot_skills": "EnableBotSkills",
-    "disable_skills_on_round_end": "DisableSkillsOnRoundEnd",
-}
-_HS_CONFIG_FLOATS = {
-    "skill_time_before_start": ("SkillTimeBeforeStart", 0.0, 30.0),
-    "skill_description_duration": ("SkillDescriptionDuration", -1.0, 60.0),
-}
+HEROSHIFT_BUILT_IN_SKILL_COUNT = 142
 
 
 def mode_config_path(mode: str, name: str) -> Path:
@@ -1645,21 +1635,10 @@ def mode_config_path(mode: str, name: str) -> Path:
     return mode_defs.mount_source_path(entry, mode_dir(mode), SHARED_DIR)
 
 
-def read_skills_config() -> list:
-    return json.loads(mode_config_path("heroshift", "skillsInfo.json").read_text(encoding="utf-8"))
-
-
 def read_hs_config() -> dict:
-    return json.loads(mode_config_path("heroshift", "config.json").read_text(encoding="utf-8"))
-
-
-def _skills_view(skills: list, config: dict) -> dict:
-    settings = {name: bool(config.get(key, False)) for name, key in _HS_CONFIG_BOOLS.items()}
-    for name, (key, _low, _high) in _HS_CONFIG_FLOATS.items():
-        settings[name] = float(config.get(key) or 0)
-    rows = [{"name": item.get("Name", ""), "active": bool(item.get("Active", False)), "rarity": item.get("Rarity", "Common"), "max_per_server": int(item.get("MaxPerServer", -1)), "only_team": int(item.get("OnlyTeam", 0)), "needs_teammates": bool(item.get("NeedsTeammates", False)), "color": item.get("Color", ""), "required_permission": item.get("RequiredPermission", "")} for item in skills if isinstance(item, dict) and item.get("Name")]
-    rows.sort(key=lambda item: item["name"].casefold())
-    return {"settings": settings, "skills": rows, "rarities": SKILL_RARITIES, "active_count": sum(1 for item in rows if item["active"]), "total": len(rows)}
+    return json.loads(
+        mode_config_path("heroshift", "heroshift.json").read_text(encoding="utf-8")
+    )
 
 
 def _backup_and_write(path: Path, value) -> str | None:
@@ -1689,94 +1668,27 @@ def sync_live_config(mode: str, name: str) -> None:
         raise RuntimeError(result.output.decode("utf-8", errors="replace"))
 
 
-@app.get("/api/v3/modes/heroshift/skills")
-@require_auth
-def api_skill_roster():
-    try:
-        skills, config = read_skills_config(), read_hs_config()
-        return jsonify({"ok": True, **_skills_view(skills, config)})
-    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
-        return jsonify({"ok": False, "error": f"Cannot read HeroShift config: {exc}"}), 500
-
-
-@app.put("/api/v3/modes/heroshift/skills")
-@require_auth
-def api_skill_roster_save():
-    payload = request.get_json(silent=True) or {}
-    try:
-        skills, config = read_skills_config(), read_hs_config()
-        settings = payload.get("settings") or {}
-        for name, key in _HS_CONFIG_BOOLS.items():
-            if name in settings:
-                config[key] = bool(settings[name])
-        for name, (key, low, high) in _HS_CONFIG_FLOATS.items():
-            if name in settings:
-                value = float(settings[name])
-                if not math.isfinite(value) or not low <= value <= high:
-                    raise ValueError(f"{name} must be between {low:g} and {high:g}")
-                config[key] = value
-        edits = {item["name"]: item for item in payload.get("skills", []) if isinstance(item, dict) and item.get("name")}
-        by_name = {item.get("Name"): item for item in skills if isinstance(item, dict)}
-        for name, edit in edits.items():
-            skill = by_name.get(name)
-            if skill is None:
-                raise ValueError(f"Unknown skill {name!r}")
-            if "active" in edit:
-                skill["Active"] = bool(edit["active"])
-            if "rarity" in edit:
-                if edit["rarity"] not in SKILL_RARITIES:
-                    raise ValueError(f"Invalid rarity for {name}")
-                skill["Rarity"] = edit["rarity"]
-            if "max_per_server" in edit:
-                maximum = int(edit["max_per_server"])
-                if not -1 <= maximum <= 32:
-                    raise ValueError("MaxPerServer must be between -1 and 32")
-                skill["MaxPerServer"] = maximum
-        backup = _backup_and_write(mode_config_path("heroshift", "skillsInfo.json"), skills)
-        _backup_and_write(mode_config_path("heroshift", "config.json"), config)
-    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-
-    reloaded = False
-    active = active_container()
-    if active and active["mode"] == "heroshift":
-        try:
-            sync_live_config("heroshift", "skillsInfo.json")
-            sync_live_config("heroshift", "config.json")
-            if rcon_reachable(GAME_CONTAINER):
-                rcon_command(GAME_CONTAINER, "css_heroshift_reload", 6)
-                reloaded = True
-        except (DockerException, RuntimeError, OSError, ValueError, PermissionError) as exc:
-            app.logger.warning("HeroShift live sync failed: %s", exc)
-    audit("heroshift.roster.save", "ok", f"reloaded={reloaded}", target="heroshift")
-    return jsonify({"ok": True, "reloaded": reloaded, "backup": backup, **_skills_view(skills, config)})
-
-
-@app.post("/api/v3/modes/heroshift/skills/reload")
-@require_auth
-def api_skill_reload():
-    active = active_container()
-    if not active or active["mode"] != "heroshift":
-        return jsonify({"ok": False, "error": "HeroShift is not the active mode"}), 409
-    try:
-        sync_live_config("heroshift", "skillsInfo.json")
-        sync_live_config("heroshift", "config.json")
-        output = rcon_command(GAME_CONTAINER, "css_heroshift_reload", 6)
-        return jsonify({"ok": True, "output": redact(output)})
-    except (DockerException, RuntimeError, OSError, ValueError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 502
-
-
 @app.get("/api/v3/modes/heroshift/diag")
 @require_auth
 def api_hero_diag():
     active = active_container()
     try:
-        skills = read_skills_config()
-        rows = [item for item in skills if isinstance(item, dict) and item.get("Name")]
-        counts = {"active_count": sum(1 for item in rows if item.get("Active")), "total": len(rows)}
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        counts = {"active_count": None, "total": None}
+        config = read_hs_config()
+        overrides = config.get("skills") or {}
+        if not isinstance(overrides, dict):
+            raise ValueError("HeroShift skills overrides must be an object")
+        disabled = sum(
+            1
+            for value in overrides.values()
+            if isinstance(value, dict) and value.get("enabled") is False
+        )
+        counts = {
+            "active_count": HEROSHIFT_BUILT_IN_SKILL_COUNT - disabled,
+            "total": HEROSHIFT_BUILT_IN_SKILL_COUNT,
+            "configured_overrides": len(overrides),
+        }
+    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
+        counts = {"active_count": None, "total": None, "configured_overrides": None}
     if not active or active["mode"] != "heroshift":
         return jsonify({"ok": True, "loaded": False, "active": False, "diag": counts, "note": "HeroShift is not active"})
     try:

@@ -315,8 +315,3 @@ select.mini { width: auto; }
 .state-chip.s-none { background: rgba(139,148,158,.10); color: var(--muted); }
 .hero-table td.hero-power { min-width: 155px; }
 .hero-power .mini { width: 88px; }
-/* HeroShift skill roster */
-.skill-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-  margin-right: 6px; border: 1px solid var(--border); vertical-align: middle; }
-.hero-table tr.skill-off { opacity: .5; }
-.power-unit { color: var(--muted); font-size: 11px; margin-left: 4px; white-space: nowrap; }

@@ -4,13 +4,15 @@ param(
     [string]$PackagePath,
 
     [Parameter(Position = 1)]
-    [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+
+    [switch]$StageOnly
 )
 
 $ErrorActionPreference = "Stop"
-$ExpectedZipSha256 = "5e4e2901757a234c43b0c844a99e118985a1f2474244c0d3dcedabc6f4770b0e"
-$ExpectedVersion = "v1.0.1"
-$ReleaseRelative = "./manager/releases/heroshift/v1.0.1"
+$ExpectedZipSha256 = "42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b"
+$ExpectedVersion = "v1.0.0"
+$ReleaseRelative = "./manager/releases/heroshift/v1.0.0"
 
 function Set-DotEnvValue {
     param(
@@ -75,7 +77,7 @@ $ComposePath = Join-Path $ProjectRoot "compose.yml"
 $EnvPath = Join-Path $ProjectRoot ".env"
 $EnvExamplePath = Join-Path $ProjectRoot ".env.example"
 $ReleaseParent = Join-Path $ProjectRoot "manager\releases\heroshift"
-$ReleaseRoot = Join-Path $ReleaseParent "v1.0.1"
+$ReleaseRoot = Join-Path $ReleaseParent "v1.0.0"
 $BackupParent = Join-Path $ProjectRoot "manager\backups"
 
 if (-not (Test-Path -LiteralPath $ComposePath -PathType Leaf)) {
@@ -184,11 +186,18 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
 
-    if (Test-Path -LiteralPath $ReleaseRoot) {
+    $existingReleases = @(
+        Get-ChildItem -LiteralPath $ReleaseParent -Directory |
+            Where-Object { $_.Name -like "v*" }
+    )
+    if ($existingReleases.Count -gt 0) {
         $timestamp = [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss")
         $backupPath = Join-Path $BackupParent "heroshift-release-$timestamp"
-        Move-Item -LiteralPath $ReleaseRoot -Destination $backupPath
-        Write-Host "Previous release overlay backed up to $backupPath"
+        New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+        foreach ($existing in $existingReleases) {
+            Move-Item -LiteralPath $existing.FullName -Destination $backupPath
+        }
+        Write-Host "Previous release overlays backed up to $backupPath"
     }
 
     Move-Item -LiteralPath $stagingRoot -Destination $ReleaseRoot
@@ -203,6 +212,11 @@ if (-not (Test-Path -LiteralPath $EnvPath)) {
     Copy-Item -LiteralPath $EnvExamplePath -Destination $EnvPath
 }
 Set-DotEnvValue -Path $EnvPath -Name "HEROSHIFT_RELEASE_PATH" -Value $ReleaseRelative
+
+if ($StageOnly) {
+    Write-Host "HeroShift $ExpectedVersion is staged as the active release overlay."
+    return
+}
 
 Push-Location $ProjectRoot
 try {
