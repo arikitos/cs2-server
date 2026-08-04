@@ -7,7 +7,7 @@ cd "$ROOT"
 [[ -f .env ]] || cp .env.example .env
 
 if compgen -G "$ROOT/HeroShift-v*.zip" >/dev/null; then
-  "$ROOT/install-heroshift.sh" --stage-only
+  bash "$ROOT/install-heroshift.sh" --stage-only
 fi
 
 release_path="$(grep -E '^HEROSHIFT_RELEASE_PATH=' .env | tail -n 1 | cut -d= -f2- || true)"
@@ -20,7 +20,7 @@ fi
 
 if [[ ! -f "$release_root/installed-release.json" ]]; then
   echo "HeroShift is not installed." >&2
-  echo "Place HeroShift-vX.Y.Z.zip in the repository root and run ./install-heroshift.sh" >&2
+  echo "Place HeroShift-vX.Y.Z.zip in the repository root and run bash ./install-heroshift.sh" >&2
   exit 1
 fi
 
