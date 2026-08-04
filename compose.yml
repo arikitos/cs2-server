@@ -53,7 +53,7 @@ services:
         target: /manager/modes
         read_only: true
       - type: bind
-        source: ${HEROSHIFT_RELEASE_PATH:-./manager/modes/heroshift}
+        source: ${HEROSHIFT_RELEASE_PATH:-./manager/releases/heroshift/v1.0.1}
         target: /manager/modes/heroshift/release
         read_only: true
       - type: bind
@@ -144,7 +144,7 @@ services:
       - ${MANAGER_PATH}/data:/data
       - ${MANAGER_PATH}/modes:/modes
       - type: bind
-        source: ${HEROSHIFT_RELEASE_PATH:-./manager/modes/heroshift}
+        source: ${HEROSHIFT_RELEASE_PATH:-./manager/releases/heroshift/v1.0.1}
         target: /modes/heroshift/release
         read_only: true
       - ${MANAGER_PATH}:/project
