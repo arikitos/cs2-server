@@ -1,0 +1,78 @@
+name: HeroShift Installer
+
+on:
+  pull_request:
+    paths:
+      - "install-heroshift.ps1"
+      - "install-heroshift.sh"
+      - "manager/scripts/install-heroshift-release.ps1"
+      - "manager/scripts/install-heroshift-release.sh"
+      - "manager/scripts/start.sh"
+      - "setup.ps1"
+      - "compose.yml"
+      - ".env.example"
+      - ".github/scripts/create-heroshift-test-package.py"
+      - ".github/workflows/heroshift-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heroshift-installer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          bash -n install-heroshift.sh
+          bash -n manager/scripts/install-heroshift-release.sh
+          bash -n manager/scripts/start.sh
+
+      - name: Create test package
+        run: python3 .github/scripts/create-heroshift-test-package.py v9.9.9 "$GITHUB_WORKSPACE"
+
+      - name: Install and verify package
+        run: |
+          bash install-heroshift.sh --stage-only
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path.cwd()
+          marker = json.loads(
+              (root / "manager/releases/heroshift/current/installed-release.json").read_text()
+          )
+          assert marker["version"] == "v9.9.9"
+          assert (root / "manager/releases/heroshift/current/plugins/HeroShift/HeroShift.dll").is_file()
+          assert "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/current" in (root / ".env").read_text()
+          PY
+          bash install-heroshift.sh --stage-only
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test package
+        run: python .github/scripts/create-heroshift-test-package.py v9.9.9 "$env:GITHUB_WORKSPACE"
+
+      - name: Install and verify package
+        shell: pwsh
+        run: |
+          .\install-heroshift.ps1 -StageOnly
+          $markerPath = Join-Path $PWD "manager\releases\heroshift\current\installed-release.json"
+          $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+          if ($marker.version -ne "v9.9.9") {
+              throw "Unexpected installed version: $($marker.version)"
+          }
+          $pluginPath = Join-Path $PWD "manager\releases\heroshift\current\plugins\HeroShift\HeroShift.dll"
+          if (-not (Test-Path -LiteralPath $pluginPath -PathType Leaf)) {
+              throw "HeroShift.dll was not staged"
+          }
+          .\install-heroshift.ps1 -StageOnly

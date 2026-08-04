@@ -3,6 +3,9 @@ manager/steamcmd/cs2-dedicated/
 manager/backups/*
 !manager/backups/.gitkeep
 
+# Local HeroShift package supplied by the operator.
+/HeroShift-v*.zip
+
 # Local plugin release overlays are installed from verified release archives.
 manager/releases/heroshift/
 
