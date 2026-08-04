@@ -3,12 +3,18 @@
   "map_pool": [
     "de_dust2",
     "de_inferno",
-    "de_mirage"
+    "de_mirage",
+    "de_ancient",
+    "de_anubis",
+    "de_nuke",
+    "de_overpass",
+    "de_train",
+    "de_vertigo"
   ],
   "map": "de_dust2",
   "capacity": 10,
   "game_alias": "competitive",
-  "hostname": "HeroShift Server",
+  "hostname": "SuperHero Server",
   "lan": false,
   "cheats": false,
   "allow_lobby_connect_only": false,

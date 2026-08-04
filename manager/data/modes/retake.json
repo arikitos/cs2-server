@@ -1,5 +1,5 @@
 {
-  "format": "5v4",
+  "format": "4v3",
   "map_pool": [
     "de_dust2",
     "de_mirage",
@@ -12,7 +12,7 @@
     "de_vertigo"
   ],
   "map": "de_dust2",
-  "capacity": 9,
+  "capacity": 7,
   "game_alias": "competitive",
   "hostname": "Retake Server",
   "lan": false,
@@ -29,7 +29,7 @@
   "c4_timer": 40,
   "start_money": 800,
   "max_money": 16000,
-  "bot_quota": 9,
+  "bot_quota": 7,
   "bot_quota_mode": "fill",
   "bot_difficulty": 3,
   "bot_chatter": "normal",
