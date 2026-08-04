@@ -14,6 +14,7 @@ sys.path.insert(0, str(PANEL))
 from maintenance_guard import (  # noqa: E402
     ensure_updater_image,
     gameinfo_has_active_metamod,
+    maintenance_operation,
     run_updater_container,
 )
 
@@ -191,6 +192,18 @@ class MaintenanceGuardTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertTrue(gameinfo_has_active_metamod(path))
+
+    def test_maintenance_operations_are_serialized(self):
+        with maintenance_operation():
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Another maintenance operation is already running",
+            ):
+                with maintenance_operation():
+                    pass
+
+        with maintenance_operation():
+            pass
 
 
 if __name__ == "__main__":
