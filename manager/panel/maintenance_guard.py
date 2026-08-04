@@ -9,12 +9,26 @@ from __future__ import annotations
 
 import os
 import re
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 DEFAULT_CS2_BASE_IMAGE = (
     "joedwards32/cs2@sha256:"
     "41b826d6280d1aa9e41c866a6d88cc7f523e027f16c47a313b20c2d7a17f2680"
 )
+MAINTENANCE_LOCK = threading.Lock()
+
+
+@contextmanager
+def maintenance_operation():
+    """Allow only one updater or repair workflow to mutate server data."""
+    if not MAINTENANCE_LOCK.acquire(blocking=False):
+        raise RuntimeError("Another maintenance operation is already running")
+    try:
+        yield
+    finally:
+        MAINTENANCE_LOCK.release()
 
 
 def _emit_build_logs(job, logs) -> None:
@@ -174,16 +188,21 @@ def _steamcmd_workflow(panel, kind: str, updater_mode: str):
     restore = panel._mode_to_restore()
 
     def worker(job):
-        ensure_updater_image(panel, job)
-        panel.make_backup(job, f"pre-{kind}")
-        with panel.OPERATION_LOCK:
-            panel.stop_game()
-        if run_updater_container(panel, job, updater_mode) != 0:
-            raise RuntimeError(f"SteamCMD {updater_mode} failed")
-        panel.STATE_TIMESTAMPS["last_manual_update"] = panel.now_iso()
-        if restore and not panel.restart_previous_mode(job, restore):
-            raise RuntimeError("Post-update verification failed")
-        job.result = {"mode": updater_mode, "restored": restore}
+        with maintenance_operation():
+            ensure_updater_image(panel, job)
+            job.emit(
+                "Creating a manager configuration backup. "
+                "The CS2 installation directory is not copied."
+            )
+            panel.make_backup(job, f"pre-{kind}")
+            with panel.OPERATION_LOCK:
+                panel.stop_game()
+            if run_updater_container(panel, job, updater_mode) != 0:
+                raise RuntimeError(f"SteamCMD {updater_mode} failed")
+            panel.STATE_TIMESTAMPS["last_manual_update"] = panel.now_iso()
+            if restore and not panel.restart_previous_mode(job, restore):
+                raise RuntimeError("Post-update verification failed")
+            job.result = {"mode": updater_mode, "restored": restore}
 
     return panel.jsonify(
         {"ok": True, "job": panel.start_job(kind, worker).to_dict()}
@@ -194,15 +213,20 @@ def _repair_metamod_handler(panel):
     restore = panel._mode_to_restore()
 
     def worker(job):
-        ensure_updater_image(panel, job)
-        panel.make_backup(job, "pre-repair")
-        with panel.OPERATION_LOCK:
-            panel.stop_game()
-        if run_updater_container(panel, job, "repair-metamod") != 0:
-            raise RuntimeError("Metamod repair failed")
-        if restore and not panel.restart_previous_mode(job, restore):
-            raise RuntimeError("Post-repair restart failed")
-        job.result = {"gameinfo_metamod": panel.gameinfo_has_metamod()}
+        with maintenance_operation():
+            ensure_updater_image(panel, job)
+            job.emit(
+                "Creating a manager configuration backup. "
+                "The CS2 installation directory is not copied."
+            )
+            panel.make_backup(job, "pre-repair")
+            with panel.OPERATION_LOCK:
+                panel.stop_game()
+            if run_updater_container(panel, job, "repair-metamod") != 0:
+                raise RuntimeError("Metamod repair failed")
+            if restore and not panel.restart_previous_mode(job, restore):
+                raise RuntimeError("Post-repair restart failed")
+            job.result = {"gameinfo_metamod": panel.gameinfo_has_metamod()}
 
     return panel.jsonify(
         {"ok": True, "job": panel.start_job("repair-metamod", worker).to_dict()}
