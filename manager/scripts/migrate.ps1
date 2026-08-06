@@ -11,7 +11,7 @@ if (-not (Test-Path ".env")) {
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backup = "manager/backups/pre-single-runtime-$stamp"
 New-Item -ItemType Directory -Force -Path $backup | Out-Null
-foreach ($item in @("compose.yml", ".env", ".env.example", "CHANGELOG.md", "README.md", "manager/versions.json")) {
+foreach ($item in @("compose.yml", ".env", ".env.example", "CHANGELOG.md", "README.md")) {
     if (Test-Path $item) { Copy-Item $item (Join-Path $backup (Split-Path $item -Leaf)) }
 }
 foreach ($dir in @("manager/panel", "manager/modes", "manager/data", "manager/runtime", "manager/shared")) {

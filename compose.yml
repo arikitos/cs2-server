@@ -38,7 +38,7 @@ services:
       TV_PORT: ${CS2_TV_PORT:-27020}
       MODE_STATE_PATH: /manager/data/runtime/active-mode.json
       MODE_INVENTORY_PATH: /home/steam/cs2-dedicated/.cs2-manager/managed-files.json
-      MODE_VERSIONS_PATH: /manager/versions.json
+      MODE_VERSIONS_PATH: /manager/shared/frameworks/versions.json
 
     ports:
       - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
@@ -53,20 +53,12 @@ services:
         target: /manager/modes
         read_only: true
       - type: bind
-        source: ${HEROSHIFT_RELEASE_PATH:-./manager/releases/heroshift/current}
-        target: /manager/modes/heroshift/release
-        read_only: true
-      - type: bind
         source: ./manager/shared
         target: /manager/shared
         read_only: true
       - type: bind
         source: ./manager/data
         target: /manager/data
-        read_only: true
-      - type: bind
-        source: ./manager/versions.json
-        target: /manager/versions.json
         read_only: true
 
   cs2-updater:
@@ -96,7 +88,7 @@ services:
     container_name: cs2-modinstaller
     restart: "no"
     profiles: ["maintenance"]
-    entrypoint: ["bash", "/project/manager/scripts/install-mods-linux.sh"]
+    entrypoint: ["bash", "/project/manager/shared/frameworks/install-linux.sh"]
     environment:
       CS2_DATA_DIR: /home/steam/cs2-dedicated
     volumes:
@@ -143,9 +135,5 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${MANAGER_PATH}/data:/data
       - ${MANAGER_PATH}/modes:/modes
-      - type: bind
-        source: ${HEROSHIFT_RELEASE_PATH:-./manager/releases/heroshift/current}
-        target: /modes/heroshift/release
-        read_only: true
       - ${MANAGER_PATH}:/project
       - ${CS2_DATA_PATH}:/server:ro

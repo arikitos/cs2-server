@@ -96,7 +96,7 @@ def _validate_versions(
             actual = declared.get("version") if isinstance(declared, dict) else None
             if actual != expected:
                 raise ApplyError(
-                    f"Mode requires {key} {expected}, but manager/versions.json declares {actual!r}"
+                    f"Mode requires {key} {expected}, but manager/shared/frameworks/versions.json declares {actual!r}"
                 )
 
     if installed_versions_path is not None:
@@ -783,7 +783,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--server-root", type=Path, default=Path("/home/steam/cs2-dedicated"))
     parser.add_argument("--inventory", type=Path, default=Path("/home/steam/cs2-dedicated/.cs2-manager/managed-files.json"))
     parser.add_argument("--absolute-root", type=Path, default=Path("/"), help=argparse.SUPPRESS)
-    parser.add_argument("--versions", type=Path, default=Path("/manager/versions.json"))
+    parser.add_argument("--versions", type=Path, default=Path("/manager/shared/frameworks/versions.json"))
     parser.add_argument(
         "--installed-versions",
         type=Path,

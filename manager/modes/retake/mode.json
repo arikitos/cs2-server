@@ -89,35 +89,67 @@
     {
       "name": "RetakesPlugin",
       "role": "plugin",
-      "verify": { "required": true, "aliases": ["retake"] },
+      "verify": {
+        "required": true,
+        "aliases": [
+          "retake"
+        ]
+      },
       "mounts": [
-        { "source": "plugins/RetakesPlugin", "target": "addons/counterstrikesharp/plugins/RetakesPlugin" }
+        {
+          "source": "release/plugins/RetakesPlugin",
+          "target": "addons/counterstrikesharp/plugins/RetakesPlugin"
+        }
       ]
     },
     {
       "name": "RetakesPluginShared",
       "role": "util",
-      "verify": { "required": false, "aliases": [] },
+      "verify": {
+        "required": false,
+        "aliases": []
+      },
       "mounts": [
-        { "source": "utils/RetakesPluginShared", "target": "addons/counterstrikesharp/shared/RetakesPluginShared" }
+        {
+          "source": "release/utils/RetakesPluginShared",
+          "target": "addons/counterstrikesharp/shared/RetakesPluginShared"
+        }
       ]
     },
     {
       "name": "Instadefuse",
       "role": "util",
-      "verify": { "required": true, "aliases": ["instadefuse", "insta defuse"] },
+      "verify": {
+        "required": true,
+        "aliases": [
+          "instadefuse",
+          "insta defuse"
+        ]
+      },
       "mounts": [
-        { "source": "utils/InstadefusePlugin", "target": "addons/counterstrikesharp/plugins/InstadefusePlugin" }
+        {
+          "source": "release/utils/InstadefusePlugin",
+          "target": "addons/counterstrikesharp/plugins/InstadefusePlugin"
+        }
       ]
     },
     {
       "name": "PanelBridge",
       "role": "util",
-      "verify": { "required": false, "aliases": ["panel bridge", "panelbridge"] },
-      "build": { "project": "plugins-src/PanelBridge", "shared": true },
+      "verify": {
+        "required": false,
+        "aliases": [
+          "panel bridge",
+          "panelbridge"
+        ]
+      },
+      "build": {
+        "project": "components/panelbridge/src/PanelBridge",
+        "shared": true
+      },
       "mounts": [
         {
-          "source": "plugins/PanelBridge",
+          "source": "components/panelbridge/release/plugins/PanelBridge",
           "shared": true,
           "target": "addons/counterstrikesharp/plugins/PanelBridge"
         }
@@ -140,18 +172,123 @@
     }
   ],
   "actions": [
-    { "key": "force_a", "label": "Force Bombsite A", "cmd": "css_forcebombsite A", "impact": "Next rounds", "description": "Forces future retake rounds to use bombsite A.", "confirm": false, "group": "match" },
-    { "key": "force_b", "label": "Force Bombsite B", "cmd": "css_forcebombsite B", "impact": "Next rounds", "description": "Forces future retake rounds to use bombsite B.", "confirm": false, "group": "match" },
-    { "key": "force_auto", "label": "Restore Automatic Bombsite", "cmd": "css_forcebombsitestop", "impact": "Next rounds", "description": "Restores automatic bombsite selection.", "confirm": false, "group": "match" },
-    { "key": "scramble", "label": "Scramble Teams", "cmd": "css_scramble", "impact": "Players", "description": "Reassigns players between teams at the end of the round.", "confirm": true, "group": "teams" },
-    { "key": "scramble_teams", "label": "Scramble Teams Now", "cmd": "css_scrambleteams", "impact": "Players", "description": "Immediately reassigns players between teams.", "confirm": true, "group": "teams" },
-    { "key": "voices", "label": "Toggle Bombsite Voices", "cmd": "css_voices", "impact": "In-game setting", "description": "Toggles the bombsite announcement voice lines.", "confirm": false, "group": "match" },
-    { "key": "map_config", "label": "Show Map Config", "cmd": "css_mapconfig", "impact": "Read only", "description": "Prints the active retake map config.", "confirm": false, "group": "readonly" },
-    { "key": "map_configs", "label": "List Map Configs", "cmd": "css_mapconfigs", "impact": "Read only", "description": "Lists every available retake map config.", "confirm": false, "group": "readonly" },
-    { "key": "set_map_config", "label": "Set Map Config", "cmd": "css_setmapconfig", "impact": "Next rounds", "description": "Selects a retake map config. Append the config name.", "confirm": true, "group": "map", "arg_hint": "<config>" },
-    { "key": "load_map_config", "label": "Reload Map Config", "cmd": "css_loadmapconfig", "impact": "Next rounds", "description": "Reloads the retake config for the current map.", "confirm": true, "group": "map" },
-    { "key": "show_spawns", "label": "Show Spawns", "cmd": "css_showspawns", "impact": "In-game overlay", "description": "Draws the configured retake spawns.", "confirm": false, "group": "plugin" },
-    { "key": "hide_spawns", "label": "Hide Spawns", "cmd": "css_hidespawns", "impact": "In-game overlay", "description": "Hides the retake spawn overlay.", "confirm": false, "group": "plugin" },
-    { "key": "show_queue", "label": "Show Retake Queue", "cmd": "css_debugqueues", "impact": "Read only", "description": "Prints the current retake queue.", "confirm": false, "group": "readonly" }
+    {
+      "key": "force_a",
+      "label": "Force Bombsite A",
+      "cmd": "css_forcebombsite A",
+      "impact": "Next rounds",
+      "description": "Forces future retake rounds to use bombsite A.",
+      "confirm": false,
+      "group": "match"
+    },
+    {
+      "key": "force_b",
+      "label": "Force Bombsite B",
+      "cmd": "css_forcebombsite B",
+      "impact": "Next rounds",
+      "description": "Forces future retake rounds to use bombsite B.",
+      "confirm": false,
+      "group": "match"
+    },
+    {
+      "key": "force_auto",
+      "label": "Restore Automatic Bombsite",
+      "cmd": "css_forcebombsitestop",
+      "impact": "Next rounds",
+      "description": "Restores automatic bombsite selection.",
+      "confirm": false,
+      "group": "match"
+    },
+    {
+      "key": "scramble",
+      "label": "Scramble Teams",
+      "cmd": "css_scramble",
+      "impact": "Players",
+      "description": "Reassigns players between teams at the end of the round.",
+      "confirm": true,
+      "group": "teams"
+    },
+    {
+      "key": "scramble_teams",
+      "label": "Scramble Teams Now",
+      "cmd": "css_scrambleteams",
+      "impact": "Players",
+      "description": "Immediately reassigns players between teams.",
+      "confirm": true,
+      "group": "teams"
+    },
+    {
+      "key": "voices",
+      "label": "Toggle Bombsite Voices",
+      "cmd": "css_voices",
+      "impact": "In-game setting",
+      "description": "Toggles the bombsite announcement voice lines.",
+      "confirm": false,
+      "group": "match"
+    },
+    {
+      "key": "map_config",
+      "label": "Show Map Config",
+      "cmd": "css_mapconfig",
+      "impact": "Read only",
+      "description": "Prints the active retake map config.",
+      "confirm": false,
+      "group": "readonly"
+    },
+    {
+      "key": "map_configs",
+      "label": "List Map Configs",
+      "cmd": "css_mapconfigs",
+      "impact": "Read only",
+      "description": "Lists every available retake map config.",
+      "confirm": false,
+      "group": "readonly"
+    },
+    {
+      "key": "set_map_config",
+      "label": "Set Map Config",
+      "cmd": "css_setmapconfig",
+      "impact": "Next rounds",
+      "description": "Selects a retake map config. Append the config name.",
+      "confirm": true,
+      "group": "map",
+      "arg_hint": "<config>"
+    },
+    {
+      "key": "load_map_config",
+      "label": "Reload Map Config",
+      "cmd": "css_loadmapconfig",
+      "impact": "Next rounds",
+      "description": "Reloads the retake config for the current map.",
+      "confirm": true,
+      "group": "map"
+    },
+    {
+      "key": "show_spawns",
+      "label": "Show Spawns",
+      "cmd": "css_showspawns",
+      "impact": "In-game overlay",
+      "description": "Draws the configured retake spawns.",
+      "confirm": false,
+      "group": "plugin"
+    },
+    {
+      "key": "hide_spawns",
+      "label": "Hide Spawns",
+      "cmd": "css_hidespawns",
+      "impact": "In-game overlay",
+      "description": "Hides the retake spawn overlay.",
+      "confirm": false,
+      "group": "plugin"
+    },
+    {
+      "key": "show_queue",
+      "label": "Show Retake Queue",
+      "cmd": "css_debugqueues",
+      "impact": "Read only",
+      "description": "Prints the current retake queue.",
+      "confirm": false,
+      "group": "readonly"
+    }
   ]
 }

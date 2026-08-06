@@ -151,12 +151,12 @@
         ]
       },
       "build": {
-        "project": "plugins-src/PanelBridge",
+        "project": "components/panelbridge/src/PanelBridge",
         "shared": true
       },
       "mounts": [
         {
-          "source": "plugins/PanelBridge",
+          "source": "components/panelbridge/release/plugins/PanelBridge",
           "shared": true,
           "target": "addons/counterstrikesharp/plugins/PanelBridge"
         }

@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
-import subprocess
-import tempfile
 import unittest
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +17,18 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertEqual(services, ["cs2-game", "cs2-updater", "cs2-modinstaller", "panel"])
         for old in ("cs2-faceit", "cs2-retakes", "cs2-heroshift"):
             self.assertNotIn(f"  {old}:", text)
+
+    def test_compose_mounts_modes_and_shared_once_without_mode_exceptions(self) -> None:
+        text = (ROOT / "compose.yml").read_text(encoding="utf-8")
+        self.assertNotIn("HEROSHIFT_RELEASE_PATH", text)
+        self.assertNotIn("manager/releases/heroshift", text)
+        self.assertEqual(text.count("source: ./manager/modes"), 1)
+        self.assertEqual(text.count("source: ./manager/shared"), 1)
+        self.assertIn("MODE_VERSIONS_PATH: /manager/shared/frameworks/versions.json", text)
+        self.assertIn(
+            'entrypoint: ["bash", "/project/manager/shared/frameworks/install-linux.sh"]',
+            text,
+        )
 
     def test_compose_bounds_game_and_panel_logs(self) -> None:
         text = (ROOT / "compose.yml").read_text(encoding="utf-8")
@@ -42,130 +50,118 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertIn("UPDATER_BUILD_CONTEXT: /project/updater", panel)
         self.assertIn("CS2_BASE_IMAGE:", panel)
 
-    def test_setup_builds_and_verifies_updater_before_panel_start(self) -> None:
+    def test_setup_applies_pending_packages_before_container_creation(self) -> None:
         script = (ROOT / "setup.ps1").read_text(encoding="utf-8")
-        build = script.index("build cs2-updater")
-        inspect = script.index("image inspect cs2-manager-updater:pinned")
+        update = script.index('"update.ps1") -NoRestart')
+        create = script.index("docker compose create --build cs2-game")
         panel = script.index("up -d --build --no-deps panel")
-        self.assertLess(build, inspect)
-        self.assertLess(inspect, panel)
+        self.assertLess(update, create)
+        self.assertLess(create, panel)
 
-    def test_heroshift_release_overlay_is_versioned_and_mounted(self) -> None:
-        compose = (ROOT / "compose.yml").read_text(encoding="utf-8")
-        self.assertEqual(compose.count("HEROSHIFT_RELEASE_PATH"), 2)
-        self.assertIn("target: /manager/modes/heroshift/release", compose)
-        self.assertIn("target: /modes/heroshift/release", compose)
+    def test_every_mode_uses_the_same_directory_contract(self) -> None:
+        for mode in ("faceit", "retake", "heroshift"):
+            root = MANAGER / "modes" / mode
+            self.assertTrue((root / "mode.json").is_file())
+            self.assertTrue((root / "release").is_dir())
+            self.assertTrue((root / "cfg").is_dir())
+            self.assertTrue((root / "README.md").is_file())
+            self.assertTrue((root / "installed.json").is_file())
 
-        env = (ROOT / ".env.example").read_text(encoding="utf-8")
-        self.assertIn(
-            "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/v1.0.0",
-            env,
-        )
+            manifest = json.loads((root / "mode.json").read_text(encoding="utf-8"))
+            owned_sources = [
+                mount["source"]
+                for plugin in manifest["plugins"]
+                for mount in plugin["mounts"]
+                if not mount.get("shared")
+            ]
+            runtime_sources = [
+                source for source in owned_sources
+                if source.startswith(("plugins/", "utils/", "gamedata/", "release/"))
+            ]
+            self.assertTrue(runtime_sources)
+            self.assertTrue(all(source.startswith("release/") for source in runtime_sources))
 
-        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
-        self.assertIn("manager/releases/heroshift/", ignored)
+    def test_shared_panelbridge_has_release_and_source_separation(self) -> None:
+        root = MANAGER / "shared/components/panelbridge"
+        self.assertTrue((root / "release/plugins/PanelBridge/PanelBridge.dll").is_file())
+        self.assertTrue((root / "src/PanelBridge/PanelBridge.csproj").is_file())
+        self.assertTrue((root / "installed.json").is_file())
 
-        manifest = json.loads(
-            (MANAGER / "modes/heroshift/mode.json").read_text(encoding="utf-8")
-        )
-        release_sources = [
-            mount["source"]
-            for plugin in manifest["plugins"]
-            if plugin["name"] in {"HeroShift", "RayTrace"}
-            for mount in plugin["mounts"]
-        ]
-        self.assertTrue(release_sources)
-        self.assertTrue(all(source.startswith("release/") for source in release_sources))
+        for manifest_path in (MANAGER / "modes").glob("*/mode.json"):
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            panelbridge = next(row for row in manifest["plugins"] if row["name"] == "PanelBridge")
+            source = panelbridge["mounts"][0]["source"]
+            self.assertEqual(source, "components/panelbridge/release/plugins/PanelBridge")
+            self.assertTrue(panelbridge["mounts"][0]["shared"])
 
-        mode_root = MANAGER / "modes/heroshift"
-        self.assertEqual(
-            sorted(path.name for path in mode_root.iterdir()),
-            ["README.md", "cfg", "config", "mode.json"],
-        )
-        self.assertEqual(
-            json.loads((mode_root / "config/heroshift.json").read_text(encoding="utf-8")),
-            {"schemaVersion": 1},
-        )
-
-    def test_heroshift_installer_pins_and_verifies_the_uploaded_release(self) -> None:
-        script = (MANAGER / "scripts/install-heroshift-release.ps1").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn('ExpectedVersion = "v1.0.0"', script)
-        self.assertIn(
-            "42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b",
-            script,
-        )
-        self.assertIn("Manifest SHA256 mismatch", script)
-        self.assertIn("Unsafe ZIP path", script)
-        self.assertIn("HEROSHIFT_RELEASE_PATH", script)
-
-        archive = MANAGER / "scripts/HeroShift-v1.0.0.zip"
-        self.assertEqual(
-            hashlib.sha256(archive.read_bytes()).hexdigest(),
-            "42e4672e48e8b8b460180648a2f2508787b6f77896323cfe594661c692507c7b",
-        )
-        with zipfile.ZipFile(archive) as package:
-            manifest = json.loads(package.read("package-manifest.json"))
-        self.assertEqual(manifest["version"], "v1.0.0")
-        self.assertEqual(len(manifest["files"]), 99)
-
-    def test_bootstrap_stages_the_verified_heroshift_release(self) -> None:
-        setup = (ROOT / "setup.ps1").read_text(encoding="utf-8")
-        start = (MANAGER / "scripts/start.sh").read_text(encoding="utf-8")
-        for script in (setup, start):
-            self.assertIn("HeroShift-v1.0.0.zip", script)
-            self.assertIn("install-heroshift-release", script)
-        self.assertIn("-StageOnly", setup)
-        self.assertIn("--stage-only", start)
-
-    def test_linux_stage_only_install_replaces_old_overlay_safely(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            project = Path(temporary)
-            (project / "compose.yml").write_text("services: {}\n", encoding="utf-8")
-            (project / ".env.example").write_text(
-                "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/v1.0.0\n",
-                encoding="utf-8",
-            )
-            old = project / "manager/releases/heroshift/v1.0.1"
-            old.mkdir(parents=True)
-            (old / "installed-release.json").write_text("{}\n", encoding="utf-8")
-
-            subprocess.run(
-                [
-                    "bash",
-                    str(MANAGER / "scripts/install-heroshift-release.sh"),
-                    str(MANAGER / "scripts/HeroShift-v1.0.0.zip"),
-                    str(project),
-                    "--stage-only",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
-            marker = json.loads(
-                (project / "manager/releases/heroshift/v1.0.0/installed-release.json")
-                .read_text(encoding="utf-8")
-            )
-            self.assertEqual(marker["version"], "v1.0.0")
-            self.assertFalse(old.exists())
-            self.assertEqual(
-                len(list((project / "manager/backups").glob("*/v1.0.1"))),
-                1,
-            )
-            self.assertIn(
-                "HEROSHIFT_RELEASE_PATH=./manager/releases/heroshift/v1.0.0",
-                (project / ".env").read_text(encoding="utf-8"),
-            )
-
-    def test_framework_installer_never_follows_latest(self) -> None:
-        script = (MANAGER / "scripts/install-mods-linux.sh").read_text(encoding="utf-8")
+    def test_framework_contract_is_under_shared(self) -> None:
+        installer = MANAGER / "shared/frameworks/install-linux.sh"
+        versions_path = MANAGER / "shared/frameworks/versions.json"
+        self.assertTrue(installer.is_file())
+        self.assertTrue(versions_path.is_file())
+        self.assertFalse((MANAGER / "versions.json").exists())
+        script = installer.read_text(encoding="utf-8")
         self.assertNotIn("releases/latest", script)
         self.assertNotIn("mmsource-latest", script)
-        versions = json.loads((MANAGER / "versions.json").read_text(encoding="utf-8"))
+        versions = json.loads(versions_path.read_text(encoding="utf-8"))
         css_version = versions["counterstrikesharp"]["version"]
         self.assertIn(f"tags/v{css_version}", versions["counterstrikesharp"]["release_api"])
+
+    def test_package_updater_enforces_transactional_versioned_updates(self) -> None:
+        script = (ROOT / "update.ps1").read_text(encoding="utf-8")
+        for required in (
+            "package-manifest.json",
+            "Manifest SHA256 mismatch",
+            "Unsafe ZIP path",
+            "installed.json",
+            "package-update.lock",
+            "Move-Item -LiteralPath $paths.ReleaseRoot -Destination (Join-Path $backupPath 'release')",
+            "Copy-Item -LiteralPath $paths.MarkerPath -Destination (Join-Path $backupPath 'installed.json')",
+            "Removed superseded archive",
+            "legacy-heroshift",
+            "SupportsShouldProcess",
+        ):
+            self.assertIn(required, script)
+        self.assertIn("$comparison -le 0", script)
+        self.assertIn("$_.Version -lt $selected.Version", script)
+
+    def test_package_inboxes_are_present_and_archives_are_ignored(self) -> None:
+        for path in (
+            ROOT / "installs/modes/faceit",
+            ROOT / "installs/modes/retake",
+            ROOT / "installs/modes/heroshift",
+            ROOT / "installs/shared/panelbridge",
+        ):
+            self.assertTrue(path.is_dir())
+        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("installs/**/*.zip", ignored)
+        self.assertNotIn("manager/releases/heroshift", ignored)
+
+    def test_legacy_heroshift_paths_are_removed(self) -> None:
+        for path in (
+            ROOT / "install-heroshift.ps1",
+            ROOT / "install-heroshift.sh",
+            ROOT / "HEROSHIFT_INSTALL.md",
+            MANAGER / "scripts/install-heroshift-release.ps1",
+            MANAGER / "scripts/install-heroshift-release.sh",
+        ):
+            self.assertFalse(path.exists())
+        searchable = "\n".join(
+            path.read_text(encoding="utf-8", errors="ignore")
+            for path in [ROOT / "compose.yml", ROOT / ".env.example", ROOT / "setup.ps1"]
+        )
+        self.assertNotIn("HEROSHIFT_RELEASE_PATH", searchable)
+        self.assertNotIn("manager/releases/heroshift", searchable)
+
+    def test_release_debug_symbols_and_config_backups_are_cleaned(self) -> None:
+        self.assertEqual(list((MANAGER / "modes").glob("*/release/**/*.pdb")), [])
+        self.assertEqual(list((MANAGER / "modes").glob("*/config/*.bak-*")), [])
+
+
+    def test_panel_writes_config_backups_outside_mode_directories(self) -> None:
+        panel = (MANAGER / "panel/app.py").read_text(encoding="utf-8")
+        self.assertIn('BACKUPS_DIR / "config" / mode_id', panel)
+        self.assertIn("HEROSHIFT_BUILT_IN_SKILL_COUNT = 146", panel)
 
     def test_raytrace_is_declared_only_by_heroshift(self) -> None:
         declarations = {}
@@ -182,53 +178,32 @@ class RepositoryTopologyTests(unittest.TestCase):
     def test_launcher_applies_mode_before_starting_cs2(self) -> None:
         launcher = (MANAGER / "runtime/runtime-launcher.sh").read_text(encoding="utf-8")
         self.assertLess(launcher.index("/usr/local/bin/mode-applier"), launcher.index("exec ./cs2.sh"))
+        self.assertIn("/manager/shared/frameworks/versions.json", launcher)
         self.assertNotIn("app_update", launcher)
         self.assertNotIn("steamcmd.sh", launcher.lower())
 
-    def test_runtime_applier_avoids_python_310_only_zip_strict(self) -> None:
+    def test_runtime_applier_avoids_unsupported_python_features(self) -> None:
         applier = (MANAGER / "runtime/mode_applier.py").read_text(encoding="utf-8")
         self.assertNotIn("strict=True", applier)
-
-    def test_runtime_applier_avoids_python_310_path_write_text_newline(
-        self,
-    ) -> None:
-        applier = (MANAGER / "runtime/mode_applier.py").read_text(
-            encoding="utf-8"
-        )
-        unsupported = re.compile(
-            r"\.write_text\([^)]*\bnewline\s*=",
-            re.DOTALL,
-        )
+        unsupported = re.compile(r"\.write_text\([^)]*\bnewline\s*=", re.DOTALL)
         self.assertNotRegex(applier, unsupported)
 
-    def test_runtime_image_normalizes_windows_line_endings(self) -> None:
-        dockerfile = (MANAGER / "runtime/Dockerfile").read_text(
-            encoding="utf-8"
-        )
+    def test_runtime_and_updater_images_normalize_line_endings(self) -> None:
+        runtime = (MANAGER / "runtime/Dockerfile").read_text(encoding="utf-8")
+        updater = (MANAGER / "updater/Dockerfile").read_text(encoding="utf-8")
         self.assertIn(
             "sed -i 's/\\r$//' "
             "/usr/local/bin/runtime-launcher.sh "
             "/usr/local/bin/mode-applier",
-            dockerfile,
+            runtime,
         )
-
-    def test_updater_image_normalizes_windows_line_endings(self) -> None:
-        dockerfile = (MANAGER / "updater/Dockerfile").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn(
-            "sed -i 's/\\r$//' /usr/local/bin/updater.sh",
-            dockerfile,
-        )
+        self.assertIn("sed -i 's/\\r$//' /usr/local/bin/updater.sh", updater)
 
     def test_updater_verifies_metamod_inside_searchpaths(self) -> None:
         updater = (MANAGER / "updater/updater.sh").read_text(encoding="utf-8")
         self.assertIn("metamod_search_path_present", updater)
         self.assertIn("insert_metamod_search_path", updater)
-        self.assertNotIn(
-            'grep -q "csgo/addons/metamod" "${GAMEINFO}"',
-            updater,
-        )
+        self.assertNotIn('grep -q "csgo/addons/metamod" "${GAMEINFO}"', updater)
 
     def test_panel_uses_guarded_wsgi_entrypoint(self) -> None:
         dockerfile = (MANAGER / "panel/Dockerfile").read_text(encoding="utf-8")
@@ -238,18 +213,6 @@ class RepositoryTopologyTests(unittest.TestCase):
         self.assertIn('"wsgi:app"', dockerfile)
         self.assertIn("install_maintenance_guard(panel)", wsgi)
         self.assertIn("install_config_guard(panel)", wsgi)
-
-    def test_runtime_launcher_avoids_python_310_path_write_text_newline(
-        self,
-    ) -> None:
-        launcher = (MANAGER / "runtime/runtime-launcher.sh").read_text(
-            encoding="utf-8"
-        )
-        unsupported = re.compile(
-            r"\.write_text\([^)]*\bnewline\s*=",
-            re.DOTALL,
-        )
-        self.assertNotRegex(launcher, unsupported)
 
 
 if __name__ == "__main__":

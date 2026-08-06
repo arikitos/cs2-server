@@ -10,7 +10,7 @@ CS2_BIN="${STEAMAPPDIR}/game/bin/linuxsteamrt64/cs2"
 GAMEINFO="${CSGO_DIR}/gameinfo.gi"
 MODE_STATE_PATH="${MODE_STATE_PATH:-/manager/data/runtime/active-mode.json}"
 MODE_INVENTORY_PATH="${MODE_INVENTORY_PATH:-${STEAMAPPDIR}/.cs2-manager/managed-files.json}"
-MODE_VERSIONS_PATH="${MODE_VERSIONS_PATH:-/manager/versions.json}"
+MODE_VERSIONS_PATH="${MODE_VERSIONS_PATH:-/manager/shared/frameworks/versions.json}"
 MODE_ENV="/tmp/cs2-mode.env"
 
 log() { echo "[runtime-launcher] $*"; }

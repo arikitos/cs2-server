@@ -1,36 +1,41 @@
 .env
+
+# Persistent CS2 installation.
+server/*
 manager/steamcmd/cs2-dedicated/
+
+# Package inboxes keep their structure, but downloaded archives stay local.
+installs/**/*.zip
+!installs/**/.gitkeep
+!installs/README.md
+
+# Runtime and package backups.
 manager/backups/*
 !manager/backups/.gitkeep
 
-# Local HeroShift package supplied by the operator.
-/HeroShift-v*.zip
+# Local source build artifacts.
+manager/modes/*/src/**/bin/
+manager/modes/*/src/**/obj/
+manager/shared/components/*/src/**/bin/
+manager/shared/components/*/src/**/obj/
 
-# Local plugin release overlays are installed from verified release archives.
-manager/releases/heroshift/
+# Runtime release debug symbols are not required in production.
+manager/modes/*/release/**/*.pdb
+manager/shared/components/*/release/**/*.pdb
 
-# Build artifacts of the in-house plugins. Their C# projects live next to the
-# plugin they build: manager/modes/<mode>/utils/<Name>.src (mode-owned) and
-# manager/shared/plugins-src/<Name> (shared across every mode).
-manager/modes/**/*.src/bin/
-manager/modes/**/*.src/obj/
-manager/shared/plugins-src/**/bin/
-manager/shared/plugins-src/**/obj/
-manager/shared/plugins/**/*.pdb
-
-# Leftover download/extraction scratch
+# Leftover download and extraction scratch.
 downloads/
 
-# Panel runtime state (generated)
+# Panel runtime state.
 manager/panel-data/*.tmp
 manager/data/*.tmp
 manager/data/audit/
 manager/data/runtime/
 manager/data/secrets.json
 manager/data/console_history.json
+manager/data/package-update.lock
+manager/data/.package-update-*/
 
-# Python bytecode
+# Python bytecode.
 __pycache__/
 *.py[cod]
-
-server/*

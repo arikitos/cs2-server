@@ -33,12 +33,11 @@ foreach ($name in @("cs2-game", "cs2-faceit", "cs2-retakes", "cs2-heroshift", "c
     }
 }
 
-foreach ($item in @("compose.yml", ".env", ".env.example", "CHANGELOG.md", "README.md", "versions.json")) {
+foreach ($item in @("compose.yml", ".env", ".env.example", "CHANGELOG.md", "README.md")) {
     $src = Join-Path $Backup $item
     if (Test-Path $src) {
-        $dest = if ($item -eq "versions.json") { "manager/versions.json" } else { $item }
-        Copy-Item $src $dest -Force
-        Write-Host "restored $dest"
+        Copy-Item $src $item -Force
+        Write-Host "restored $item"
     }
 }
 foreach ($dir in @("panel", "modes", "data", "runtime", "updater", "shared")) {

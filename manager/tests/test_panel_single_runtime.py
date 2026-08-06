@@ -99,7 +99,8 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         project.mkdir()
         temp_modes = root / "modes"
         shutil.copytree(MODES, temp_modes, ignore=shutil.ignore_patterns("panel_runtime.cfg"))
-        (project / "versions.json").write_text(
+        (project / "shared/frameworks").mkdir(parents=True, exist_ok=True)
+        (project / "shared/frameworks/versions.json").write_text(
             json.dumps({
                 "metamod": {"version": "2.0.0-git1410"},
                 "counterstrikesharp": {"version": "1.0.371"},

@@ -8,35 +8,9 @@ if (-not (Test-Path ".env")) {
     Write-Host "Review the values in .env before exposing the server publicly."
 }
 
-$heroShiftPackages = @(Get-ChildItem -LiteralPath $PSScriptRoot -File -Filter "HeroShift-v*.zip")
-if ($heroShiftPackages.Count -gt 0) {
-    & (Join-Path $PSScriptRoot "install-heroshift.ps1") -StageOnly
-}
-
-$releaseSetting = @(
-    Get-Content -LiteralPath (Join-Path $PSScriptRoot ".env") |
-        Where-Object { $_ -match '^HEROSHIFT_RELEASE_PATH=' }
-) | Select-Object -Last 1
-
-$releaseValue = "./manager/releases/heroshift/current"
-if ($releaseSetting) {
-    $configuredValue = ($releaseSetting -split '=', 2)[1].Trim()
-    if (-not [string]::IsNullOrWhiteSpace($configuredValue)) {
-        $releaseValue = $configuredValue
-    }
-}
-
-if ([System.IO.Path]::IsPathRooted($releaseValue)) {
-    $releaseRoot = $releaseValue
-}
-else {
-    $normalizedRelease = $releaseValue.Replace('/', [System.IO.Path]::DirectorySeparatorChar).TrimStart('.', '\', '/')
-    $releaseRoot = Join-Path $PSScriptRoot $normalizedRelease
-}
-
-$heroShiftMarker = Join-Path $releaseRoot "installed-release.json"
-if (-not (Test-Path -LiteralPath $heroShiftMarker -PathType Leaf)) {
-    throw "HeroShift is not installed. Place HeroShift-vX.Y.Z.zip in the repository root and run .\install-heroshift.ps1"
+$packageArchives = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "installs") -Filter "*.zip" -File -Recurse -ErrorAction SilentlyContinue)
+if ($packageArchives.Count -gt 0) {
+    & (Join-Path $PSScriptRoot "update.ps1") -NoRestart
 }
 
 docker compose config --quiet

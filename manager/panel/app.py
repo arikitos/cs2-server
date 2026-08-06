@@ -69,7 +69,7 @@ PROJECT_DIR = Path(os.environ.get("PANEL_PROJECT_DIR", "/project"))
 SERVER_DIR = Path(os.environ.get("PANEL_SERVER_DIR", "/server"))
 BACKUPS_DIR = PROJECT_DIR / "backups"
 SHARED_DIR = PROJECT_DIR / "shared"
-VERSIONS_JSON = PROJECT_DIR / "versions.json"
+VERSIONS_JSON = PROJECT_DIR / "shared/frameworks/versions.json"
 CS2_DATA_PATH_HOST = os.environ.get("CS2_DATA_PATH", "")
 MANAGER_PATH_HOST = os.environ.get("MANAGER_PATH", "")
 UPDATER_IMAGE = os.environ.get("UPDATER_IMAGE", "cs2-manager-updater:pinned")
@@ -1196,8 +1196,6 @@ def make_backup(job: Job, scope: str = "config") -> Path:
         source = PROJECT_DIR / relative
         if source.is_dir():
             shutil.copytree(source, destination / relative, ignore=shutil.ignore_patterns("*.tmp", "__pycache__", "bin", "obj"), dirs_exist_ok=True)
-    if VERSIONS_JSON.exists():
-        shutil.copy2(VERSIONS_JSON, destination / "versions.json")
     STATE_TIMESTAMPS["last_backup"] = now_iso()
     job.emit(f"Backup -> {destination.name}")
     return destination
@@ -1624,7 +1622,7 @@ def api_mode_preview(mode):
 # ---------------------------------------------------------------------------
 # HeroShift config
 # ---------------------------------------------------------------------------
-HEROSHIFT_BUILT_IN_SKILL_COUNT = 142
+HEROSHIFT_BUILT_IN_SKILL_COUNT = 146
 
 
 def mode_config_path(mode: str, name: str) -> Path:
@@ -1644,10 +1642,17 @@ def read_hs_config() -> dict:
 def _backup_and_write(path: Path, value) -> str | None:
     backup_name = None
     if path.exists():
-        backup = path.with_name(f"{path.name}.bak-{timestamp_slug()}")
+        try:
+            relative = path.resolve().relative_to(MODES_ROOT.resolve())
+            mode_id = relative.parts[0]
+        except (OSError, ValueError, IndexError):
+            mode_id = "unknown"
+        backup_dir = BACKUPS_DIR / "config" / mode_id
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup = backup_dir / f"{path.name}.bak-{timestamp_slug()}"
         shutil.copy2(path, backup)
         backup_name = backup.name
-        for stale in sorted(path.parent.glob(f"{path.name}.bak-*"))[:-10]:
+        for stale in sorted(backup_dir.glob(f"{path.name}.bak-*"))[:-10]:
             stale.unlink(missing_ok=True)
     write_json(path, value)
     return backup_name
@@ -1661,7 +1666,7 @@ def sync_live_config(mode: str, name: str) -> None:
         "--shared-root", "/manager/shared",
         "--server-root", "/home/steam/cs2-dedicated",
         "--inventory", "/home/steam/cs2-dedicated/.cs2-manager/managed-files.json",
-        "--versions", "/manager/versions.json",
+        "--versions", "/manager/shared/frameworks/versions.json",
         "sync-config", mode, name,
     ])
     if result.exit_code != 0:
@@ -2111,7 +2116,7 @@ def api_restore():
     def worker(job):
         with OPERATION_LOCK:
             stop_game()
-        for relative in ("compose.yml", ".env", ".env.example", "versions.json"):
+        for relative in ("compose.yml", ".env", ".env.example"):
             source = target / relative
             if source.exists():
                 shutil.copy2(source, PROJECT_DIR / relative)
