@@ -150,6 +150,25 @@
           "target": "addons/counterstrikesharp/plugins/PanelBridge"
         }
       ]
+    },
+    {
+      "name": "ClutchAnnounce",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "clutch announce",
+          "clutchannounce"
+        ]
+      },
+      "mounts": [
+        {
+          "source": "components/clutch-announce/release/plugins/ClutchAnnouncePlugin",
+          "shared": true,
+          "optional": true,
+          "target": "addons/counterstrikesharp/plugins/ClutchAnnouncePlugin"
+        }
+      ]
     }
   ],
   "configs": [

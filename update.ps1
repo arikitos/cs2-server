@@ -3,7 +3,16 @@ param(
     [ValidatePattern('^[a-z0-9][a-z0-9-]*$')]
     [string]$Mode,
 
+    [ValidatePattern('^[a-z0-9][a-z0-9-]*$')]
+    [string]$Component,
+
     [switch]$SharedOnly,
+    [switch]$FetchLatest,
+    [switch]$IncludeOptional,
+
+    [ValidatePattern('^[a-z0-9][a-z0-9-]*$')]
+    [string[]]$Source,
+
     [switch]$Force,
     [switch]$NoRestart,
 
@@ -21,11 +30,11 @@ $SharedRoot = Join-Path $ProjectRoot 'manager\shared'
 $BackupsRoot = Join-Path $ProjectRoot 'manager\backups\packages'
 $DataRoot = Join-Path $ProjectRoot 'manager\data'
 $LockPath = Join-Path $DataRoot 'package-update.lock'
+$FetchScript = Join-Path $ProjectRoot 'fetch-releases.ps1'
 
 if ($Mode -and $SharedOnly) {
     throw '-Mode and -SharedOnly cannot be used together.'
 }
-
 
 function Get-ObjectProperty {
     param(
@@ -74,6 +83,34 @@ function Test-SafeArchivePath {
     return $true
 }
 
+function Test-PathWithinInstallRoots {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$Roots
+    )
+
+    foreach ($root in $Roots) {
+        if ($Path -eq $root -or $Path.StartsWith("$root/")) { return $true }
+    }
+    return $false
+}
+
+function Assert-NonOverlappingRoots {
+    param([Parameter(Mandatory = $true)][string[]]$Roots)
+
+    for ($left = 0; $left -lt $Roots.Count; $left++) {
+        for ($right = $left + 1; $right -lt $Roots.Count; $right++) {
+            if (
+                $Roots[$left] -eq $Roots[$right] -or
+                $Roots[$left].StartsWith("$($Roots[$right])/") -or
+                $Roots[$right].StartsWith("$($Roots[$left])/")
+            ) {
+                throw "Package install roots overlap: $($Roots[$left]) and $($Roots[$right])"
+            }
+        }
+    }
+}
+
 function Get-ZipEntrySha256 {
     param([Parameter(Mandatory = $true)]$Entry)
 
@@ -98,7 +135,8 @@ function Read-PackageCandidate {
         foreach ($entry in $archive.Entries) {
             $name = $entry.FullName.Replace('\', '/')
             $key = $name.TrimEnd('/')
-            if (-not $key -or -not (Test-SafeArchivePath -Path $key)) {
+            if (-not $key) { continue }
+            if (-not (Test-SafeArchivePath -Path $key)) {
                 throw "Unsafe ZIP path in $($ArchiveFile.Name): $($entry.FullName)"
             }
             if ($entries.ContainsKey($key)) {
@@ -129,8 +167,10 @@ function Read-PackageCandidate {
         if ($manifestPackageType -and $manifestId -and $manifestVersion) {
             $packageType = ([string]$manifestPackageType).ToLowerInvariant()
             $id = ([string]$manifestId).ToLowerInvariant()
+            $manifestComponent = Get-ObjectProperty -Object $manifest -Name 'component'
+            $component = if ($manifestComponent) { ([string]$manifestComponent).ToLowerInvariant() } else { $id }
             $manifestName = Get-ObjectProperty -Object $manifest -Name 'name'
-            $name = if ($manifestName) { [string]$manifestName } else { $id }
+            $name = if ($manifestName) { [string]$manifestName } else { $component }
             $versionText = [string]$manifestVersion
             $manifestPayloadRoot = Get-ObjectProperty -Object $manifest -Name 'payloadRoot'
             $payloadRoot = if ($manifestPayloadRoot) {
@@ -139,13 +179,27 @@ function Read-PackageCandidate {
             else {
                 'payload'
             }
+            $manifestInstallStrategy = Get-ObjectProperty -Object $manifest -Name 'installStrategy'
+            $installStrategy = if ($manifestInstallStrategy) {
+                ([string]$manifestInstallStrategy).ToLowerInvariant()
+            }
+            else {
+                'replace-release'
+            }
+            $installRoots = @(
+                Get-ObjectProperty -Object $manifest -Name 'installRoots' -DefaultValue @() |
+                    ForEach-Object { ([string]$_).Replace('\', '/').Trim('/') }
+            )
         }
         elseif ($manifestPackage -eq 'HeroShift' -and $manifestVersion) {
             $packageType = 'mode'
             $id = 'heroshift'
+            $component = 'heroshift'
             $name = 'HeroShift'
             $versionText = [string]$manifestVersion
             $payloadRoot = ''
+            $installStrategy = 'replace-release'
+            $installRoots = @()
             $adapter = 'legacy-heroshift'
         }
         else {
@@ -155,11 +209,30 @@ function Read-PackageCandidate {
         if ($packageType -notin @('mode', 'shared')) {
             throw "Unsupported packageType '$packageType' in $($ArchiveFile.Name)"
         }
-        if ($id -notmatch '^[a-z0-9][a-z0-9-]*$') {
-            throw "Unsafe package id '$id' in $($ArchiveFile.Name)"
+        foreach ($identifier in @($id, $component)) {
+            if ($identifier -notmatch '^[a-z0-9][a-z0-9-]*$') {
+                throw "Unsafe package identifier '$identifier' in $($ArchiveFile.Name)"
+            }
+        }
+        if ($installStrategy -notin @('replace-release', 'replace-roots')) {
+            throw "Unsupported installStrategy '$installStrategy' in $($ArchiveFile.Name)"
         }
         if ($adapter -eq 'standard' -and (-not $payloadRoot -or -not (Test-SafeArchivePath -Path $payloadRoot))) {
             throw "Invalid payloadRoot in $($ArchiveFile.Name)"
+        }
+        if ($installStrategy -eq 'replace-roots') {
+            if ($installRoots.Count -eq 0) {
+                throw "replace-roots package has no installRoots in $($ArchiveFile.Name)"
+            }
+            foreach ($root in $installRoots) {
+                if (-not (Test-SafeArchivePath -Path $root)) {
+                    throw "Unsafe install root in $($ArchiveFile.Name): $root"
+                }
+            }
+            Assert-NonOverlappingRoots -Roots $installRoots
+        }
+        elseif ($installRoots.Count -ne 0) {
+            throw "replace-release package must not declare installRoots in $($ArchiveFile.Name)"
         }
 
         $version = ConvertTo-NormalizedVersion -Value $versionText
@@ -195,9 +268,34 @@ function Read-PackageCandidate {
             if ($actualHash -ne ([string]$rowSha256).ToLowerInvariant()) {
                 throw "Manifest SHA256 mismatch in $($ArchiveFile.Name): $relative"
             }
-            if ($adapter -eq 'standard' -and -not $relative.StartsWith("$payloadRoot/")) {
-                throw "Standard package file is outside payloadRoot in $($ArchiveFile.Name): $relative"
+            if ($adapter -eq 'standard') {
+                if (-not $relative.StartsWith("$payloadRoot/")) {
+                    throw "Standard package file is outside payloadRoot in $($ArchiveFile.Name): $relative"
+                }
+                $payloadRelative = $relative.Substring($payloadRoot.Length).TrimStart('/')
+                if (-not $payloadRelative) {
+                    throw "Package file resolves to an empty payload path in $($ArchiveFile.Name)"
+                }
+                if (
+                    $installStrategy -eq 'replace-roots' -and
+                    -not (Test-PathWithinInstallRoots -Path $payloadRelative -Roots $installRoots)
+                ) {
+                    throw "Package file is outside installRoots in $($ArchiveFile.Name): $payloadRelative"
+                }
             }
+        }
+
+        $undeclaredFiles = @(
+            $entries.GetEnumerator() |
+                Where-Object {
+                    $_.Key -ne 'package-manifest.json' -and
+                    -not $_.Value.FullName.EndsWith('/') -and
+                    -not $seen.ContainsKey($_.Key)
+                } |
+                ForEach-Object { $_.Key }
+        )
+        if ($undeclaredFiles.Count -gt 0) {
+            throw "Package contains files that are not declared in package-manifest.json in $($ArchiveFile.Name): $($undeclaredFiles -join ', ')"
         }
 
         if ($adapter -eq 'legacy-heroshift') {
@@ -221,11 +319,14 @@ function Read-PackageCandidate {
             ArchiveSha256 = (Get-FileHash -LiteralPath $ArchiveFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             PackageType = $packageType
             Id = $id
+            Component = $component
             Name = $name
             VersionText = $version.ToString(3)
             Version = $version
             Adapter = $adapter
             PayloadRoot = $payloadRoot
+            InstallStrategy = $installStrategy
+            InstallRoots = @($installRoots)
             Manifest = $manifest
         }
     }
@@ -247,11 +348,13 @@ function Get-InstallPaths {
         $componentRoot = Join-Path (Join-Path $SharedRoot 'components') $Candidate.Id
     }
 
+    $markerDirectory = Join-Path $componentRoot 'packages'
     return [pscustomobject]@{
         ComponentRoot = $componentRoot
         ReleaseRoot = Join-Path $componentRoot 'release'
-        MarkerPath = Join-Path $componentRoot 'installed.json'
-        BackupRoot = Join-Path (Join-Path (Join-Path $BackupsRoot $Candidate.PackageType) $Candidate.Id) $Candidate.VersionText
+        MarkerDirectory = $markerDirectory
+        MarkerPath = Join-Path $markerDirectory "$($Candidate.Component).json"
+        BackupRoot = Join-Path (Join-Path (Join-Path $BackupsRoot $Candidate.PackageType) $Candidate.Id) $Candidate.Component
     }
 }
 
@@ -270,9 +373,7 @@ function Convert-LegacyHeroShiftPath {
     }
 
     foreach ($entry in $prefixes.GetEnumerator()) {
-        if ($Path -eq $entry.Key) {
-            return $entry.Value
-        }
+        if ($Path -eq $entry.Key) { return $entry.Value }
         if ($entry.Key.EndsWith('/') -and $Path.StartsWith($entry.Key)) {
             return $entry.Value + $Path.Substring($entry.Key.Length)
         }
@@ -328,9 +429,7 @@ function Expand-Candidate {
 function Read-InstalledVersion {
     param([Parameter(Mandatory = $true)][string]$MarkerPath)
 
-    if (-not (Test-Path -LiteralPath $MarkerPath -PathType Leaf)) {
-        return $null
-    }
+    if (-not (Test-Path -LiteralPath $MarkerPath -PathType Leaf)) { return $null }
     try {
         $marker = Get-Content -LiteralPath $MarkerPath -Raw | ConvertFrom-Json
         $markerVersion = Get-ObjectProperty -Object $marker -Name 'version'
@@ -349,16 +448,19 @@ function Write-InstalledMarker {
     )
 
     $marker = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         packageType = $Candidate.PackageType
         id = $Candidate.Id
+        component = $Candidate.Component
         name = $Candidate.Name
         version = $Candidate.VersionText
         managed = $true
+        installStrategy = $Candidate.InstallStrategy
+        installRoots = @($Candidate.InstallRoots)
         archiveSha256 = $Candidate.ArchiveSha256
         sourceArchive = $Candidate.Archive.Name
         installedAtUtc = [DateTime]::UtcNow.ToString('o')
-    } | ConvertTo-Json
+    } | ConvertTo-Json -Depth 8
     [System.IO.File]::WriteAllText($MarkerPath, $marker + "`n", [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -368,28 +470,93 @@ function Remove-ExpiredBackups {
         [Parameter(Mandatory = $true)][int]$Keep
     )
 
-    $componentBackupRoot = Join-Path (Join-Path $BackupsRoot $Candidate.PackageType) $Candidate.Id
-    if (-not (Test-Path -LiteralPath $componentBackupRoot -PathType Container)) { return }
+    $paths = Get-InstallPaths -Candidate $Candidate
+    if (-not (Test-Path -LiteralPath $paths.BackupRoot -PathType Container)) { return }
 
     try {
-        $backups = @(Get-ChildItem -LiteralPath $componentBackupRoot -Directory -Recurse |
-            Where-Object { $_.Parent.Parent.FullName -eq $componentBackupRoot } |
-            Sort-Object LastWriteTimeUtc -Descending)
+        $backups = @(Get-ChildItem -LiteralPath $paths.BackupRoot -Directory | Sort-Object LastWriteTimeUtc -Descending)
         $expired = if ($Keep -eq 0) { $backups } else { @($backups | Select-Object -Skip $Keep) }
         foreach ($backup in $expired) {
             Remove-Item -LiteralPath $backup.FullName -Recurse -Force
         }
+    }
+    catch {
+        Write-Warning "Package update succeeded, but old backup cleanup failed for $($Candidate.PackageType)/$($Candidate.Id)/$($Candidate.Component): $($_.Exception.Message)"
+    }
+}
 
-        $emptyParents = @(Get-ChildItem -LiteralPath $componentBackupRoot -Directory -Recurse |
-            Sort-Object { $_.FullName.Length } -Descending)
-        foreach ($directory in $emptyParents) {
-            if (-not (Get-ChildItem -LiteralPath $directory.FullName -Force | Select-Object -First 1)) {
-                Remove-Item -LiteralPath $directory.FullName -Force
+function Get-InstallTargets {
+    param(
+        [Parameter(Mandatory = $true)]$Candidate,
+        [Parameter(Mandatory = $true)]$Paths,
+        [Parameter(Mandatory = $true)][string]$StagedRelease
+    )
+
+    if ($Candidate.InstallStrategy -eq 'replace-release') {
+        return @([pscustomobject]@{
+            Relative = 'release'
+            Staged = $StagedRelease
+            Destination = $Paths.ReleaseRoot
+        })
+    }
+
+    $targets = @()
+    foreach ($root in $Candidate.InstallRoots) {
+        $native = $root.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+        $staged = Join-Path $StagedRelease $native
+        if (-not (Test-Path -LiteralPath $staged -PathType Container)) {
+            throw "Package install root is missing after extraction: $root"
+        }
+        if (-not (Get-ChildItem -LiteralPath $staged -File -Recurse | Select-Object -First 1)) {
+            throw "Package install root is empty after extraction: $root"
+        }
+        $targets += [pscustomobject]@{
+            Relative = "release/$root"
+            Staged = $staged
+            Destination = Join-Path $Paths.ReleaseRoot $native
+        }
+    }
+    return $targets
+}
+
+function Restore-Backup {
+    param(
+        [Parameter()][AllowEmptyCollection()][object[]]$BackedUpTargets = @(),
+        [Parameter()][AllowEmptyCollection()][object[]]$InstallAttemptedTargets = @(),
+        [Parameter()][string]$BackupPath,
+        [Parameter(Mandatory = $true)][string]$MarkerPath,
+        [Parameter(Mandatory = $true)][bool]$MarkerWriteAttempted,
+        [Parameter(Mandatory = $true)][bool]$MarkerHadPrevious
+    )
+
+    foreach ($target in @($InstallAttemptedTargets)) {
+        if (Test-Path -LiteralPath $target.Destination) {
+            Remove-Item -LiteralPath $target.Destination -Recurse -Force
+        }
+    }
+
+    if ($BackupPath) {
+        foreach ($target in @($BackedUpTargets)) {
+            $backupTarget = Join-Path $BackupPath ($target.Relative.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+            if (Test-Path -LiteralPath $backupTarget) {
+                if (Test-Path -LiteralPath $target.Destination) {
+                    Remove-Item -LiteralPath $target.Destination -Recurse -Force
+                }
+                New-Item -ItemType Directory -Path (Split-Path -Parent $target.Destination) -Force | Out-Null
+                Move-Item -LiteralPath $backupTarget -Destination $target.Destination
             }
         }
     }
-    catch {
-        Write-Warning "Package update succeeded, but old backup cleanup failed for $($Candidate.PackageType)/$($Candidate.Id): $($_.Exception.Message)"
+
+    if ($MarkerWriteAttempted) {
+        $backupMarker = if ($BackupPath) { Join-Path $BackupPath 'installed.json' } else { $null }
+        if ($MarkerHadPrevious -and $backupMarker -and (Test-Path -LiteralPath $backupMarker -PathType Leaf)) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $MarkerPath) -Force | Out-Null
+            Copy-Item -LiteralPath $backupMarker -Destination $MarkerPath -Force
+        }
+        elseif (Test-Path -LiteralPath $MarkerPath -PathType Leaf) {
+            Remove-Item -LiteralPath $MarkerPath -Force
+        }
     }
 }
 
@@ -402,62 +569,81 @@ function Install-Candidate {
 
     if (-not $Force -and $comparison -le 0) {
         $installedText = if ($null -eq $installedVersion) { 'unknown' } else { $installedVersion.ToString(3) }
-        Write-Host "Skip $($Candidate.PackageType)/$($Candidate.Id): installed=$installedText, available=$($Candidate.VersionText)"
+        Write-Host "Skip $($Candidate.PackageType)/$($Candidate.Id)/$($Candidate.Component): installed=$installedText, available=$($Candidate.VersionText)"
         return $false
     }
 
     $action = if ($Force -and $comparison -le 0) { 'Reinstall' } else { 'Install' }
-    if (-not $PSCmdlet.ShouldProcess("$($Candidate.PackageType)/$($Candidate.Id)", "$action $($Candidate.VersionText)")) {
+    $identity = "$($Candidate.PackageType)/$($Candidate.Id)/$($Candidate.Component)"
+    if (-not $PSCmdlet.ShouldProcess($identity, "$action $($Candidate.VersionText)")) {
         return $false
     }
 
-    New-Item -ItemType Directory -Path $DataRoot, $BackupsRoot, $paths.ComponentRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $DataRoot, $BackupsRoot, $paths.ComponentRoot, $paths.MarkerDirectory -Force | Out-Null
     $tempRoot = Join-Path $DataRoot ('.package-update-' + [guid]::NewGuid().ToString('N'))
     $stagedRelease = Join-Path $tempRoot 'release'
     New-Item -ItemType Directory -Path $stagedRelease -Force | Out-Null
 
     $backupPath = $null
+    $targets = @()
+    $backedUpTargets = @()
+    $installAttemptedTargets = @()
+    $markerHadPrevious = $false
+    $markerWriteAttempted = $false
     try {
         Expand-Candidate -Candidate $Candidate -Destination $stagedRelease
         if (-not (Get-ChildItem -LiteralPath $stagedRelease -File -Recurse | Select-Object -First 1)) {
             throw "Package produced an empty release: $($Candidate.Archive.Name)"
         }
-
-        if ((Test-Path -LiteralPath $paths.ReleaseRoot) -or (Test-Path -LiteralPath $paths.MarkerPath -PathType Leaf)) {
-            $timestamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmssfff')
-            $previous = if ($null -eq $installedVersion) { 'unknown' } else { $installedVersion.ToString(3) }
-            $backupPath = Join-Path $paths.BackupRoot "$previous-$timestamp"
-            New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
-            if (Test-Path -LiteralPath $paths.ReleaseRoot) {
-                Move-Item -LiteralPath $paths.ReleaseRoot -Destination (Join-Path $backupPath 'release')
-            }
-            if (Test-Path -LiteralPath $paths.MarkerPath -PathType Leaf) {
-                Copy-Item -LiteralPath $paths.MarkerPath -Destination (Join-Path $backupPath 'installed.json') -Force
-            }
-        }
+        $targets = @(Get-InstallTargets -Candidate $Candidate -Paths $paths -StagedRelease $stagedRelease)
 
         try {
-            Move-Item -LiteralPath $stagedRelease -Destination $paths.ReleaseRoot
+            $markerHadPrevious = Test-Path -LiteralPath $paths.MarkerPath -PathType Leaf
+            $hasExistingTarget = $false
+            foreach ($target in $targets) {
+                if (Test-Path -LiteralPath $target.Destination) {
+                    $hasExistingTarget = $true
+                    break
+                }
+            }
+            if ($hasExistingTarget -or $markerHadPrevious) {
+                $timestamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmssfff')
+                $previous = if ($null -eq $installedVersion) { 'unknown' } else { $installedVersion.ToString(3) }
+                $backupPath = Join-Path $paths.BackupRoot "$previous-$timestamp"
+                New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+                foreach ($target in $targets) {
+                    if (Test-Path -LiteralPath $target.Destination) {
+                        $backupTarget = Join-Path $backupPath ($target.Relative.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+                        New-Item -ItemType Directory -Path (Split-Path -Parent $backupTarget) -Force | Out-Null
+                        Move-Item -LiteralPath $target.Destination -Destination $backupTarget
+                        $backedUpTargets += $target
+                    }
+                }
+                if ($markerHadPrevious) {
+                    Copy-Item -LiteralPath $paths.MarkerPath -Destination (Join-Path $backupPath 'installed.json') -Force
+                }
+            }
+
+            foreach ($target in $targets) {
+                New-Item -ItemType Directory -Path (Split-Path -Parent $target.Destination) -Force | Out-Null
+                $installAttemptedTargets += $target
+                Move-Item -LiteralPath $target.Staged -Destination $target.Destination
+            }
+            $markerWriteAttempted = $true
             Write-InstalledMarker -Candidate $Candidate -MarkerPath $paths.MarkerPath
         }
         catch {
-            if (Test-Path -LiteralPath $paths.ReleaseRoot) {
-                Remove-Item -LiteralPath $paths.ReleaseRoot -Recurse -Force
-            }
-            if ($backupPath) {
-                $backupRelease = Join-Path $backupPath 'release'
-                $backupMarker = Join-Path $backupPath 'installed.json'
-                if (Test-Path -LiteralPath $backupRelease) {
-                    Move-Item -LiteralPath $backupRelease -Destination $paths.ReleaseRoot
-                }
-                if (Test-Path -LiteralPath $backupMarker -PathType Leaf) {
-                    Copy-Item -LiteralPath $backupMarker -Destination $paths.MarkerPath -Force
-                }
-            }
+            Restore-Backup `
+                -BackedUpTargets $backedUpTargets `
+                -InstallAttemptedTargets $installAttemptedTargets `
+                -BackupPath $backupPath `
+                -MarkerPath $paths.MarkerPath `
+                -MarkerWriteAttempted $markerWriteAttempted `
+                -MarkerHadPrevious $markerHadPrevious
             throw
         }
 
-        Write-Host "Installed $($Candidate.PackageType)/$($Candidate.Id) $($Candidate.VersionText) from $($Candidate.Archive.Name)"
+        Write-Host "Installed $identity $($Candidate.VersionText) from $($Candidate.Archive.Name)"
         Remove-ExpiredBackups -Candidate $Candidate -Keep $KeepBackups
         return $true
     }
@@ -524,6 +710,22 @@ function Restart-GameIfRequired {
     Write-Host 'cs2-game was recreated because the active runtime changed.'
 }
 
+if ($FetchLatest) {
+    if (-not (Test-Path -LiteralPath $FetchScript -PathType Leaf)) {
+        throw "Release fetcher is missing: $FetchScript"
+    }
+    $fetchParameters = @{
+        IncludeOptional = [bool]$IncludeOptional
+        ForceDownload = [bool]$Force
+        WhatIf = [bool]$WhatIfPreference
+    }
+    if ($Mode) { $fetchParameters.Mode = $Mode }
+    if ($Component) { $fetchParameters.Component = $Component }
+    if ($SharedOnly) { $fetchParameters.SharedOnly = $true }
+    if ($Source) { $fetchParameters.Source = $Source }
+    & $FetchScript @fetchParameters
+}
+
 $lockStream = $null
 $lockAcquired = $false
 try {
@@ -550,6 +752,7 @@ try {
     $archives = @(Get-ChildItem -LiteralPath $InstallsRoot -Filter '*.zip' -File -Recurse | Sort-Object FullName)
     if ($archives.Count -eq 0) {
         Write-Host 'No package archives were found under installs.'
+        if ($WhatIfPreference) { Write-Host 'WhatIf completed. No package state was changed.' }
         return
     }
 
@@ -557,17 +760,20 @@ try {
     foreach ($archive in $archives) {
         $candidate = Read-PackageCandidate -ArchiveFile $archive
         if ($Mode -and ($candidate.PackageType -ne 'mode' -or $candidate.Id -ne $Mode.ToLowerInvariant())) { continue }
+        if ($Component -and $candidate.Component -ne $Component.ToLowerInvariant()) { continue }
         if ($SharedOnly -and $candidate.PackageType -ne 'shared') { continue }
+        if ($Source -and $candidate.Component -notin @($Source | ForEach-Object { $_.ToLowerInvariant() })) { continue }
         $candidates += $candidate
     }
 
     if ($candidates.Count -eq 0) {
         Write-Host 'No package archives matched the selected scope.'
+        if ($WhatIfPreference) { Write-Host 'WhatIf completed. No package state was changed.' }
         return
     }
 
     $updated = @()
-    foreach ($group in ($candidates | Group-Object { "$($_.PackageType)/$($_.Id)" } | Sort-Object Name)) {
+    foreach ($group in ($candidates | Group-Object { "$($_.PackageType)/$($_.Id)/$($_.Component)" } | Sort-Object Name)) {
         $sameVersions = $group.Group | Group-Object VersionText | Where-Object Count -gt 1
         if ($sameVersions) {
             throw "Multiple archives provide the same version for $($group.Name): $($sameVersions.Name -join ', ')"

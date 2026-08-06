@@ -113,6 +113,16 @@ class ModeDefinitionTests(unittest.TestCase):
         with self.assertRaises(DefinitionError):
             parse_definition(raw, "faceit")
 
+    def test_optional_mount_is_normalized_and_must_be_boolean(self) -> None:
+        raw = json.loads(json.dumps(BASE))
+        raw["plugins"][0]["mounts"][0]["optional"] = True
+        parsed = parse_definition(raw, "faceit")
+        self.assertTrue(parsed["plugins"][0]["mounts"][0]["optional"])
+
+        raw["plugins"][0]["mounts"][0]["optional"] = "yes"
+        with self.assertRaises(DefinitionError):
+            parse_definition(raw, "faceit")
+
     def test_requires_are_mandatory(self) -> None:
         raw = json.loads(json.dumps(BASE))
         del raw["requires"]["metamod"]

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "packageType": "mode",
+  "id": "retake",
+  "component": "instadefuse",
+  "name": "InstadefusePlugin",
+  "version": "2.0.0",
+  "managed": false,
+  "installStrategy": "replace-roots",
+  "installRoots": [
+    "utils/InstadefusePlugin"
+  ],
+  "sourceArchive": "repository-baseline",
+  "note": "Bundled verified repository baseline."
+}

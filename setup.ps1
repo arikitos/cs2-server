@@ -1,3 +1,9 @@
+[CmdletBinding()]
+param(
+    [switch]$FetchLatest,
+    [switch]$IncludeOptional
+)
+
 $ErrorActionPreference = "Stop"
 
 Set-Location $PSScriptRoot
@@ -9,7 +15,10 @@ if (-not (Test-Path ".env")) {
 }
 
 $packageArchives = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "installs") -Filter "*.zip" -File -Recurse -ErrorAction SilentlyContinue)
-if ($packageArchives.Count -gt 0) {
+if ($FetchLatest) {
+    & (Join-Path $PSScriptRoot "update.ps1") -FetchLatest -IncludeOptional:$IncludeOptional -NoRestart
+}
+elseif ($packageArchives.Count -gt 0) {
     & (Join-Path $PSScriptRoot "update.ps1") -NoRestart
 }
 

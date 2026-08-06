@@ -6,6 +6,7 @@ manager/steamcmd/cs2-dedicated/
 
 # Package inboxes keep their structure, but downloaded archives stay local.
 installs/**/*.zip
+installs/**/*.tmp
 !installs/**/.gitkeep
 !installs/README.md
 

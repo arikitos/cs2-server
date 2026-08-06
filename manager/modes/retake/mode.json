@@ -134,6 +134,24 @@
       ]
     },
     {
+      "name": "Instaplant",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "instaplant",
+          "insta plant"
+        ]
+      },
+      "mounts": [
+        {
+          "source": "release/utils/InstaplantPlugin",
+          "optional": true,
+          "target": "addons/counterstrikesharp/plugins/InstaplantPlugin"
+        }
+      ]
+    },
+    {
       "name": "PanelBridge",
       "role": "util",
       "verify": {
@@ -152,6 +170,25 @@
           "source": "components/panelbridge/release/plugins/PanelBridge",
           "shared": true,
           "target": "addons/counterstrikesharp/plugins/PanelBridge"
+        }
+      ]
+    },
+    {
+      "name": "ClutchAnnounce",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "clutch announce",
+          "clutchannounce"
+        ]
+      },
+      "mounts": [
+        {
+          "source": "components/clutch-announce/release/plugins/ClutchAnnouncePlugin",
+          "shared": true,
+          "optional": true,
+          "target": "addons/counterstrikesharp/plugins/ClutchAnnouncePlugin"
         }
       ]
     }

@@ -57,8 +57,8 @@ _PLUGIN_CONFIG_KEYS = {"config", "set", "note"}
 _PLUGIN_KEYS = {"name", "role", "verify", "mounts", "build", "note"}
 _BUILD_KEYS = {"project", "shared", "note"}
 _VERIFY_KEYS = {"required", "aliases", "note"}
-_MOUNT_KEYS = {"source", "target", "kind", "shared", "absolute", "note"}
-_CONFIG_KEYS = {"name", "source", "target", "kind", "shared", "absolute", "note"}
+_MOUNT_KEYS = {"source", "target", "kind", "shared", "absolute", "optional", "note"}
+_CONFIG_KEYS = {"name", "source", "target", "kind", "shared", "absolute", "optional", "note"}
 _ACTION_KEYS = {
     "key", "label", "cmd", "impact", "description", "confirm", "group", "arg_hint", "note",
 }
@@ -179,6 +179,7 @@ def _mount(raw: object, where: str, allowed: set[str] = _MOUNT_KEYS) -> dict:
         "kind": kind,
         "shared": _bool(entry, "shared", where, default=False),
         "absolute": absolute,
+        "optional": _bool(entry, "optional", where, default=False),
     }
 
 

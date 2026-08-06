@@ -1,21 +1,16 @@
 # CS2 Manager
 
-A Docker Compose stack for one persistent Counter-Strike 2 dedicated server and
-one active game mode. The panel controls lifecycle, mode selection, match
-settings, RCON, logs and maintenance without exposing a host shell to the
-browser.
+A Docker Compose stack for one persistent Counter-Strike 2 dedicated server and one active game mode. The panel controls lifecycle, mode selection, match settings, RCON, logs and maintenance without exposing a host shell to the browser.
 
 ## Architecture
 
-The persistent CS2 installation is composed from three layers.
+The persistent server is composed from three layers.
 
-1. Base runtime, CS2, Metamod and CounterStrikeSharp.
-2. Shared manager content, such as `server.cfg` and `PanelBridge`.
-3. The selected mode release and its editable configuration.
+1. CS2, Metamod and CounterStrikeSharp.
+2. Shared manager content, such as `server.cfg`, `PanelBridge` and optional shared plugins.
+3. The selected mode, including its runtime packages, configuration and cfg files.
 
-`manager/runtime/mode_applier.py` validates and stages the complete next layer,
-removes only files recorded in the previous manager inventory, installs the new
-layer, and atomically records the result. Unmanaged plugins are preserved.
+`manager/runtime/mode_applier.py` validates and stages the complete next layer, removes only paths recorded in the previous manager inventory, installs the new layer and atomically records the result. Unmanaged server plugins are preserved.
 
 The active inventory is stored at.
 
@@ -29,19 +24,23 @@ The active inventory is stored at.
 cs2-server/
 ├── compose.yml
 ├── setup.ps1
+├── fetch-releases.ps1
 ├── update.ps1
 ├── installs/
+│   ├── sources.json
 │   ├── modes/
-│   │   ├── faceit/
-│   │   ├── retake/
-│   │   └── heroshift/
+│   │   ├── faceit/matchzy/
+│   │   ├── retake/retakes/
+│   │   ├── retake/instadefuse/
+│   │   ├── retake/instaplant/
+│   │   └── heroshift/heroshift/
 │   └── shared/
-│       └── panelbridge/
+│       └── clutch-announce/
 └── manager/
     ├── modes/
     │   └── <mode>/
     │       ├── mode.json
-    │       ├── installed.json
+    │       ├── packages/
     │       ├── release/
     │       ├── config/
     │       ├── cfg/
@@ -49,10 +48,8 @@ cs2-server/
     ├── shared/
     │   ├── cfg/
     │   ├── components/
-    │   │   └── panelbridge/
-    │   │       ├── installed.json
-    │   │       ├── release/
-    │   │       └── src/
+    │   │   ├── panelbridge/
+    │   │   └── clutch-announce/
     │   └── frameworks/
     │       ├── versions.json
     │       └── install-linux.sh
@@ -64,79 +61,77 @@ cs2-server/
     └── scripts/
 ```
 
-### Mode contract
+## Directory contracts
 
-Every mode follows the same structure.
+Every mode owns everything specific to it under `manager/modes/<mode>`.
 
-`mode.json` declares compatibility, deployment targets, settings and panel
-actions.
+`mode.json` declares framework compatibility, deployment targets, settings, optional components and panel actions.
 
-`release` contains replaceable runtime files supplied by a versioned package.
-Manual replacement is possible here, although `installed.json` should then be
-updated deliberately or the next managed package should be installed with
-`-Force`.
+`release` contains replaceable runtime files. Each independently versioned plugin owns one or more roots below this directory.
 
-`config` contains operator-managed configuration. Package updates never replace
-this directory.
+`packages` contains one installed marker per independently versioned component. Updating Instadefuse therefore does not replace Retakes, and updating MatchZy does not replace AutoReady.
+
+`config` contains operator-managed configuration. Package updates never replace this directory.
 
 `cfg` contains CS2 configuration owned by the mode.
 
-`src` contains local source projects used to build mode-specific helpers. It is
-not deployed directly.
+`src` contains local source projects. It is not deployed directly.
 
-`installed.json` records the managed package version and archive hash. Existing
-bundled FaceIt and Retake assets use a `0.0.0` repository baseline because their
-original upstream package versions were not encoded in the previous layout.
-The first versioned package supersedes that baseline.
+Shared content lives under `manager/shared`.
 
-### Shared contract
+`manager/shared/components` contains shared plugins. `PanelBridge` is bundled locally. `ClutchAnnounce` is an optional shared component and is deployed into every mode after it is installed.
 
-Shared content lives only under `manager/shared`.
+`manager/shared/frameworks` contains the pinned Metamod and CounterStrikeSharp contract. Framework binaries remain inside the persistent CS2 installation because they are runtime foundations rather than mode packages.
 
-`manager/shared/cfg` contains configuration deployed for every mode.
+## Modes and components
 
-`manager/shared/components/<id>` uses the same `release`, `src` and
-`installed.json` separation as a mode package. `PanelBridge` is stored here and
-referenced by every mode manifest.
-
-`manager/shared/frameworks` owns the pinned Metamod and CounterStrikeSharp
-version contract and the framework installer. Framework binaries remain in the
-persistent CS2 installation because they are runtime foundations, not mode
-payloads.
-
-## Modes
-
-| Mode | Main plugin | Mode-specific dependencies |
+| Mode | Required runtime | Optional runtime |
 |---|---|---|
-| FaceIt | MatchZy | AutoReady |
-| Retake | RetakesPlugin | InstadefusePlugin, RetakesPluginShared |
-| HeroShift | HeroShift | RayTrace, RayTraceImpl, RayTraceApi |
+| FaceIt | MatchZy, AutoReady, PanelBridge | ClutchAnnounce |
+| Retake | RetakesPlugin, RetakesPluginShared, Instadefuse, PanelBridge | ClutchAnnounce, Instaplant |
+| HeroShift | HeroShift, RayTrace, RayTraceImpl, RayTraceApi, PanelBridge | ClutchAnnounce |
 
-All modes use the same `cs2-game` container. Mode switching restarts the game
-process, applies the selected manifest and removes only the previous
-manager-owned mode files.
+The bundled baseline currently contains MatchZy `0.8.15`, Retakes `3.0.4`, Instadefuse `2.0.0`, AutoReady `1.0.0` and PanelBridge `1.0.0`.
 
-## Package updates
+Instaplant is disabled in `installs/sources.json` by default. Retakes already has `BombSettings.IsAutoPlantEnabled` enabled. Before installing Instaplant, disable the Retakes built-in autoplant to avoid two plugins controlling the same action.
 
-Drop package archives under the relevant inbox.
+## Updating from official releases
 
-```text
-installs/modes/heroshift/HeroShift-v1.0.6.zip
-installs/modes/faceit/FaceIt-v1.1.0.zip
-installs/modes/retake/Retake-v2.0.0.zip
-installs/shared/panelbridge/PanelBridge-v1.1.0.zip
-```
-
-Then run.
+The normal online workflow is.
 
 ```powershell
-./update.ps1
+./update.ps1 -FetchLatest -WhatIf
+./update.ps1 -FetchLatest
+```
+
+`fetch-releases.ps1` reads `installs/sources.json`, queries each configured GitHub repository, selects the approved release asset, verifies the GitHub asset digest when one is provided, rejects unsafe ZIP paths, removes debug symbols, normalizes the upstream layout and writes a verified local package under `installs`.
+
+`update.ps1` then compares each package with its component marker and installs only a newer version.
+
+Default online sources are.
+
+```text
+shobhit-pathak/MatchZy
+B3none/cs2-retakes
+B3none/cs2-instadefuse
+B3none/cs2-clutch-announce
+arikitos/cs2-heroshift
+```
+
+Instaplant is opt-in.
+
+```powershell
+./update.ps1 -FetchLatest -IncludeOptional -Source instaplant -WhatIf
+./update.ps1 -FetchLatest -IncludeOptional -Source instaplant
 ```
 
 Useful scopes.
 
 ```powershell
+./update.ps1 -FetchLatest -Mode retake
+./update.ps1 -FetchLatest -Source clutch-announce
 ./update.ps1 -Mode heroshift
+./update.ps1 -Component matchzy
 ./update.ps1 -SharedOnly
 ./update.ps1 -WhatIf
 ./update.ps1 -Force
@@ -144,52 +139,81 @@ Useful scopes.
 ./update.ps1 -KeepBackups 5
 ```
 
-The updater performs the following transaction for each package identity.
+Set `GITHUB_TOKEN` when GitHub API rate limits are relevant.
 
-1. Scans every ZIP under `installs`.
-2. Reads `package-manifest.json` without trusting the filename.
-3. Rejects unsafe paths, duplicate entries and unsupported package identities.
-4. Verifies every declared file size and SHA256.
-5. Selects the highest semantic version for each component.
-6. Compares it with `installed.json`.
-7. Skips equal or older versions and leaves all ZIP files untouched.
-8. Extracts a newer package into a temporary staging directory.
-9. Moves the current `release` into `manager/backups/packages`.
-10. Activates the staged release and writes a new `installed.json`.
-11. Restores the previous release automatically if activation fails.
-12. Removes lower-version ZIP files only after the newer version is active.
-13. Keeps the newly installed ZIP in `installs`.
-14. Recreates `cs2-game` only when a changed shared component or the active mode
-    requires it. A stopped game container remains stopped.
+```powershell
+$env:GITHUB_TOKEN = "<token>"
+./update.ps1 -FetchLatest
+```
+
+## Offline package workflow
+
+Downloaded or internally built packages can be placed directly under their component inbox.
+
+```text
+installs/modes/faceit/matchzy/
+installs/modes/retake/retakes/
+installs/modes/retake/instadefuse/
+installs/modes/retake/instaplant/
+installs/modes/heroshift/heroshift/
+installs/shared/clutch-announce/
+```
+
+Then run.
+
+```powershell
+./update.ps1 -WhatIf
+./update.ps1
+```
+
+The updater performs the following transaction for each component.
+
+1. Reads and validates `package-manifest.json`.
+2. Rejects unsafe paths, duplicate entries and unsupported identities.
+3. Verifies every declared file size and SHA256.
+4. Selects the highest semantic version for each component.
+5. Compares it with `manager/.../packages/<component>.json`.
+6. Skips equal or older versions and leaves every ZIP untouched.
+7. Extracts a newer package into an isolated staging directory.
+8. Moves only that component's current roots into a timestamped backup.
+9. Activates the staged roots and writes the new component marker.
+10. Restores every moved root and the previous marker if any stage fails.
+11. Removes lower-version ZIP files only after the new version is active.
+12. Keeps the installed ZIP in `installs`.
+13. Recreates `cs2-game` only when an active mode or shared runtime changed.
 
 Updates are serialized by `manager/data/package-update.lock`.
 
-### Standard package format
+## Package format
 
-A standard package contains `package-manifest.json` and a `payload` directory
-whose contents mirror the destination `release` directory.
+A normalized package contains a manifest and payload.
 
 ```text
 package-manifest.json
 payload/
-├── plugins/
-├── utils/
-└── gamedata/
+  plugins/
+  utils/
+  gamedata/
 ```
 
-Example manifest.
+Example component package.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "packageType": "mode",
-  "id": "heroshift",
-  "name": "HeroShift",
-  "version": "1.0.6",
+  "id": "retake",
+  "component": "instadefuse",
+  "name": "InstadefusePlugin",
+  "version": "2.0.1",
   "payloadRoot": "payload",
+  "installStrategy": "replace-roots",
+  "installRoots": [
+    "utils/InstadefusePlugin"
+  ],
   "files": [
     {
-      "path": "payload/plugins/HeroShift/HeroShift.dll",
+      "path": "payload/utils/InstadefusePlugin/InstadefusePlugin.dll",
       "size": 123456,
       "sha256": "lowercase-sha256"
     }
@@ -197,13 +221,9 @@ Example manifest.
 }
 ```
 
-Supported `packageType` values are `mode` and `shared`. IDs use lowercase
-letters, numbers and hyphens.
+`replace-roots` updates only the declared component roots. `replace-release` replaces the complete release directory and is used for self-contained mode distributions such as HeroShift.
 
-Current HeroShift release archives are also supported through a compatibility
-adapter. Their existing `package: HeroShift`, `version: vX.Y.Z` manifest and
-`addons/...` layout are verified and converted into
-`manager/modes/heroshift/release` during staging.
+Existing HeroShift archives with the original `package: HeroShift`, `version: vX.Y.Z` manifest and `addons` layout remain supported through a verified compatibility adapter.
 
 See `installs/README.md` for the full package contract.
 
@@ -216,27 +236,28 @@ manager/modes/<mode>/release
 manager/shared/components/<component>/release
 ```
 
-Editable configurations remain under each mode's `config` directory and should
-not be copied into `release`.
+Editable configuration remains under each mode's `config` directory.
 
-After a manual replacement, restart the active mode. The manual change does not
-alter `installed.json`, so a later `update.ps1` run still compares against the
-last managed version. Use `-Force` to deliberately reinstall the selected
-package.
+After a manual replacement, restart the active mode. A manual change does not alter component markers, so a later managed update still compares against the last recorded version. Use `-Force` to deliberately reinstall a selected package.
 
 ## Framework compatibility
 
-Every `mode.json` declares required Metamod and CounterStrikeSharp versions.
-The manager-wide source of truth is.
+Every mode declares required Metamod and CounterStrikeSharp versions. The manager-wide source of truth is.
 
 ```text
 manager/shared/frameworks/versions.json
 ```
 
-Normal startup refuses to deploy a mode when its requirements, the manager
-version contract and the installed marker disagree.
+The current pinned pair is.
 
-Install the pinned framework pair with.
+```text
+Metamod 2.0.0-git1410
+CounterStrikeSharp 1.0.371
+```
+
+The framework pair is deliberately not controlled by `-FetchLatest`. A plugin release can depend on a newer CounterStrikeSharp API, so framework upgrades require an explicit compatibility change, rebuilding local plugins and a live smoke test.
+
+Install or repair the pinned framework pair with.
 
 ```bash
 docker compose --profile maintenance run --rm cs2-modinstaller
@@ -248,24 +269,20 @@ The installer writes.
 <CS2_DATA_PATH>/game/csgo/addons/.cs2-manager-versions.json
 ```
 
-Framework upgrades are deliberate compatibility operations. Update
-`manager/shared/frameworks/versions.json`, update every mode requirement,
-rebuild affected local plugins and run the live smoke test.
+Normal mode startup refuses to deploy when a mode requirement, the manager contract and the installed framework marker disagree.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and configure the token, RCON password, panel
-   credentials, `CS2_DATA_PATH` and `MANAGER_PATH`.
-2. Place any initial mode packages under `installs`.
-3. Run the setup script.
+1. Copy `.env.example` to `.env` and configure the token, RCON password, panel credentials, `CS2_DATA_PATH` and `MANAGER_PATH`.
+2. Run an online fetch, or place initial packages under `installs`.
+3. Run setup.
 
 ```powershell
-./setup.ps1
+./update.ps1 -FetchLatest -WhatIf
+./setup.ps1 -FetchLatest
 ```
 
-`setup.ps1` applies pending packages with `update.ps1 -NoRestart`, validates the
-Compose model, builds the maintenance image, creates the stopped game container
-and starts the panel.
+`setup.ps1 -FetchLatest` downloads and applies default upstream releases before continuing. Plain `setup.ps1` applies only pending local packages with `update.ps1 -NoRestart`, validates Compose, builds the maintenance image, creates the stopped game container and starts the panel.
 
 On Linux.
 
@@ -273,14 +290,11 @@ On Linux.
 manager/scripts/start.sh
 ```
 
-The Linux start script reports pending ZIP files but does not mutate packages.
-Run `pwsh ./update.ps1` first when PowerShell is available, or prepare the mode
-release directories before starting.
+The Linux start script reports pending ZIP files but does not mutate packages. Run `pwsh ./update.ps1` first when PowerShell is available, or prepare the release directories before starting.
 
 ## CS2 maintenance
 
-The normal game container never runs SteamCMD. Base game update and validation
-run only through `cs2-updater` and require the exact confirmation phrase.
+The normal game container never runs SteamCMD. Base game update and validation run only through `cs2-updater` and require the exact confirmation phrase.
 
 ```bash
 CS2_UPDATER_CONFIRM="UPDATE CS2" \
@@ -294,7 +308,7 @@ Supported updater modes are `update`, `validate` and `repair-metamod`.
 1. The panel writes `manager/data/runtime/active-mode.json`.
 2. `cs2-game` starts or restarts.
 3. The runtime launcher verifies framework compatibility.
-4. `mode_applier.py` validates all mode and shared sources.
+4. `mode_applier.py` validates required sources and skips missing optional mounts.
 5. The complete next layer is staged.
 6. Previous inventory-owned targets are removed.
 7. The staged layer is installed and inventory is replaced atomically.
@@ -305,24 +319,19 @@ Native modules such as RayTrace are never hot-unloaded.
 
 ## Backups and rollback
 
-Package updates store release backups under.
+Package backups are stored per component.
 
 ```text
-manager/backups/packages/<package-type>/<id>/<new-version>/
+manager/backups/packages/<package-type>/<id>/<component>/<version>-<timestamp>/
 ```
 
-Panel-managed configuration backups are stored separately under.
+Panel-managed configuration backups are stored separately.
 
 ```text
 manager/backups/config/<mode-id>/
 ```
 
-`update.ps1` keeps three backups per component by default. Configure the count
-with `-KeepBackups`.
-
-The older topology migration and rollback scripts remain under
-`manager/scripts`. They back up and restore the complete manager directories,
-including the new shared framework path.
+`update.ps1` keeps three package backups per component by default. Configure the count with `-KeepBackups`.
 
 ## Verification
 
@@ -349,13 +358,8 @@ manager/scripts/smoke-test.sh
 
 ## Security properties
 
-The panel binds to localhost by default. Use a VPN or secured reverse proxy for
-remote access.
+The panel binds to localhost by default. Use a VPN or secured reverse proxy for remote access.
 
-Package paths and manifest paths are validated before extraction. Every payload
-file is verified by SHA256. Extraction never writes outside the selected staging
-directory.
+Release assets, package paths and manifest paths are validated before extraction. Every payload file is verified by SHA256. Extraction never writes outside the selected staging directory.
 
-Only inventory-owned mode targets are removed from the persistent server.
-Framework roots are reserved from mode manifests. The browser has no arbitrary
-shell or Docker command surface.
+Only inventory-owned mode targets are removed from the persistent server. Framework roots are reserved from mode manifests. The browser has no arbitrary shell or Docker command surface.

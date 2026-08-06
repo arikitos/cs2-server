@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "matchzy",
+      "enabledByDefault": true,
+      "description": "MatchZy runtime for the FaceIt mode.",
+      "github": {
+        "repository": "shobhit-pathak/MatchZy",
+        "assetPattern": "^MatchZy-v?\\d+\\.\\d+\\.\\d+\\.zip$"
+      },
+      "package": {
+        "type": "mode",
+        "id": "faceit",
+        "component": "matchzy",
+        "name": "MatchZy",
+        "installStrategy": "replace-roots",
+        "installRoots": [
+          "plugins/MatchZy"
+        ]
+      },
+      "output": {
+        "directory": "installs/modes/faceit/matchzy",
+        "fileName": "MatchZy-v{version}.zip"
+      },
+      "adapter": {
+        "type": "mapped-zip",
+        "excludePatterns": [
+          "\\.pdb$",
+          "\\.xml$"
+        ],
+        "mappings": [
+          {
+            "sourceCandidates": [
+              "addons/counterstrikesharp/plugins/MatchZy",
+              "plugins/MatchZy",
+              "MatchZy"
+            ],
+            "target": "plugins/MatchZy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "retakes",
+      "enabledByDefault": true,
+      "description": "RetakesPlugin and RetakesPluginShared for the Retake mode.",
+      "github": {
+        "repository": "B3none/cs2-retakes",
+        "assetPattern": "^RetakesPlugin-v?\\d+\\.\\d+\\.\\d+\\.zip$"
+      },
+      "package": {
+        "type": "mode",
+        "id": "retake",
+        "component": "retakes",
+        "name": "RetakesPlugin",
+        "installStrategy": "replace-roots",
+        "installRoots": [
+          "plugins/RetakesPlugin",
+          "utils/RetakesPluginShared"
+        ]
+      },
+      "output": {
+        "directory": "installs/modes/retake/retakes",
+        "fileName": "RetakesPlugin-v{version}.zip"
+      },
+      "adapter": {
+        "type": "mapped-zip",
+        "excludePatterns": [
+          "\\.pdb$",
+          "\\.xml$"
+        ],
+        "mappings": [
+          {
+            "sourceCandidates": [
+              "addons/counterstrikesharp/plugins/RetakesPlugin",
+              "plugins/RetakesPlugin"
+            ],
+            "target": "plugins/RetakesPlugin"
+          },
+          {
+            "sourceCandidates": [
+              "addons/counterstrikesharp/shared/RetakesPluginShared",
+              "shared/RetakesPluginShared"
+            ],
+            "target": "utils/RetakesPluginShared"
+          }
+        ]
+      }
+    },
+    {
+      "id": "instadefuse",
+      "enabledByDefault": true,
+      "description": "Instadefuse utility for the Retake mode.",
+      "github": {
+        "repository": "B3none/cs2-instadefuse",
+        "assetPattern": "^cs2-instadefuse-v?\\d+\\.\\d+\\.\\d+\\.zip$"
+      },
+      "package": {
+        "type": "mode",
+        "id": "retake",
+        "component": "instadefuse",
+        "name": "InstadefusePlugin",
+        "installStrategy": "replace-roots",
+        "installRoots": [
+          "utils/InstadefusePlugin"
+        ]
+      },
+      "output": {
+        "directory": "installs/modes/retake/instadefuse",
+        "fileName": "InstadefusePlugin-v{version}.zip"
+      },
+      "adapter": {
+        "type": "mapped-zip",
+        "excludePatterns": [
+          "\\.pdb$",
+          "\\.xml$"
+        ],
+        "mappings": [
+          {
+            "sourceCandidates": [
+              "addons/counterstrikesharp/plugins/InstadefusePlugin",
+              "plugins/InstadefusePlugin",
+              "InstadefusePlugin"
+            ],
+            "target": "utils/InstadefusePlugin"
+          }
+        ]
+      }
+    },
+    {
+      "id": "clutch-announce",
+      "enabledByDefault": true,
+      "description": "Optional shared clutch announcements for every mode.",
+      "github": {
+        "repository": "B3none/cs2-clutch-announce",
+        "assetPattern": "^cs2-clutch-announce-v?\\d+\\.\\d+\\.\\d+\\.zip$"
+      },
+      "package": {
+        "type": "shared",
+        "id": "clutch-announce",
+        "component": "clutch-announce",
+        "name": "ClutchAnnouncePlugin",
+        "installStrategy": "replace-release",
+        "installRoots": []
+      },
+      "output": {
+        "directory": "installs/shared/clutch-announce",
+        "fileName": "ClutchAnnouncePlugin-v{version}.zip"
+      },
+      "adapter": {
+        "type": "mapped-zip",
+        "excludePatterns": [
+          "\\.pdb$",
+          "\\.xml$"
+        ],
+        "mappings": [
+          {
+            "sourceCandidates": [
+              "addons/counterstrikesharp/plugins/ClutchAnnouncePlugin",
+              "plugins/ClutchAnnouncePlugin",
+              "ClutchAnnouncePlugin"
+            ],
+            "target": "plugins/ClutchAnnouncePlugin"
+          }
+        ]
+      }
+    },
+    {
+      "id": "instaplant",
+      "enabledByDefault": false,
+      "description": "Optional Instaplant utility. Keep disabled while RetakesPlugin BombSettings.IsAutoPlantEnabled is true.",
+      "github": {
+        "repository": "B3none/cs2-instaplant",
+        "assetPattern": "^(?:cs2-instaplant|InstaplantPlugin)-v?\\d+\\.\\d+\\.\\d+\\.zip$"
+      },
+      "package": {
+        "type": "mode",
+        "id": "retake",
+        "component": "instaplant",
+        "name": "InstaplantPlugin",
+        "installStrategy": "replace-roots",
+        "installRoots": [
+          "utils/InstaplantPlugin"
+        ]
+      },
+      "output": {
+        "directory": "installs/modes/retake/instaplant",
+        "fileName": "InstaplantPlugin-v{version}.zip"
+      },
+      "adapter": {
+        "type": "mapped-zip",
+        "excludePatterns": [
+          "\\.pdb$",
+          "\\.xml$"
+        ],
+        "mappings": [
+          {
+            "sourceCandidates": [
+              "addons/counterstrikesharp/plugins/InstaplantPlugin",
+              "plugins/InstaplantPlugin",
+              "InstaplantPlugin"
+            ],
+            "target": "utils/InstaplantPlugin"
+          }
+        ]
+      }
+    },
+    {
+      "id": "heroshift",
+      "enabledByDefault": true,
+      "description": "Verified HeroShift mode release, including RayTrace dependencies.",
+      "github": {
+        "repository": "arikitos/cs2-heroshift",
+        "assetPattern": "^HeroShift-v?\\d+\\.\\d+\\.\\d+\\.zip$"
+      },
+      "package": {
+        "type": "mode",
+        "id": "heroshift",
+        "component": "heroshift",
+        "name": "HeroShift",
+        "installStrategy": "replace-release",
+        "installRoots": []
+      },
+      "output": {
+        "directory": "installs/modes/heroshift/heroshift",
+        "fileName": "HeroShift-v{version}.zip"
+      },
+      "adapter": {
+        "type": "passthrough-manifest"
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "packageType": "mode",
+  "id": "heroshift",
+  "component": "heroshift",
+  "name": "HeroShift",
+  "version": "0.0.0",
+  "managed": false,
+  "installStrategy": "replace-release",
+  "installRoots": [],
+  "sourceArchive": "not-installed",
+  "note": "Install a versioned HeroShift release package."
+}

@@ -435,6 +435,61 @@ class ModeApplierTests(unittest.TestCase):
         self.assertTrue((legacy / "MatchZy.dll").exists())
 
 
+    def test_missing_optional_mount_is_skipped(self) -> None:
+        self.make_mode("faceit", "MatchZy")
+        manifest_path = self.modes / "faceit/mode.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["plugins"].append({
+            "name": "OptionalPlugin",
+            "role": "util",
+            "verify": {"required": False},
+            "mounts": [{
+                "source": "plugins/OptionalPlugin",
+                "optional": True,
+                "target": "addons/counterstrikesharp/plugins/OptionalPlugin",
+            }],
+        })
+        write_json(manifest_path, manifest)
+
+        self.apply("faceit")
+
+        target = self.server / "game/csgo/addons/counterstrikesharp/plugins/OptionalPlugin"
+        self.assertFalse(target.exists())
+
+    def test_existing_optional_mount_is_deployed(self) -> None:
+        self.make_mode("faceit", "MatchZy")
+        optional = self.modes / "faceit/plugins/OptionalPlugin"
+        optional.mkdir(parents=True)
+        (optional / "OptionalPlugin.dll").write_text("optional")
+        manifest_path = self.modes / "faceit/mode.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["plugins"].append({
+            "name": "OptionalPlugin",
+            "role": "util",
+            "verify": {"required": False},
+            "mounts": [{
+                "source": "plugins/OptionalPlugin",
+                "optional": True,
+                "target": "addons/counterstrikesharp/plugins/OptionalPlugin",
+            }],
+        })
+        write_json(manifest_path, manifest)
+
+        self.apply("faceit")
+
+        target = self.server / "game/csgo/addons/counterstrikesharp/plugins/OptionalPlugin/OptionalPlugin.dll"
+        self.assertEqual(target.read_text(), "optional")
+
+    def test_optional_flag_must_be_boolean(self) -> None:
+        self.make_mode("faceit", "MatchZy")
+        manifest_path = self.modes / "faceit/mode.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["plugins"][0]["mounts"][0]["optional"] = "yes"
+        write_json(manifest_path, manifest)
+
+        with self.assertRaises(ApplyError):
+            self.apply("faceit")
+
     def test_symlink_inside_mode_source_is_rejected(self) -> None:
         self.make_mode("faceit", "MatchZy")
         outside = self.root / "outside.dll"

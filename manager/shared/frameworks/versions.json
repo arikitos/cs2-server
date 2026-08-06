@@ -1,11 +1,15 @@
 {
   "metamod": {
     "version": "2.0.0-git1410",
-    "url": "https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1410-linux.tar.gz"
+    "url": "https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1410-linux.tar.gz",
+    "source": "https://www.sourcemm.net/downloads.php/?branch=master",
+    "track": "pinned"
   },
   "counterstrikesharp": {
     "version": "1.0.371",
     "release_api": "https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/tags/v1.0.371",
-    "asset_pattern": "with-runtime.*linux.*\\.zip$|linux.*with-runtime.*\\.zip$"
+    "asset_pattern": "with-runtime.*linux.*\\.zip$|linux.*with-runtime.*\\.zip$",
+    "source": "https://github.com/roflmuffin/CounterStrikeSharp",
+    "track": "pinned"
   }
 }

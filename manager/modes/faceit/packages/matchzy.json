@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "packageType": "mode",
+  "id": "faceit",
+  "component": "matchzy",
+  "name": "MatchZy",
+  "version": "0.8.15",
+  "managed": false,
+  "installStrategy": "replace-roots",
+  "installRoots": [
+    "plugins/MatchZy"
+  ],
+  "sourceArchive": "repository-baseline",
+  "note": "Bundled verified repository baseline."
+}

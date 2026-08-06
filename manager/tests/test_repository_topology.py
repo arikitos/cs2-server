@@ -65,7 +65,9 @@ class RepositoryTopologyTests(unittest.TestCase):
             self.assertTrue((root / "release").is_dir())
             self.assertTrue((root / "cfg").is_dir())
             self.assertTrue((root / "README.md").is_file())
-            self.assertTrue((root / "installed.json").is_file())
+            self.assertTrue((root / "packages").is_dir())
+            self.assertFalse((root / "installed.json").exists())
+            self.assertTrue(list((root / "packages").glob("*.json")))
 
             manifest = json.loads((root / "mode.json").read_text(encoding="utf-8"))
             owned_sources = [
@@ -85,7 +87,8 @@ class RepositoryTopologyTests(unittest.TestCase):
         root = MANAGER / "shared/components/panelbridge"
         self.assertTrue((root / "release/plugins/PanelBridge/PanelBridge.dll").is_file())
         self.assertTrue((root / "src/PanelBridge/PanelBridge.csproj").is_file())
-        self.assertTrue((root / "installed.json").is_file())
+        self.assertTrue((root / "packages/panelbridge.json").is_file())
+        self.assertFalse((root / "installed.json").exists())
 
         for manifest_path in (MANAGER / "modes").glob("*/mode.json"):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -107,35 +110,90 @@ class RepositoryTopologyTests(unittest.TestCase):
         css_version = versions["counterstrikesharp"]["version"]
         self.assertIn(f"tags/v{css_version}", versions["counterstrikesharp"]["release_api"])
 
-    def test_package_updater_enforces_transactional_versioned_updates(self) -> None:
+    def test_package_updater_enforces_transactional_component_updates(self) -> None:
         script = (ROOT / "update.ps1").read_text(encoding="utf-8")
         for required in (
             "package-manifest.json",
             "Manifest SHA256 mismatch",
             "Unsafe ZIP path",
-            "installed.json",
+            "packages",
             "package-update.lock",
-            "Move-Item -LiteralPath $paths.ReleaseRoot -Destination (Join-Path $backupPath 'release')",
-            "Copy-Item -LiteralPath $paths.MarkerPath -Destination (Join-Path $backupPath 'installed.json')",
+            "BackedUpTargets",
+            "InstallAttemptedTargets",
+            "MarkerWriteAttempted",
             "Removed superseded archive",
             "legacy-heroshift",
+            "replace-roots",
             "SupportsShouldProcess",
+            "FetchLatest",
         ):
             self.assertIn(required, script)
         self.assertIn("$comparison -le 0", script)
         self.assertIn("$_.Version -lt $selected.Version", script)
+        self.assertIn("[AllowEmptyCollection()]", script)
+        self.assertIn("if (-not $WhatIfPreference)", script)
+        self.assertIn("if ($WhatIfPreference -or $NoRestart", script)
+
+    def test_release_fetcher_and_catalog_cover_upstream_sources(self) -> None:
+        script = (ROOT / "fetch-releases.ps1").read_text(encoding="utf-8")
+        catalog = json.loads((ROOT / "installs/sources.json").read_text(encoding="utf-8"))
+        self.assertIn("releases/latest", script)
+        self.assertIn("browser_download_url", script)
+        self.assertIn("GitHub release asset digest mismatch", script)
+        self.assertIn("passthrough-manifest", script)
+        self.assertIn("mapped-zip", script)
+        sources = {row["id"]: row for row in catalog["sources"]}
+        self.assertEqual(
+            set(sources),
+            {"matchzy", "retakes", "instadefuse", "clutch-announce", "instaplant", "heroshift"},
+        )
+        self.assertFalse(sources["instaplant"]["enabledByDefault"])
+        self.assertTrue(sources["clutch-announce"]["enabledByDefault"])
+        self.assertEqual(sources["retakes"]["package"]["component"], "retakes")
+        self.assertEqual(sources["instadefuse"]["package"]["component"], "instadefuse")
+
+        current_assets = {
+            "matchzy": "MatchZy-0.8.15.zip",
+            "retakes": "RetakesPlugin-3.0.4.zip",
+            "instadefuse": "cs2-instadefuse-2.0.0.zip",
+            "clutch-announce": "cs2-clutch-announce-1.1.0.zip",
+            "instaplant": "cs2-instaplant-1.0.0.zip",
+            "heroshift": "HeroShift-v1.0.5.zip",
+        }
+        for source_id, asset_name in current_assets.items():
+            self.assertRegex(asset_name, sources[source_id]["github"]["assetPattern"])
+
 
     def test_package_inboxes_are_present_and_archives_are_ignored(self) -> None:
         for path in (
-            ROOT / "installs/modes/faceit",
-            ROOT / "installs/modes/retake",
-            ROOT / "installs/modes/heroshift",
-            ROOT / "installs/shared/panelbridge",
+            ROOT / "installs/modes/faceit/matchzy",
+            ROOT / "installs/modes/retake/retakes",
+            ROOT / "installs/modes/retake/instadefuse",
+            ROOT / "installs/modes/retake/instaplant",
+            ROOT / "installs/modes/heroshift/heroshift",
+            ROOT / "installs/shared/clutch-announce",
         ):
             self.assertTrue(path.is_dir())
         ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("installs/**/*.zip", ignored)
         self.assertNotIn("manager/releases/heroshift", ignored)
+
+    def test_optional_components_are_declared_without_breaking_modes(self) -> None:
+        for manifest_path in (MANAGER / "modes").glob("*/mode.json"):
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            clutch = next(row for row in manifest["plugins"] if row["name"] == "ClutchAnnounce")
+            mount = clutch["mounts"][0]
+            self.assertTrue(mount["optional"])
+            self.assertTrue(mount["shared"])
+            self.assertEqual(
+                mount["source"],
+                "components/clutch-announce/release/plugins/ClutchAnnouncePlugin",
+            )
+        retake = json.loads((MANAGER / "modes/retake/mode.json").read_text(encoding="utf-8"))
+        instaplant = next(row for row in retake["plugins"] if row["name"] == "Instaplant")
+        self.assertTrue(instaplant["mounts"][0]["optional"])
+        config = json.loads((MANAGER / "modes/retake/config/RetakesPlugin.json").read_text(encoding="utf-8"))
+        self.assertTrue(config["BombSettings"]["IsAutoPlantEnabled"])
 
     def test_legacy_heroshift_paths_are_removed(self) -> None:
         for path in (

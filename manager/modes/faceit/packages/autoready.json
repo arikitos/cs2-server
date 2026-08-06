@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "packageType": "mode",
+  "id": "faceit",
+  "component": "autoready",
+  "name": "AutoReady",
+  "version": "1.0.0",
+  "managed": false,
+  "installStrategy": "replace-roots",
+  "installRoots": [
+    "utils/AutoReady"
+  ],
+  "sourceArchive": "repository-baseline",
+  "note": "Locally built shared server utility."
+}

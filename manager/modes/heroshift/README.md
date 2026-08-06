@@ -1,21 +1,17 @@
 # HeroShift mode
 
-HeroShift owns the following content.
-
 ```text
 mode.json
+packages/heroshift.json
 cfg/
 config/heroshift.json
 release/
-installed.json
 ```
 
-`release` contains HeroShift, gamedata and all RayTrace runtime dependencies.
-It is populated by `update.ps1` from a package placed under
-`installs/modes/heroshift`.
+The HeroShift package owns the complete `release` directory, including HeroShift, gamedata and RayTrace runtime dependencies.
 
-The current HeroShift package format is supported directly. Its verified
-`addons` paths are converted into this mode's `release` layout during staging.
+The original verified HeroShift ZIP format is supported directly. Its `addons` paths are converted into this mode's release layout during staging.
 
-`config/heroshift.json` is manager-owned and is never replaced by a package
-update. This preserves panel and operator changes across releases.
+`config/heroshift.json` is manager-owned and is never replaced by a package update.
+
+Clutch Announce is declared as an optional shared mount.

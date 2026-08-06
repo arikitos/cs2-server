@@ -1,6 +1,7 @@
 {
   "GameSettings": {
     "MaxPlayers": 7,
+    "MinimumPlayers": 0,
     "ShouldBreakBreakables": false,
     "ShouldOpenDoors": false,
     "EnableFallbackAllocation": true
@@ -21,7 +22,8 @@
       }
     ],
     "ShouldRemoveSpectators": true,
-    "ShouldAutoJoinSpectators": true
+    "ShouldAutoJoinSpectators": true,
+    "ShouldAutoJoinGame": false
   },
   "TeamSettings": {
     "TerroristRatio": 0.43,
@@ -34,7 +36,8 @@
   "MapConfigSettings": {
     "EnableBombsiteAnnouncementVoices": false,
     "EnableBombsiteAnnouncementCenter": true,
-    "EnableFallbackBombsiteAnnouncement": true
+    "EnableFallbackBombsiteAnnouncement": true,
+    "EnablePlantLocationAnnouncement": false
   },
   "BombSettings": {
     "IsAutoPlantEnabled": true

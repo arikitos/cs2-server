@@ -1,10 +1,18 @@
 # Shared frameworks
 
-Metamod and CounterStrikeSharp are shared runtime foundations for every mode.
-Their pinned versions are declared in `versions.json` and installed into the
-persistent CS2 tree by `install-linux.sh` through the `cs2-modinstaller`
-maintenance service.
+Metamod and CounterStrikeSharp are server-wide runtime foundations. Their pinned versions are declared in `versions.json` and installed into the persistent CS2 directory by `install-linux.sh`.
 
-Framework binaries are intentionally not duplicated in mode directories.
-Every mode repeats its required versions in `mode.json`, allowing the runtime to
-reject incompatible combinations before deployment.
+They are deliberately separate from plugin release fetching. Updating to the newest framework without checking plugin API compatibility can prevent one or more modes from loading.
+
+Current contract.
+
+```text
+Metamod 2.0.0-git1410
+CounterStrikeSharp 1.0.371
+```
+
+Install or repair the pinned pair with.
+
+```bash
+docker compose --profile maintenance run --rm cs2-modinstaller
+```

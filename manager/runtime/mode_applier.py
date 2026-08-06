@@ -179,11 +179,21 @@ def _mount_entry(
     server_root: Path,
     absolute_root: Path,
     label: str,
-) -> Entry:
+) -> Entry | None:
     if not isinstance(raw, dict):
         raise ApplyError(f"{label} must be an object")
-    shared = bool(raw.get("shared", False))
-    absolute = bool(raw.get("absolute", False))
+    shared_value = raw.get("shared", False)
+    absolute_value = raw.get("absolute", False)
+    optional_value = raw.get("optional", False)
+    if not isinstance(shared_value, bool):
+        raise ApplyError(f"{label}.shared must be a boolean")
+    if not isinstance(absolute_value, bool):
+        raise ApplyError(f"{label}.absolute must be a boolean")
+    if not isinstance(optional_value, bool):
+        raise ApplyError(f"{label}.optional must be a boolean")
+    shared = shared_value
+    absolute = absolute_value
+    optional = optional_value
     kind = raw.get("kind", "dir")
     if kind not in ("file", "dir"):
         raise ApplyError(f"{label}.kind must be file or dir")
@@ -197,8 +207,12 @@ def _mount_entry(
         label=f"{label}.target",
     )
     if kind == "file" and not source.is_file():
+        if optional and not source.exists():
+            return None
         raise ApplyError(f"Missing declared file for {owner}: {source}")
     if kind == "dir" and not source.is_dir():
+        if optional and not source.exists():
+            return None
         raise ApplyError(f"Missing declared directory for {owner}: {source}")
     return Entry(source, target, target_key, kind, absolute, owner)
 
@@ -218,8 +232,7 @@ def _startup_entries(
         name = startup.get(field)
         if not isinstance(name, str) or not CFG_RE.fullmatch(name):
             raise ApplyError(f"manifest.startup.{field} is invalid")
-        result.append(
-            _mount_entry(
+        entry = _mount_entry(
                 {"source": f"cfg/{name}", "target": f"cfg/{name}", "kind": "file"},
                 owner=field,
                 mode_root=mode_root,
@@ -228,7 +241,9 @@ def _startup_entries(
                 absolute_root=absolute_root,
                 label=f"startup.{field}",
             )
-        )
+        if entry is None:
+            raise ApplyError(f"startup.{field} cannot be optional")
+        result.append(entry)
     return result
 
 
@@ -259,17 +274,17 @@ def build_entries(
         if not isinstance(mounts, list) or not mounts:
             raise ApplyError(f"Plugin {owner} has no mounts")
         for mount_index, mount in enumerate(mounts):
-            entries.append(
-                _mount_entry(
-                    mount,
-                    owner=owner,
-                    mode_root=mode_root,
-                    shared_root=shared_root,
-                    server_root=server_root,
-                    absolute_root=absolute_root,
-                    label=f"plugins[{plugin_index}].mounts[{mount_index}]",
-                )
+            entry = _mount_entry(
+                mount,
+                owner=owner,
+                mode_root=mode_root,
+                shared_root=shared_root,
+                server_root=server_root,
+                absolute_root=absolute_root,
+                label=f"plugins[{plugin_index}].mounts[{mount_index}]",
             )
+            if entry is not None:
+                entries.append(entry)
 
     configs = manifest.get("configs", [])
     if not isinstance(configs, list):
@@ -280,17 +295,17 @@ def build_entries(
         name = config.get("name")
         if not isinstance(name, str) or not name:
             raise ApplyError(f"manifest.configs[{config_index}].name is invalid")
-        entries.append(
-            _mount_entry(
-                config,
-                owner=name,
-                mode_root=mode_root,
-                shared_root=shared_root,
-                server_root=server_root,
-                absolute_root=absolute_root,
-                label=f"configs[{config_index}]",
-            )
+        entry = _mount_entry(
+            config,
+            owner=name,
+            mode_root=mode_root,
+            shared_root=shared_root,
+            server_root=server_root,
+            absolute_root=absolute_root,
+            label=f"configs[{config_index}]",
         )
+        if entry is not None:
+            entries.append(entry)
 
     return _deduplicate_entries(entries)
 

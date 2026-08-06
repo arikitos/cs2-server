@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "packageType": "mode",
+  "id": "retake",
+  "component": "retakes",
+  "name": "RetakesPlugin",
+  "version": "3.0.4",
+  "managed": false,
+  "installStrategy": "replace-roots",
+  "installRoots": [
+    "plugins/RetakesPlugin",
+    "utils/RetakesPluginShared"
+  ],
+  "sourceArchive": "repository-baseline",
+  "note": "Bundled verified repository baseline."
+}

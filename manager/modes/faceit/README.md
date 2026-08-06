@@ -1,15 +1,14 @@
 # FaceIt mode
 
-The FaceIt mode is self-contained.
-
 ```text
 mode.json
-installed.json
+packages/
 release/plugins/MatchZy/
 release/utils/AutoReady/
 src/AutoReady/
 cfg/
 ```
 
-Runtime binaries live under `release`. The local AutoReady source project lives
-under `src` and is not deployed directly.
+MatchZy and AutoReady have independent component markers. MatchZy can therefore be updated without replacing the local AutoReady build.
+
+Clutch Announce is declared as an optional shared mount and is deployed when the shared component is installed.
