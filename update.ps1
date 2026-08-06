@@ -481,9 +481,13 @@ function Get-ActiveMode {
 }
 
 function Restart-GameIfRequired {
-    param([Parameter(Mandatory = $true)][object[]]$Updated)
+    param(
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [object[]]$Updated = @()
+    )
 
-    if ($NoRestart -or $Updated.Count -eq 0) { return }
+    if ($WhatIfPreference -or $NoRestart -or $Updated.Count -eq 0) { return }
     $activeMode = Get-ActiveMode
     $requiresRestart = $false
     foreach ($candidate in $Updated) {
@@ -520,16 +524,23 @@ function Restart-GameIfRequired {
     Write-Host 'cs2-game was recreated because the active runtime changed.'
 }
 
-New-Item -ItemType Directory -Path $DataRoot -Force | Out-Null
 $lockStream = $null
 $lockAcquired = $false
 try {
-    try {
-        $lockStream = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-        $lockAcquired = $true
-    }
-    catch {
-        throw 'Another package update is already running.'
+    if (-not $WhatIfPreference) {
+        New-Item -ItemType Directory -Path $DataRoot -Force | Out-Null
+        try {
+            $lockStream = [System.IO.File]::Open(
+                $LockPath,
+                [System.IO.FileMode]::OpenOrCreate,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+            $lockAcquired = $true
+        }
+        catch {
+            throw 'Another package update is already running.'
+        }
     }
 
     if (-not (Test-Path -LiteralPath $InstallsRoot -PathType Container)) {
@@ -579,13 +590,11 @@ try {
     }
 
     Restart-GameIfRequired -Updated $updated
-    if ($updated.Count -eq 0) {
-        if ($WhatIfPreference) {
-            Write-Host 'WhatIf completed. No package state was changed.'
-        }
-        else {
-            Write-Host 'All selected packages are already current.'
-        }
+    if ($WhatIfPreference) {
+        Write-Host 'WhatIf completed. No package state was changed.'
+    }
+    elseif ($updated.Count -eq 0) {
+        Write-Host 'All selected packages are already current.'
     }
 }
 finally {
