@@ -158,7 +158,7 @@ class RepositoryTopologyTests(unittest.TestCase):
             "instadefuse": "cs2-instadefuse-2.0.0.zip",
             "clutch-announce": "cs2-clutch-announce-1.1.0.zip",
             "instaplant": "cs2-instaplant-1.0.0.zip",
-            "heroshift": "HeroShift-v1.0.5.zip",
+            "heroshift": "HeroShift-v1.0.0.zip",
         }
         for source_id, asset_name in current_assets.items():
             self.assertRegex(asset_name, sources[source_id]["github"]["assetPattern"])
