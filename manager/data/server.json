@@ -8,6 +8,6 @@
   "hibernate": false,
   "logging_level": "on",
   "access_mode": "public",
-  "last_mode": "faceit",
+  "last_mode": "heroshift",
   "password_policy": "global"
 }
