@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SuperHero Mod hero catalog",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["Id", "Name", "Stats", "Ability"],
+    "properties": {
+      "Id": { "type": "string", "minLength": 1 },
+      "Name": { "type": "string", "minLength": 1 },
+      "Description": { "type": "string" },
+      "Enabled": { "type": "boolean", "default": true },
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "HealthMultiplier": { "$ref": "#/$defs/positiveGameplayMultiplier" },
+          "ArmorMultiplier": { "$ref": "#/$defs/gameplayMultiplier" },
+          "MovementSpeedMultiplier": { "$ref": "#/$defs/positiveGameplayMultiplier" },
+          "GravityMultiplier": { "$ref": "#/$defs/positiveGameplayMultiplier" },
+          "JumpMultiplier": { "$ref": "#/$defs/positiveGameplayMultiplier" },
+          "OutgoingDamageMultiplier": { "$ref": "#/$defs/gameplayMultiplier" },
+          "IncomingDamageMultiplier": { "$ref": "#/$defs/gameplayMultiplier" },
+          "MeleeDamageMultiplier": { "$ref": "#/$defs/gameplayMultiplier" },
+          "RegenerationPerSecond": { "type": "integer", "minimum": 0, "maximum": 25 }
+        },
+        "additionalProperties": false
+      },
+      "Ability": {
+        "type": "object",
+        "required": ["Kind"],
+        "properties": {
+          "Kind": {"type":"string","enum":["None","SelfHeal","SpeedBurst","DamageBoost","HighJump","RadialSlow","RadialKnockback","RadialPull","Noclip"]},
+          "CooldownSeconds": { "type": "number", "minimum": 0, "maximum": 300 },
+          "DurationSeconds": { "type": "number", "minimum": 0, "maximum": 30 },
+          "Magnitude": { "type": "number", "minimum": 0 },
+          "Radius": { "type": "number", "minimum": 0, "maximum": 2000 },
+          "VerticalBoost": { "type": "number", "minimum": 0, "maximum": 1000 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  },
+  "$defs": {
+    "gameplayMultiplier": {"type":"number","minimum":0,"maximum":2,"description":"1.0 is the normal CS2 baseline."},
+    "positiveGameplayMultiplier": {"type":"number","exclusiveMinimum":0,"maximum":2,"description":"Normalized multiplier with a positive safe minimum."}
+  }
+}

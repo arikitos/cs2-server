@@ -1,0 +1,14 @@
+{
+  "Enabled": true,
+  "ChatPrefix": "[SuperHero]",
+  "AutoAssignRandomHero": true,
+  "MaxEquippedHeroes": 1,
+  "AllowHeroChangeWhileAlive": false,
+  "GlobalMultiplierMax": 2.0,
+  "MovementMultiplierMin": 0.25,
+  "GravityMultiplierMin": 0.1,
+  "HealthMultiplierMin": 0.1,
+  "HeroesFile": "heroes.json",
+  "ShowHeroOnSpawn": true,
+  "Version": 1
+}
