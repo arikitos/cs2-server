@@ -1,3 +1,30 @@
 {
-  "schemaVersion": 1
+  "schemaVersion": 2,
+  "skills": {
+    "thirdeye": {
+      "enabled": false
+    },
+    "pilot": {
+      "options": {
+        "maximumFuel": 200,
+        "fuelConsumption": 0.25
+      }
+    },
+    "jester": {
+      "options": {
+        "minTime": 5,
+        "maxTime": 15
+      }
+    },
+    "weightless": {
+      "options": {
+        "grenadeLimit": 3
+      }
+    },
+    "rambo": {
+      "options": {
+        "maxExtraHealth": 300
+      }
+    }
+  }
 }

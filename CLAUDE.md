@@ -2,6 +2,22 @@
 
 This file defines the default working method for this repository. Keep it concise, stable, and project-agnostic. Repository-specific instructions, established conventions, and CI requirements take precedence where they are more specific.
 
+## PromptForge
+
+PromptForge is installed at `.claude/skills/prompt-forge`.
+
+Use PromptForge when the first actionable request is complex enough to benefit
+from structured optimization. It may activate automatically when relevant and
+can be invoked explicitly with `/prompt-forge`.
+
+This `CLAUDE.md` file is the authoritative source for repository engineering
+rules in this project. When PromptForge guidance overlaps with this file, follow
+this file and the repository's established conventions and CI requirements.
+
+After displaying an optimized prompt, continue execution immediately unless the
+user explicitly requested an approval gate or a high-impact action requires
+separate confirmation.
+
 ## Core Principles
 
 - Satisfy the requested outcome with the smallest safe, complete change.
