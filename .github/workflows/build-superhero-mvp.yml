@@ -1,0 +1,47 @@
+name: Build SuperHero MVP
+
+on:
+  push:
+    branches:
+      - chatgpt/superhero-mvp-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore scratch/superhero-mvp/SuperHeroMVP.csproj
+
+      - name: Build
+        run: dotnet build scratch/superhero-mvp/SuperHeroMVP.csproj -c Release --no-restore -o scratch/superhero-mvp/out
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf scratch/superhero-mvp/dist
+          mkdir -p scratch/superhero-mvp/dist/addons/counterstrikesharp/plugins/SuperHeroMVP
+          cp scratch/superhero-mvp/out/SuperHeroMVP.dll scratch/superhero-mvp/dist/addons/counterstrikesharp/plugins/SuperHeroMVP/
+          cp scratch/superhero-mvp/out/SuperHeroMVP.deps.json scratch/superhero-mvp/dist/addons/counterstrikesharp/plugins/SuperHeroMVP/
+          cp scratch/superhero-mvp/README.txt scratch/superhero-mvp/dist/addons/counterstrikesharp/plugins/SuperHeroMVP/
+          cd scratch/superhero-mvp/dist
+          zip -r ../SuperHeroMVP-CS2-0.1.0.zip addons
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperHeroMVP-CS2-0.1.0
+          path: scratch/superhero-mvp/SuperHeroMVP-CS2-0.1.0.zip
+          if-no-files-found: error
