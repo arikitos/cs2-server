@@ -94,11 +94,6 @@
       },
       "mounts": [
         {
-          "source": "release/plugins/WarcraftClassic/lang",
-          "kind": "dir",
-          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/lang"
-        },
-        {
           "source": "release/plugins/WarcraftClassic/WarcraftClassic.deps.json",
           "kind": "file",
           "target": "addons/counterstrikesharp/plugins/WarcraftClassic/WarcraftClassic.deps.json"
@@ -107,6 +102,11 @@
           "source": "release/plugins/WarcraftClassic/WarcraftClassic.dll",
           "kind": "file",
           "target": "addons/counterstrikesharp/plugins/WarcraftClassic/WarcraftClassic.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/lang",
+          "kind": "dir",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/lang"
         }
       ]
     },
