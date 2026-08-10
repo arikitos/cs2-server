@@ -90,6 +90,7 @@ Shared content lives under `manager/shared`.
 | FaceIt | MatchZy, AutoReady, PanelBridge | ClutchAnnounce |
 | Retake | RetakesPlugin, RetakesPluginShared, Instadefuse, PanelBridge | ClutchAnnounce, Instaplant |
 | HeroShift | HeroShift, RayTrace, RayTraceImpl, RayTraceApi, PanelBridge | ClutchAnnounce |
+| Warcraft Classic | WarcraftClassic, PanelBridge | ClutchAnnounce |
 
 The bundled baseline currently contains MatchZy `0.8.15`, Retakes `3.0.4`, Instadefuse `2.0.0`, AutoReady `1.0.0` and PanelBridge `1.0.0`.
 
@@ -156,6 +157,7 @@ installs/modes/retake/retakes/
 installs/modes/retake/instadefuse/
 installs/modes/retake/instaplant/
 installs/modes/heroshift/heroshift/
+installs/modes/warcraft/warcraft-classic/
 installs/shared/clutch-announce/
 ```
 

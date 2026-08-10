@@ -1,0 +1,424 @@
+{
+  "id": "warcraft",
+  "label": "Warcraft Classic",
+  "implementation": "Classic Warcraft 3 races, skills, ultimates and XP progression",
+  "order": 50,
+  "requires": {
+    "metamod": "2.0.0-git1410",
+    "counterstrikesharp": "1.0.371"
+  },
+  "startup": {
+    "game_alias": "competitive",
+    "mode_cfg": "mode_warcraft.cfg",
+    "runtime_cfg": "panel_runtime.cfg"
+  },
+  "settings": {
+    "formats": [
+      {
+        "key": "5v5",
+        "label": "5v5",
+        "detail": "10 players",
+        "capacity": 10,
+        "team_size": 5,
+        "game_alias": "competitive",
+        "default": true
+      },
+      {
+        "key": "2v2",
+        "label": "2v2",
+        "detail": "4 players - Wingman",
+        "capacity": 4,
+        "team_size": 2,
+        "game_alias": "wingman"
+      },
+      {
+        "key": "1v1",
+        "label": "1v1",
+        "detail": "2 players",
+        "capacity": 2,
+        "team_size": 1,
+        "game_alias": "competitive"
+      }
+    ],
+    "defaults": {
+      "format": "5v5",
+      "map_pool": [
+        "de_dust2",
+        "de_mirage",
+        "de_inferno",
+        "de_nuke",
+        "de_ancient",
+        "de_anubis",
+        "de_overpass"
+      ],
+      "hostname": "Warcraft Classic Server",
+      "lan": false,
+      "cheats": false,
+      "allow_lobby_connect_only": false,
+      "limit_teams": 0,
+      "auto_team_balance": false,
+      "spectators_max": 2,
+      "max_rounds": 24,
+      "freezetime": 15,
+      "warmup_time": 20,
+      "round_time": 1.92,
+      "buy_time": 20,
+      "c4_timer": 40,
+      "start_money": 800,
+      "max_money": 16000,
+      "bot_quota": 10,
+      "bot_quota_mode": "fill",
+      "bot_difficulty": 3,
+      "bot_chatter": "normal",
+      "bot_join_after_player": true,
+      "friendly_fire": "off",
+      "ff_bullet_reduction": 0.33,
+      "ff_grenade_reduction": 0.25,
+      "ff_other_reduction": 0.4,
+      "tk_punish": false,
+      "overtime": false,
+      "overtime_max_rounds": 6
+    },
+    "extra_cfg": []
+  },
+  "plugins": [
+    {
+      "name": "WarcraftClassic",
+      "role": "plugin",
+      "verify": {
+        "required": true,
+        "aliases": [
+          "warcraft classic",
+          "warcraftclassic"
+        ]
+      },
+      "mounts": [
+        {
+          "source": "release/plugins/WarcraftClassic/CounterStrikeSharp.API.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/CounterStrikeSharp.API.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/FastGenericNew.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/FastGenericNew.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/lang",
+          "kind": "dir",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/lang"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/McMaster.NETCore.Plugins.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/McMaster.NETCore.Plugins.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Data.Sqlite.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Data.Sqlite.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.DotNet.PlatformAbstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.DotNet.PlatformAbstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.Binder.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.Binder.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.CommandLine.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.CommandLine.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.EnvironmentVariables.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.FileExtensions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.FileExtensions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.Json.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.Json.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.UserSecrets.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Configuration.UserSecrets.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.DependencyInjection.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.DependencyInjection.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.DependencyModel.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.DependencyModel.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Diagnostics.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Diagnostics.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Diagnostics.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.FileProviders.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.FileProviders.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.FileProviders.Physical.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.FileProviders.Physical.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.FileSystemGlobbing.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.FileSystemGlobbing.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Hosting.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Hosting.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Hosting.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Hosting.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Localization.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Localization.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Abstractions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Abstractions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Configuration.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Configuration.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Console.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Console.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Debug.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.Debug.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.EventLog.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.EventLog.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Logging.EventSource.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Logging.EventSource.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Options.ConfigurationExtensions.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Options.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Options.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Microsoft.Extensions.Primitives.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Microsoft.Extensions.Primitives.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/runtimes",
+          "kind": "dir",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/runtimes"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Scrutor.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Scrutor.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Serilog.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Serilog.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Serilog.Extensions.Logging.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Serilog.Extensions.Logging.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Serilog.Sinks.Console.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Serilog.Sinks.Console.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Serilog.Sinks.File.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Serilog.Sinks.File.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/SQLitePCLRaw.batteries_v2.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/SQLitePCLRaw.batteries_v2.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/SQLitePCLRaw.core.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/SQLitePCLRaw.core.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/SQLitePCLRaw.provider.e_sqlite3.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/SQLitePCLRaw.provider.e_sqlite3.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/System.Diagnostics.EventLog.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/System.Diagnostics.EventLog.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/Tomlyn.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/Tomlyn.dll"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/WarcraftClassic.deps.json",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/WarcraftClassic.deps.json"
+        },
+        {
+          "source": "release/plugins/WarcraftClassic/WarcraftClassic.dll",
+          "kind": "file",
+          "target": "addons/counterstrikesharp/plugins/WarcraftClassic/WarcraftClassic.dll"
+        }
+      ]
+    },
+    {
+      "name": "PanelBridge",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "panel bridge",
+          "panelbridge"
+        ]
+      },
+      "build": {
+        "project": "components/panelbridge/src/PanelBridge",
+        "shared": true
+      },
+      "mounts": [
+        {
+          "source": "components/panelbridge/release/plugins/PanelBridge",
+          "shared": true,
+          "target": "addons/counterstrikesharp/plugins/PanelBridge"
+        }
+      ]
+    },
+    {
+      "name": "ClutchAnnounce",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "clutch announce",
+          "clutchannounce"
+        ]
+      },
+      "mounts": [
+        {
+          "source": "components/clutch-announce/release/plugins/ClutchAnnouncePlugin",
+          "shared": true,
+          "optional": true,
+          "target": "addons/counterstrikesharp/plugins/ClutchAnnouncePlugin"
+        }
+      ]
+    }
+  ],
+  "configs": [
+    {
+      "name": "server.cfg",
+      "source": "cfg/server.cfg",
+      "shared": true,
+      "kind": "file",
+      "target": "cfg/server.cfg"
+    },
+    {
+      "name": "WarcraftClassic.json",
+      "source": "config/WarcraftClassic.json",
+      "kind": "file",
+      "target": "addons/counterstrikesharp/configs/plugins/WarcraftClassic/WarcraftClassic.json"
+    }
+  ],
+  "actions": [
+    {
+      "key": "restart_round",
+      "label": "Restart Current Game",
+      "cmd": "mp_restartgame 1",
+      "impact": "In-game round",
+      "description": "Restarts the game after one second.",
+      "confirm": true,
+      "group": "match"
+    },
+    {
+      "key": "warmup_end",
+      "label": "End Warmup",
+      "cmd": "mp_warmup_end",
+      "impact": "In-game phase",
+      "description": "Ends warmup.",
+      "confirm": true,
+      "group": "match"
+    },
+    {
+      "key": "kick_bots",
+      "label": "Kick All Bots",
+      "cmd": "bot_kick",
+      "impact": "Players",
+      "description": "Removes all bots.",
+      "confirm": true,
+      "group": "bots"
+    }
+  ]
+}
