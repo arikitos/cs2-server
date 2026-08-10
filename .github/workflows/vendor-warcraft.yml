@@ -65,23 +65,39 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Validate Warcraft source
+        run: python _vendor/warcraft-source/tools/static_check.py
+
       - name: Restore WarcraftClassic
         run: dotnet restore _vendor/warcraft-source/src/WarcraftClassic/WarcraftClassic.csproj
 
       - name: Build WarcraftClassic release
         run: >-
-          dotnet publish _vendor/warcraft-source/src/WarcraftClassic/WarcraftClassic.csproj
+          dotnet build _vendor/warcraft-source/src/WarcraftClassic/WarcraftClassic.csproj
           -c Release
-          -o "${{ runner.temp }}/warcraft-publish"
+          -o "${{ runner.temp }}/warcraft-build"
           -p:Version=${{ steps.source.outputs.version }}
           --no-restore
+
+      - name: Validate minimal plugin output
+        shell: bash
+        run: |
+          output="${{ runner.temp }}/warcraft-build"
+          test -f "$output/WarcraftClassic.dll"
+          test -f "$output/WarcraftClassic.deps.json"
+          test -d "$output/lang"
+          test ! -e "$output/CounterStrikeSharp.API.dll"
+          test ! -e "$output/Microsoft.Data.Sqlite.dll"
+          test ! -e "$output/runtimes"
+          printf 'Warcraft build output:\n'
+          find "$output" -maxdepth 2 -type f -printf '%P\n' | sort
 
       - name: Vendor runtime into server mode
         run: >-
           python .github/scripts/vendor-warcraft.py
           .
           _vendor/warcraft-source
-          "${{ runner.temp }}/warcraft-publish"
+          "${{ runner.temp }}/warcraft-build"
           "${{ steps.source.outputs.ref }}"
           "${{ steps.source.outputs.version }}"
 
@@ -105,6 +121,9 @@ jobs:
               raise SystemExit("WarcraftClassic is not a required plugin")
           print(f"Validated modes: {', '.join(definitions)}")
           PY
+          test ! -e manager/modes/warcraft/release/plugins/WarcraftClassic/CounterStrikeSharp.API.dll
+          test ! -e manager/modes/warcraft/release/plugins/WarcraftClassic/Microsoft.Data.Sqlite.dll
+          test ! -e manager/modes/warcraft/release/plugins/WarcraftClassic/runtimes
           git diff --check
 
       - name: Commit vendored Warcraft mode
@@ -117,5 +136,6 @@ jobs:
             echo "Vendored runtime is already current."
             exit 0
           fi
-          git commit -m "feat(warcraft): vendor Warcraft Classic ${{ steps.source.outputs.version }}"
+          git commit -m "fix(warcraft): vendor Warcraft Classic ${{ steps.source.outputs.version }} minimal runtime"
+          git pull --rebase origin main
           git push origin HEAD:main
