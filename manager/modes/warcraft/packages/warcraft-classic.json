@@ -4,12 +4,12 @@
   "id": "warcraft",
   "component": "warcraft-classic",
   "name": "WarcraftClassic",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "managed": false,
   "installStrategy": "replace-roots",
   "installRoots": [
     "plugins/WarcraftClassic"
   ],
-  "sourceArchive": "arikitos/cs2-warcraft3@65b5ed9ad6dc897000a58177287d0d2103f8df7d",
+  "sourceArchive": "arikitos/cs2-warcraft3@cc1f0a66a70db8d50d7718befb03e00df9070a2c",
   "note": "Pinned source build vendored by GitHub Actions. Host assemblies and native database libraries are intentionally excluded. Runtime files are mounted granularly so plugin-generated data is not manager-owned."
 }

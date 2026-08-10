@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v10.0": {
-      "WarcraftClassic/1.0.2": {
+      "WarcraftClassic/1.0.3": {
         "dependencies": {
           "CounterStrikeSharp.API": "1.0.371"
         },
@@ -526,7 +526,7 @@
     }
   },
   "libraries": {
-    "WarcraftClassic/1.0.2": {
+    "WarcraftClassic/1.0.3": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
