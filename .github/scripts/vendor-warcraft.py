@@ -15,15 +15,22 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def load_json(path: Path) -> dict:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise SystemExit(f"expected JSON object: {path}")
+    return value
+
+
 def main() -> int:
     if len(sys.argv) != 6:
         raise SystemExit(
-            "usage: vendor-warcraft.py <server-root> <source-root> <publish-root> <source-ref> <version>"
+            "usage: vendor-warcraft.py <server-root> <source-root> <build-root> <source-ref> <version>"
         )
 
     server_root = Path(sys.argv[1]).resolve()
     source_root = Path(sys.argv[2]).resolve()
-    publish_root = Path(sys.argv[3]).resolve()
+    build_root = Path(sys.argv[3]).resolve()
     source_ref = sys.argv[4].strip().lower()
     version = sys.argv[5].strip()
 
@@ -36,53 +43,59 @@ def main() -> int:
     release_root = mode_root / "release"
     plugin_root = release_root / "plugins" / "WarcraftClassic"
     config_source = source_root / "src" / "WarcraftClassic" / "config.example.json"
-    template_path = server_root / "manager" / "modes" / "heroshift" / "mode.json"
+    hero_template_path = server_root / "manager" / "modes" / "heroshift" / "mode.json"
+    existing_mode_path = mode_root / "mode.json"
 
-    if not publish_root.is_dir():
-        raise SystemExit(f"publish output is missing: {publish_root}")
-    if not (publish_root / "WarcraftClassic.dll").is_file():
-        raise SystemExit("publish output does not contain WarcraftClassic.dll")
+    if not build_root.is_dir():
+        raise SystemExit(f"build output is missing: {build_root}")
+
+    required_runtime = ["WarcraftClassic.dll", "WarcraftClassic.deps.json"]
+    for name in required_runtime:
+        if not (build_root / name).is_file():
+            raise SystemExit(f"build output does not contain {name}")
+    if not (build_root / "lang").is_dir():
+        raise SystemExit("build output does not contain lang directory")
     if not config_source.is_file():
         raise SystemExit(f"config template is missing: {config_source}")
 
+    forbidden_runtime = [
+        "CounterStrikeSharp.API.dll",
+        "Microsoft.Data.Sqlite.dll",
+        "SQLitePCLRaw.core.dll",
+        "SQLitePCLRaw.provider.e_sqlite3.dll",
+        "runtimes",
+    ]
+    for name in forbidden_runtime:
+        if (build_root / name).exists():
+            raise SystemExit(f"host or native dependency must not be vendored: {name}")
+
     shutil.rmtree(release_root, ignore_errors=True)
-    plugin_root.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(publish_root, plugin_root)
+    plugin_root.mkdir(parents=True, exist_ok=True)
+    for name in required_runtime:
+        shutil.copy2(build_root / name, plugin_root / name)
+    shutil.copytree(build_root / "lang", plugin_root / "lang")
 
-    for pdb in plugin_root.rglob("*.pdb"):
-        pdb.unlink()
+    config_path = mode_root / "config" / "WarcraftClassic.json"
+    if not config_path.exists():
+        config = load_json(config_source)
+        write_json(config_path, config)
 
-    config = json.loads(config_source.read_text(encoding="utf-8"))
-    write_json(mode_root / "config" / "WarcraftClassic.json", config)
+    hero_template = load_json(hero_template_path)
+    if existing_mode_path.exists():
+        mode = load_json(existing_mode_path)
+    else:
+        mode = copy.deepcopy(hero_template)
+        mode["settings"]["defaults"]["hostname"] = "Warcraft 3 Server"
 
-    template = json.loads(template_path.read_text(encoding="utf-8"))
-    mode = copy.deepcopy(template)
     mode["id"] = "warcraft"
     mode["label"] = "Warcraft Classic"
     mode["implementation"] = "Classic Warcraft 3 races, skills, ultimates and XP progression"
     mode["order"] = 50
-    mode["startup"]["mode_cfg"] = "mode_warcraft.cfg"
-    mode["settings"]["defaults"]["hostname"] = "Warcraft Classic Server"
-
-    excluded_runtime_names = {
-        "config.example.json",
-        "LICENSE",
-        "THIRD_PARTY_NOTICES.md",
+    mode["requires"] = {
+        "metamod": "2.0.0-git1410",
+        "counterstrikesharp": "1.0.371",
     }
-    mounts: list[dict[str, object]] = []
-    for child in sorted(plugin_root.iterdir(), key=lambda item: item.name.lower()):
-        if child.name in excluded_runtime_names or child.suffix.lower() == ".pdb":
-            continue
-        mounts.append(
-            {
-                "source": f"release/plugins/WarcraftClassic/{child.name}",
-                "kind": "dir" if child.is_dir() else "file",
-                "target": f"addons/counterstrikesharp/plugins/WarcraftClassic/{child.name}",
-            }
-        )
-
-    if not any(item["target"].endswith("/WarcraftClassic.dll") for item in mounts):
-        raise SystemExit("WarcraftClassic.dll was not selected for deployment")
+    mode["startup"]["mode_cfg"] = "mode_warcraft.cfg"
 
     warcraft_plugin = {
         "name": "WarcraftClassic",
@@ -91,45 +104,74 @@ def main() -> int:
             "required": True,
             "aliases": ["warcraft classic", "warcraftclassic"],
         },
-        "mounts": mounts,
+        "mounts": [
+            {
+                "source": "release/plugins/WarcraftClassic/WarcraftClassic.deps.json",
+                "kind": "file",
+                "target": "addons/counterstrikesharp/plugins/WarcraftClassic/WarcraftClassic.deps.json",
+            },
+            {
+                "source": "release/plugins/WarcraftClassic/WarcraftClassic.dll",
+                "kind": "file",
+                "target": "addons/counterstrikesharp/plugins/WarcraftClassic/WarcraftClassic.dll",
+            },
+            {
+                "source": "release/plugins/WarcraftClassic/lang",
+                "kind": "dir",
+                "target": "addons/counterstrikesharp/plugins/WarcraftClassic/lang",
+            },
+        ],
     }
+
+    shared_source = mode.get("plugins", [])
     shared_plugins = [
         plugin
-        for plugin in template["plugins"]
-        if plugin.get("name") in {"PanelBridge", "ClutchAnnounce"}
+        for plugin in shared_source
+        if isinstance(plugin, dict) and plugin.get("name") in {"PanelBridge", "ClutchAnnounce"}
     ]
+    if not shared_plugins:
+        shared_plugins = [
+            plugin
+            for plugin in hero_template["plugins"]
+            if plugin.get("name") in {"PanelBridge", "ClutchAnnounce"}
+        ]
     mode["plugins"] = [warcraft_plugin, *shared_plugins]
 
-    shared_server_cfg = next(
-        cfg for cfg in template["configs"] if cfg.get("name") == "server.cfg"
-    )
-    mode["configs"] = [
-        shared_server_cfg,
+    configs = [
+        cfg
+        for cfg in mode.get("configs", [])
+        if isinstance(cfg, dict) and cfg.get("name") not in {"WarcraftClassic.json"}
+    ]
+    if not any(cfg.get("name") == "server.cfg" for cfg in configs):
+        configs.insert(
+            0,
+            next(cfg for cfg in hero_template["configs"] if cfg.get("name") == "server.cfg"),
+        )
+    configs.append(
         {
             "name": "WarcraftClassic.json",
             "source": "config/WarcraftClassic.json",
             "kind": "file",
             "target": "addons/counterstrikesharp/configs/plugins/WarcraftClassic/WarcraftClassic.json",
-        },
-    ]
-    allowed_actions = {"restart_round", "warmup_end", "kick_bots"}
-    mode["actions"] = [
-        action for action in template.get("actions", []) if action.get("key") in allowed_actions
-    ]
-    write_json(mode_root / "mode.json", mode)
-
-    runtime_template = server_root / "manager" / "modes" / "heroshift" / "cfg" / "panel_runtime.cfg"
-    runtime_lines: list[str] = []
-    for line in runtime_template.read_text(encoding="utf-8").splitlines():
-        if line.startswith('echo "[CS2 Manager] Applying '):
-            runtime_lines.append('echo "[CS2 Manager] Applying warcraft runtime settings"')
-        elif line.startswith("hostname "):
-            runtime_lines.append('hostname "Warcraft Classic Server"')
-        else:
-            runtime_lines.append(line)
-    (mode_root / "cfg" / "panel_runtime.cfg").write_text(
-        "\n".join(runtime_lines) + "\n", encoding="utf-8"
+        }
     )
+    mode["configs"] = configs
+    write_json(existing_mode_path, mode)
+
+    runtime_path = mode_root / "cfg" / "panel_runtime.cfg"
+    if not runtime_path.exists():
+        runtime_template = server_root / "manager" / "modes" / "heroshift" / "cfg" / "panel_runtime.cfg"
+        runtime_lines: list[str] = []
+        hostname = mode["settings"]["defaults"]["hostname"]
+        for line in runtime_template.read_text(encoding="utf-8").splitlines():
+            if line.startswith('echo "[CS2 Manager] Applying '):
+                runtime_lines.append('echo "[CS2 Manager] Applying warcraft runtime settings"')
+            elif line.startswith("hostname "):
+                runtime_lines.append(f'hostname "{hostname}"')
+            else:
+                runtime_lines.append(line)
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_path.write_text("\n".join(runtime_lines) + "\n", encoding="utf-8")
 
     marker = {
         "schemaVersion": 2,
@@ -142,14 +184,9 @@ def main() -> int:
         "installStrategy": "replace-roots",
         "installRoots": ["plugins/WarcraftClassic"],
         "sourceArchive": f"arikitos/cs2-warcraft3@{source_ref}",
-        "note": "Pinned source build vendored by GitHub Actions. Runtime files are mounted granularly so plugin-generated data is not manager-owned.",
+        "note": "Pinned source build vendored by GitHub Actions. Host assemblies and native database libraries are intentionally excluded. Runtime files are mounted granularly so plugin-generated data is not manager-owned.",
     }
     write_json(mode_root / "packages" / "warcraft-classic.json", marker)
-
-    server_path = server_root / "manager" / "data" / "server.json"
-    server = json.loads(server_path.read_text(encoding="utf-8"))
-    server["last_mode"] = "warcraft"
-    write_json(server_path, server)
 
     readme = server_root / "README.md"
     text = readme.read_text(encoding="utf-8")
@@ -164,7 +201,9 @@ def main() -> int:
     readme.write_text(text, encoding="utf-8")
 
     print(f"Vendored WarcraftClassic {version} from {source_ref}")
-    print(f"Runtime mount entries: {len(mounts)}")
+    print("Runtime mount entries: 3")
+    print("Host runtime safety: CounterStrikeSharp and native SQLite dependencies are excluded")
+    print("Operator config safety: existing Warcraft config and runtime cfg are preserved")
     print("Persistent XP safety: plugin data/ is intentionally absent from managed targets")
     return 0
 
