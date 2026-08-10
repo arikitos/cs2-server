@@ -166,87 +166,18 @@ def _cmd(key, label, cmd, impact, description, confirm=False, arg_hint=""):
 # "aliases" limits a group to the game alias of the selected match format.
 SHARED_COMMAND_GROUPS = [
     {
-        "id": "round",
-        "label": "Round & match",
+        "id": "global",
+        "label": "Global commands",
         "aliases": (),
         "commands": [
             _cmd("restart_game", "Restart Game", "mp_restartgame 1", "In-game round", "Restarts the game after one second.", True),
-            _cmd("warmup_start", "Start Warmup", "mp_warmup_start", "In-game phase", "Puts the server back into warmup.", True),
             _cmd("warmup_end", "End Warmup", "mp_warmup_end", "In-game phase", "Ends warmup and starts the match."),
             _cmd("pause", "Pause Match", "mp_pause_match", "In-game match", "Freezes the match at the next round."),
-            _cmd("unpause", "Unpause Match", "mp_unpause_match", "In-game match", "Resumes a paused match."),
-        ],
-    },
-    {
-        "id": "players",
-        "label": "Players & bans",
-        "aliases": (),
-        "commands": [
-            _cmd("status", "Server Status", "status", "Read only", "Prints players, Steam IDs, map and uptime."),
-            _cmd("kick", "Kick Player", "kick", "Players", "Disconnects a player by username or userid.", True, "<username or userid>"),
-            _cmd("banid", "Ban Player", "banid", "Players", "Bans a userid or SteamID for a number of minutes. Use 0 for permanent.", True, "<minutes userid or steamid>"),
-            _cmd("removeid", "Remove Ban", "removeid", "Ban list", "Removes a SteamID from the ban list.", True, "<steamid>"),
-            _cmd("writeid", "Save Ban List", "writeid", "Ban list", "Writes the in-memory ban list to disk.", True),
-        ],
-    },
-    {
-        "id": "bots",
-        "label": "Bots",
-        "aliases": (),
-        "commands": [
             _cmd("bot_add", "Add Bot", "bot_add", "Players", "Adds one bot to the smaller team."),
-            _cmd("bot_add_ct", "Add CT Bot", "bot_add_ct", "Players", "Adds one bot to the CT side."),
-            _cmd("bot_add_t", "Add T Bot", "bot_add_t", "Players", "Adds one bot to the T side."),
             _cmd("bot_kick", "Kick All Bots", "bot_kick", "Players", "Removes every bot.", True),
-            _cmd("bot_kill", "Kill All Bots", "bot_kill", "In-game round", "Kills all bots in the current round.", True),
-            _cmd("bot_quota", "Set Bot Quota", "bot_quota", "Players", "Sets how many bots the server keeps filled. Append a number.", False, "<count>"),
-            _cmd("bot_difficulty", "Set Bot Difficulty", "bot_difficulty", "Players", "0 easy to 3 expert. Append the level.", False, "<0-3>"),
-            _cmd("bot_stop", "Freeze or Resume Bots", "bot_stop", "Players", "Use 1 to freeze bots and 0 to resume them.", False, "<0 or 1>"),
-        ],
-    },
-    {
-        "id": "live",
-        "label": "Live overrides",
-        "aliases": (),
-        "commands": [
-            _cmd("friendly_fire", "Set Friendly Fire", "mp_friendlyfire", "In-game setting", "Use 1 to enable team damage and 0 to disable it.", False, "<0 or 1>"),
-            _cmd("respawn_ct", "CT Respawn", "mp_respawn_on_death_ct", "In-game setting", "Use 1 to enable immediate CT respawn and 0 to disable it.", False, "<0 or 1>"),
-            _cmd("respawn_t", "T Respawn", "mp_respawn_on_death_t", "In-game setting", "Use 1 to enable immediate T respawn and 0 to disable it.", False, "<0 or 1>"),
-            _cmd("buy_anywhere", "Buy Anywhere", "mp_buy_anywhere", "In-game setting", "Use 1 to buy anywhere and 0 to restore buy zones.", False, "<0 or 1>"),
-        ],
-    },
-    {
-        "id": "map",
-        "label": "Map",
-        "aliases": (),
-        "commands": [
-            _cmd("changelevel", "Change Level", "changelevel", "Map reload", "Loads a map now and disconnects nobody but interrupts the round. Append the map name.", True, "<map>"),
-            _cmd("vote_nextmap_off", "Disable Next-Map Vote", "mp_endmatch_votenextmap 0", "In-game setting", "Stops the end-of-match map vote."),
-            _cmd("match_end_restart", "Restart On Match End", "mp_match_end_restart 1", "In-game setting", "Restarts the same map when the match ends."),
-        ],
-    },
-    {
-        "id": "readonly",
-        "label": "Read only",
-        "aliases": (),
-        "commands": [
-            _cmd("users", "Connected Users", "users", "Read only", "Prints the connected user list."),
-            _cmd("meta_list", "Metamod Plugins", "meta list", "Read only", "Lists loaded Metamod plugins."),
-            _cmd("css_list", "CounterStrikeSharp Plugins", "css_plugins list", "Read only", "Lists loaded CounterStrikeSharp plugins."),
-            _cmd("version", "Server Version", "version", "Read only", "Prints the build number."),
-            _cmd("stats", "Server Stats", "stats", "Read only", "Prints CPU and network statistics."),
         ],
     },
 ]
-MODE_GROUP_LABELS = {
-    "match": "Match control",
-    "practice": "Practice",
-    "teams": "Teams",
-    "map": "Map",
-    "server": "Server",
-    "plugin": "Plugin",
-    "readonly": "Read only",
-}
 MODE_COMMAND_REPLACEMENTS = {
     "faceit": {"pause", "unpause"},
     "retake": {"scramble_teams"},
@@ -254,26 +185,12 @@ MODE_COMMAND_REPLACEMENTS = {
 
 
 def command_catalog(mode: str | None, settings: dict | None) -> list[dict]:
-    """Group every RCON command the panel offers for the given mode."""
+    """Group every RCON command the panel offers for the given mode into Global and Plugin commands."""
     groups: list[dict] = []
-    if mode in MODES:
-        label = MODES[mode]["label"]
-        actions = MODE_ACTIONS.get(mode, [])
-        for group_id, group_label in MODE_GROUP_LABELS.items():
-            rows = [action for action in actions if action["group"] == group_id]
-            if rows:
-                groups.append({
-                    "id": f"{mode}_{group_id}",
-                    "label": f"{label} · {group_label}",
-                    "source": "plugin",
-                    "commands": [
-                        {key: action[key] for key in mode_defs.ACTION_PUBLIC_FIELDS if key != "group"}
-                        for action in rows
-                    ],
-                })
     alias = (settings or {}).get("game_alias")
     if mode in MODES and not alias:
         alias = selected_format(mode, settings or {})["game_alias"]
+    global_cmds: list[str] = []
     for group in SHARED_COMMAND_GROUPS:
         if group["aliases"] and alias not in group["aliases"]:
             continue
@@ -281,12 +198,26 @@ def command_catalog(mode: str | None, settings: dict | None) -> list[dict]:
         commands = [command for command in group["commands"] if command["key"] not in replacements]
         if not commands:
             continue
+        global_cmds.extend(command["cmd"] for command in commands)
         groups.append({
             "id": group["id"],
             "label": group["label"],
             "source": "server",
             "commands": commands,
         })
+    if mode in MODES:
+        actions = MODE_ACTIONS.get(mode, [])
+        rows = [action for action in actions if action["cmd"] not in global_cmds]
+        if rows:
+            groups.append({
+                "id": f"{mode}_plugin",
+                "label": "Plugin commands",
+                "source": "plugin",
+                "commands": [
+                    {key: action[key] for key in mode_defs.ACTION_PUBLIC_FIELDS if key != "group"}
+                    for action in rows
+                ],
+            })
     return groups
 
 DEFAULT_SERVER = {
