@@ -194,6 +194,15 @@
       "description": "Removes all bots.",
       "confirm": true,
       "group": "bots"
+    },
+    {
+      "key": "wcstatus",
+      "label": "Warcraft Runtime Status",
+      "cmd": "css_wcstatus",
+      "impact": "Read only",
+      "description": "Reports Warcraft Classic version, persistence and hook state.",
+      "confirm": false,
+      "group": "readonly"
     }
   ]
 }
