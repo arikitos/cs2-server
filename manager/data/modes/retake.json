@@ -29,7 +29,7 @@
   "c4_timer": 40,
   "start_money": 800,
   "max_money": 16000,
-  "bot_quota": 7,
+  "bot_quota": 1,
   "bot_quota_mode": "match",
   "bot_difficulty": 3,
   "bot_chatter": "normal",
