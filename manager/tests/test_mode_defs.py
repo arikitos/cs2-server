@@ -60,7 +60,7 @@ BASE = {
             "max_money": 16000,
             "friendly_fire": "off",
             "bot_quota": 0,
-            "bot_quota_mode": "fill",
+            "bot_quota_mode": "match",
             "bot_difficulty": 1,
             "bot_chatter": "off",
             "bot_join_after_player": True,

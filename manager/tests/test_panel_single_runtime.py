@@ -351,7 +351,7 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         for expected in (
             "mp_freezetime 9", "mp_warmuptime 45", "mp_maxrounds 16",
             "mp_roundtime 1.5", "bot_quota 4", "mp_overtime_enable 1",
-            'hostname "Practice Server"', "bot_quota_mode fill", "bot_difficulty 3",
+            'hostname "Practice Server"', "bot_quota_mode match", "bot_difficulty 3",
             "bot_chatter normal", "bot_join_after_player 1", "mp_autoteambalance 0",
             "mp_buytime 25", "mp_c4timer 35", "mp_startmoney 1000", "mp_maxmoney 12000",
             "mp_overtime_maxrounds 4",
@@ -381,7 +381,7 @@ class PanelSingleRuntimeTests(unittest.TestCase):
         })
         self.assertEqual(settings["capacity"], 2)
         self.assertEqual(settings["bot_quota"], 2)
-        self.assertEqual(settings["bot_quota_mode"], "fill")
+        self.assertEqual(settings["bot_quota_mode"], "match")
         self.assertEqual(settings["bot_difficulty"], 3)
         self.assertEqual(settings["bot_chatter"], "normal")
         self.assertTrue(settings["bot_join_after_player"])

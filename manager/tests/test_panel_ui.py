@@ -50,7 +50,7 @@ class PanelUiTests(unittest.TestCase):
             with self.subTest(mode=manifest["id"]):
                 self.assertEqual(defaults["round_time"], 1.92)
                 self.assertEqual(defaults["bot_quota"], formats[defaults["format"]]["capacity"])
-                self.assertEqual(defaults["bot_quota_mode"], "fill")
+                self.assertEqual(defaults["bot_quota_mode"], "match")
                 self.assertEqual(defaults["bot_difficulty"], 3)
                 self.assertEqual(defaults["bot_chatter"], "normal")
                 self.assertTrue(defaults["bot_join_after_player"])

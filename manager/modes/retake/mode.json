@@ -71,7 +71,7 @@
       "start_money": 800,
       "max_money": 16000,
       "bot_quota": 9,
-      "bot_quota_mode": "fill",
+      "bot_quota_mode": "match",
       "bot_difficulty": 3,
       "bot_chatter": "normal",
       "bot_join_after_player": true,
