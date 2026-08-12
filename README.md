@@ -27,38 +27,38 @@ cs2-server/
 ├── fetch-releases.ps1
 ├── update.ps1
 ├── installs/
-│   ├── sources.json
-│   ├── modes/
-│   │   ├── faceit/matchzy/
-│   │   ├── retake/retakes/
-│   │   ├── retake/instadefuse/
-│   │   ├── retake/instaplant/
-│   │   └── heroshift/heroshift/
-│   └── shared/
-│       └── clutch-announce/
+│   ├── sources.json
+│   ├── modes/
+│   │   ├── faceit/matchzy/
+│   │   ├── retake/retakes/
+│   │   ├── retake/instadefuse/
+│   │   ├── retake/instaplant/
+│   │   └── heroshift/heroshift/
+│   └── shared/
+│       └── clutch-announce/
 └── manager/
-    ├── modes/
-    │   └── <mode>/
-    │       ├── mode.json
-    │       ├── packages/
-    │       ├── release/
-    │       ├── config/
-    │       ├── cfg/
-    │       └── src/
-    ├── shared/
-    │   ├── cfg/
-    │   ├── components/
-    │   │   ├── panelbridge/
-    │   │   └── clutch-announce/
-    │   └── frameworks/
-    │       ├── versions.json
-    │       └── install-linux.sh
-    ├── runtime/
-    ├── updater/
-    ├── panel/
-    ├── data/
-    ├── backups/
-    └── scripts/
+    ├── modes/
+    │   └── <mode>/
+    │       ├── mode.json
+    │       ├── packages/
+    │       ├── release/
+    │       ├── config/
+    │       ├── cfg/
+    │       └── src/
+    ├── shared/
+    │   ├── cfg/
+    │   ├── components/
+    │   │   ├── panelbridge/
+    │   │   └── clutch-announce/
+    │   └── frameworks/
+    │       ├── versions.json
+    │       └── install-linux.sh
+    ├── runtime/
+    ├── updater/
+    ├── panel/
+    ├── data/
+    ├── backups/
+    └── scripts/
 ```
 
 ## Directory contracts
@@ -92,7 +92,7 @@ Shared content lives under `manager/shared`.
 | HeroShift | HeroShift, RayTrace, RayTraceImpl, RayTraceApi, PanelBridge | ClutchAnnounce |
 | Warcraft Classic | WarcraftClassic, PanelBridge | ClutchAnnounce |
 
-The bundled baseline currently contains MatchZy `0.8.15`, Retakes `3.0.4`, Instadefuse `2.0.0`, AutoReady `1.0.0` and PanelBridge `1.0.0`.
+The bundled baseline currently contains MatchZy `0.8.15`, Retakes `3.1.0`, Instadefuse `2.0.0`, AutoReady `1.0.0` and PanelBridge `1.0.0`.
 
 Instaplant is disabled in `installs/sources.json` by default. Retakes already has `BombSettings.IsAutoPlantEnabled` enabled. Before installing Instaplant, disable the Retakes built-in autoplant to avoid two plugins controlling the same action.
 
@@ -193,33 +193,33 @@ A normalized package contains a manifest and payload.
 ```text
 package-manifest.json
 payload/
-  plugins/
-  utils/
-  gamedata/
+  plugins/
+  utils/
+  gamedata/
 ```
 
 Example component package.
 
 ```json
 {
-  "schemaVersion": 2,
-  "packageType": "mode",
-  "id": "retake",
-  "component": "instadefuse",
-  "name": "InstadefusePlugin",
-  "version": "2.0.1",
-  "payloadRoot": "payload",
-  "installStrategy": "replace-roots",
-  "installRoots": [
-    "utils/InstadefusePlugin"
-  ],
-  "files": [
-    {
-      "path": "payload/utils/InstadefusePlugin/InstadefusePlugin.dll",
-      "size": 123456,
-      "sha256": "lowercase-sha256"
-    }
-  ]
+  "schemaVersion": 2,
+  "packageType": "mode",
+  "id": "retake",
+  "component": "instadefuse",
+  "name": "InstadefusePlugin",
+  "version": "2.0.1",
+  "payloadRoot": "payload",
+  "installStrategy": "replace-roots",
+  "installRoots": [
+    "utils/InstadefusePlugin"
+  ],
+  "files": [
+    {
+      "path": "payload/utils/InstadefusePlugin/InstadefusePlugin.dll",
+      "size": 123456,
+      "sha256": "lowercase-sha256"
+    }
+  ]
 }
 ```
 
@@ -299,8 +299,8 @@ The Linux start script reports pending ZIP files but does not mutate packages. R
 The normal game container never runs SteamCMD. Base game update and validation run only through `cs2-updater` and require the exact confirmation phrase.
 
 ```bash
-CS2_UPDATER_CONFIRM="UPDATE CS2" \
-  docker compose --profile maintenance run --rm cs2-updater
+CS2_UPDATER_CONFIRM="UPDATE CS2" \\
+  docker compose --profile maintenance run --rm cs2-updater
 ```
 
 Supported updater modes are `update`, `validate` and `repair-metamod`.
@@ -341,10 +341,10 @@ Repository checks.
 
 ```bash
 python -m unittest discover -s manager/tests -v
-python -m py_compile \
-  manager/panel/app.py \
-  manager/panel/mode_defs.py \
-  manager/runtime/mode_applier.py
+python -m py_compile \\
+  manager/panel/app.py \\
+  manager/panel/mode_defs.py \\
+  manager/runtime/mode_applier.py
 bash -n manager/runtime/runtime-launcher.sh
 bash -n manager/scripts/start.sh
 bash -n manager/scripts/stop.sh
@@ -357,6 +357,199 @@ After deployment on a real server.
 ```bash
 manager/scripts/smoke-test.sh
 ```
+
+## Raspberry Pi 5 deployment
+
+CS2 provides an x86-64 Linux dedicated server. On Raspberry Pi 5, `cs2-game` runs through FEX inside an ARM64 container. The panel remains a native ARM64 service, while the game installation and FEX data are persisted on an SSD.
+
+The verified host layout is.
+
+```text
+Host                 Raspberry Pi 5, Raspberry Pi OS Lite 64-bit
+Kernel               Raspberry Pi v8 kernel with 4 KiB pages
+Project              /server/cs2-server
+Game data            /mnt/cs2-data/server
+FEX data             /mnt/cs2-data/fex-data
+Game port            27015 TCP and UDP
+Panel port           8080 TCP
+```
+
+### Kernel requirement
+
+The default Pi 5 `kernel_2712` uses 16 KiB pages. CS2 x86-64 libraries fail to map under emulation with that page size. This deployment requires the v8 kernel with 4 KiB pages.
+
+```bash
+uname -r
+getconf PAGE_SIZE
+```
+
+The expected page size is `4096`.
+
+### SSD and environment
+
+The verified deployment uses an ext4 SSD mounted at `/mnt/cs2-data`.
+
+```bash
+findmnt /mnt/cs2-data
+df -hT /mnt/cs2-data
+
+sudo mkdir -p /mnt/cs2-data/server /mnt/cs2-data/fex-data
+sudo chown -R "$(id -u):$(id -g)" \
+  /mnt/cs2-data/server \
+  /mnt/cs2-data/fex-data
+```
+
+Configure the host paths in `.env`.
+
+```dotenv
+CS2_DATA_PATH=/mnt/cs2-data/server
+MANAGER_PATH=/server/cs2-server/manager
+```
+
+Keep the GSLT, RCON password, optional game password and panel credentials only in `.env`. The file is excluded from Git.
+
+### Build and initialize FEX
+
+The Raspberry Pi runtime expects a local ARM64 FEX image named `cs2-fex-runtime:test`.
+
+```bash
+docker build \
+  --platform linux/arm64 \
+  --file Dockerfile.generic \
+  --tag cs2-fex-runtime:test \
+  'https://github.com/ayayrom/CS2-Server-ARM-Docker.git#main'
+
+docker image inspect cs2-fex-runtime:test \
+  --format '{{.Os}}/{{.Architecture}}'
+```
+
+The expected image platform is `linux/arm64`.
+
+Bootstrap the FEX RootFS once. The temporary CS2 data mount prevents this step from changing the real game installation.
+
+```bash
+mkdir -p /tmp/cs2-fex-bootstrap-data
+
+docker run --rm \
+  --name cs2-fex-bootstrap \
+  --platform linux/arm64 \
+  --env CI_TEST_MODE=true \
+  --env PUID="$(id -u)" \
+  --env PGID="$(id -g)" \
+  --volume /tmp/cs2-fex-bootstrap-data:/cs2-data \
+  --volume /mnt/cs2-data/fex-data:/home/steam/.fex-emu \
+  cs2-fex-runtime:test
+```
+
+Verify the emulated environment.
+
+```bash
+docker run --rm \
+  --platform linux/arm64 \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/home/steam \
+  --env FEX_ROOTFS=/home/steam/.fex-emu/RootFS/Ubuntu_22_04 \
+  --volume /mnt/cs2-data/fex-data:/home/steam/.fex-emu \
+  --entrypoint bash \
+  cs2-fex-runtime:test \
+  -lc 'FEXBash "uname -m && getconf PAGE_SIZE"'
+```
+
+The expected output is.
+
+```text
+x86_64
+4096
+```
+
+### Raspberry Pi Compose override
+
+Use a host-specific `compose.override.yml` to select the FEX runtime.
+
+```yaml
+services:
+  cs2-game:
+    platform: linux/arm64
+    build:
+      context: ./manager/runtime
+      dockerfile: Dockerfile.fex
+      args:
+        FEX_BASE_IMAGE: cs2-fex-runtime:test
+    image: cs2-manager-runtime:fex-rpi5
+    environment:
+      CS2_EXECUTOR: fex
+      FEX_ROOTFS: /home/steam/.fex-emu/RootFS/Ubuntu_22_04
+      STEAMCLIENT_PATH: /home/steam/.fex-emu/steamclient.so
+      DOTNET_EnableWriteXorExecute: "0"
+    volumes:
+      - type: bind
+        source: /mnt/cs2-data/fex-data
+        target: /home/steam/.fex-emu
+
+  cs2-updater:
+    platform: linux/amd64
+
+  cs2-modinstaller:
+    platform: linux/amd64
+```
+
+`DOTNET_EnableWriteXorExecute=0` is required for CounterStrikeSharp in the tested FEX environment. The persistent FEX directory must also contain a compatible x86-64 Steam client library at `/mnt/cs2-data/fex-data/steamclient.so`.
+
+Validate and build the runtime.
+
+```bash
+docker compose config --quiet
+docker compose build cs2-game
+
+docker image inspect cs2-manager-runtime:fex-rpi5 \
+  --format '{{.Os}}/{{.Architecture}}'
+```
+
+### Start and verify
+
+```bash
+docker compose up -d --no-deps cs2-game
+
+docker logs --since 5m cs2-game 2>&1 | grep -Ei \
+  'Mode deployed|executor=|CounterStrikeSharp.API Loaded|SteamGameServer_Init|Connection to Steam|server started|fatal|segmentation'
+```
+
+A healthy launch includes messages equivalent to.
+
+```text
+Mode deployed: retake
+executor=fex
+CounterStrikeSharp.API Loaded Successfully
+SteamGameServer_Init() OK
+Connection to Steam servers successful
+server started
+```
+
+Changing modes through the panel updates `manager/data/runtime/active-mode.json`, transactionally deploys the selected mode and recreates `cs2-game` through the same FEX runtime.
+
+### Panel and network access
+
+Expose port `27015` over TCP and UDP. For Internet access, forward both protocols from the router to the Raspberry Pi LAN address. Do not forward panel port `8080` directly to the Internet.
+
+The Steam LAN browser may not discover the server through Docker bridge networking. Add it to Favorites or connect directly.
+
+```text
+connect <RASPBERRY_PI_LAN_IP>:27015
+connect <PUBLIC_IP>:27015
+```
+
+The panel binds to `0.0.0.0` by default. Use an SSH tunnel, VPN or secured reverse proxy for remote administration. Setting `PANEL_BIND=0.0.0.0` exposes it to the local network and requires strong panel credentials.
+
+### Raspberry Pi health checks
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+findmnt /mnt/cs2-data
+vcgencmd measure_temp
+vcgencmd get_throttled
+```
+
+`throttled=0x0` indicates that no throttling condition has been recorded since boot. Preserve `/mnt/cs2-data/fex-data` and the FEX image build instructions when planning recovery. The normal `cs2-game` runtime never invokes SteamCMD.
 
 ## Security properties
 
