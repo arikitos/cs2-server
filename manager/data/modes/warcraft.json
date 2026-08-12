@@ -12,7 +12,7 @@
   "map": "de_dust2",
   "capacity": 10,
   "game_alias": "competitive",
-  "hostname": "Warcraft 3 Server",
+  "hostname": "Warcraft Classic Server",
   "lan": false,
   "cheats": false,
   "allow_lobby_connect_only": false,
