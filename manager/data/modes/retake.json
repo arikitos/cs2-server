@@ -20,7 +20,7 @@
   "auto_team_balance": false,
   "spectators_max": 2,
   "max_rounds": 24,
-  "freezetime": 15,
+  "freezetime": 5,
   "warmup_time": 30,
   "round_time": 1.92,
   "buy_time": 20,

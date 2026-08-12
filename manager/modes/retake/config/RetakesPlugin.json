@@ -1,6 +1,6 @@
 {
   "GameSettings": {
-    "MaxPlayers": 7,
+    "MaxPlayers": 9,
     "MinimumPlayers": 0,
     "ShouldBreakBreakables": false,
     "ShouldOpenDoors": false,
@@ -26,7 +26,7 @@
     "ShouldAutoJoinGame": false
   },
   "TeamSettings": {
-    "TerroristRatio": 0.43,
+    "TerroristRatio": 0.45,
     "RoundsToScramble": 5,
     "IsScrambleEnabled": true,
     "IsBalanceEnabled": true,
