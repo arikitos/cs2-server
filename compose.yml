@@ -13,7 +13,7 @@ services:
         <<: *cs2-base-image
     image: cs2-manager-runtime:pinned
     container_name: cs2-game
-    restart: "no"
+    restart: unless-stopped
     stdin_open: true
     tty: true
     logging:

@@ -7,12 +7,14 @@
     "de_nuke",
     "de_ancient",
     "de_anubis",
-    "de_overpass"
+    "de_overpass",
+    "de_vertigo",
+    "de_train"
   ],
   "map": "de_dust2",
   "capacity": 9,
   "game_alias": "competitive",
-  "hostname": "Retake Server",
+  "hostname": "Arikitos Retake Server",
   "lan": false,
   "cheats": false,
   "allow_lobby_connect_only": false,
