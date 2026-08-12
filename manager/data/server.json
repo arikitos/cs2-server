@@ -8,6 +8,6 @@
   "hibernate": false,
   "logging_level": "on",
   "access_mode": "public",
-  "last_mode": "warcraft",
+  "last_mode": "retake",
   "password_policy": "global"
 }
