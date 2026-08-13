@@ -171,6 +171,7 @@ public class WeaponSelectionTests : BaseTestFixture
             },
             RoundTypeSelection = RoundTypeSelectionOption.Random,
         });
+        RoundTypeManager.Instance.Initialize();
         var numPistol = 0;
         var numHalfBuy = 0;
         var numFullBuy = 0;
