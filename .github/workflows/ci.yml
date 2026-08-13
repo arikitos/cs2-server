@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, refactor]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Compose environment
+        run: |
+          cp .env.example .env
+          sed -i "s|^CS2_DATA_PATH=.*|CS2_DATA_PATH=${PWD}/server/cs2|" .env
+          sed -i "s|^PROJECT_PATH=.*|PROJECT_PATH=${PWD}|" .env
+          sed -i "s|^PANEL_PASSWORD=.*|PANEL_PASSWORD=ci-panel-password|" .env
+          sed -i "s|^CS2_RCON_PASSWORD=.*|CS2_RCON_PASSWORD=ci-rcon-password|" .env
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Run unit and repository tests
+        run: python3 -m unittest discover -s server/tests -v
+      - name: Check source syntax
+        run: |
+          python3 -m py_compile panel/*.py server/runtime/mode_manager.py
+          bash -n server/runtime/runtime-launcher.sh server/frameworks/install-linux.sh server/updater/updater.sh server/scripts/*.sh
