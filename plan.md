@@ -76,7 +76,7 @@ Make a fresh clone installable on a local Windows computer with Docker Desktop, 
 - [x] Update setup references, Windows documentation, CI scope and repository contract tests.
 - [x] Run focused and repository-wide verification available in the Linux workspace.
 - [x] Review the final diff for stale platform references and accidental edits.
-- [ ] Publish the branch and open a draft pull request.
+- [x] Publish the branch and open draft pull request [#8](https://github.com/arikitos/cs2-server/pull/8).
 
 ### Verification record
 
