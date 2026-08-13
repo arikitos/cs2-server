@@ -161,6 +161,14 @@ cat > "${CSGO}/addons/.cs2-manager-versions.json" <<JSON
 }
 JSON
 
+# This installer runs as root, while the runtime container runs as 1000:1000
+# (server/runtime/Dockerfile). Archive members keep their original ownership, so
+# hand the installed tree back to the game user or mode deployment cannot write
+# into addons.
+if [[ "${EUID}" -eq 0 ]]; then
+  chown -R 1000:1000 "${CSGO}/addons"
+fi
+
 echo "Installed Metamod ${MM_VERSION} and CounterStrikeSharp ${CSS_VERSION}."
 echo "Managed CounterStrikeSharp configuration installed from ${CUSTOM_CSS_CONFIGS}."
 echo "Run the Metamod repair/validation maintenance action before starting cs2-game."

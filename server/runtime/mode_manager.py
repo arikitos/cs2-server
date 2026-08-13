@@ -24,6 +24,8 @@ from typing import Any
 MODE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 PAYLOAD_ROOTS = ("addons", "cfg")
+# The shared server.cfg is always manager-owned and never part of a mode.
+SERVER_CONFIG_REL = "cfg/server.cfg"
 
 
 class ModeError(RuntimeError):
@@ -159,9 +161,9 @@ def build_plan(
 
     if not server_config.is_file() or server_config.is_symlink():
         raise ModeError(f"server config missing or unsafe: {server_config}")
-    if "cfg/server.cfg" in plan:
-        raise ModeError("cfg/server.cfg is global and must not exist inside a mode")
-    plan["cfg/server.cfg"] = server_config
+    if SERVER_CONFIG_REL in plan:
+        raise ModeError(f"{SERVER_CONFIG_REL} is global and must not exist inside a mode")
+    plan[SERVER_CONFIG_REL] = server_config
 
     startup = manifest["startup"]
     mode_cfg = f"cfg/{startup['mode_cfg']}"
@@ -264,6 +266,12 @@ def deploy(
     wanted = set(plan)
 
     for relative, source in plan.items():
+        # A fresh Steam depot always ships its own cfg/server.cfg, and an updater
+        # validation restores it.  That file is manager-owned by contract, so the
+        # base-game copy is adopted through the transaction backup below instead
+        # of deadlocking every first activation.
+        if relative == SERVER_CONFIG_REL:
+            continue
         destination = _inside(csgo_root, _relative(relative, "deployment path"))
         if destination.exists() and relative not in previous:
             if not destination.is_file() or _sha256(destination) != _sha256(source):
@@ -271,7 +279,11 @@ def deploy(
                     f"unmanaged file blocks deployment: {destination}; move it or make it identical"
                 )
 
-    transactions = state_root / "transactions"
+    # os.replace cannot cross filesystems.  The state directory and the CS2
+    # installation are separate bind mounts under Docker Desktop, so the staging
+    # and backup trees have to live on the installation filesystem for the switch
+    # to stay atomic.
+    transactions = csgo_root / ".cs2-manager-transactions"
     transactions.mkdir(parents=True, exist_ok=True)
     transaction_root = Path(tempfile.mkdtemp(prefix="mode-", dir=transactions))
     staged_root = transaction_root / "staged"
