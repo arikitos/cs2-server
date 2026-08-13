@@ -101,11 +101,24 @@ When switching modes, only files from the previous inventory are removed. Steam 
 
 `server/config/server.cfg` is the tracked default and is loaded on every start. Panel changes are written as generated overrides under `server/state`, so updating a mode does not overwrite operator settings.
 
+Each mode declares its visible panel controls in `settings.panel.controls`. The backend enforces the same policy, so hiding a field is not merely a UI decision.
+
+| Mode | Panel controls | Plugin configuration behavior |
+|---|---|---|
+| MatchZy | Start, stop, status, players, logs and official commands | MatchZy cfg files are upstream-owned and operator overrides are ignored |
+| Retakes | Format, hostname, password and map pool | `RetakesPlugin.json` receives the selected format on Start, while the plugin-generated `cfg/cs2-retakes/retakes.cfg` owns gameplay convars |
+| HeroShift | Format, server gameplay, friendly fire and map pool | `heroshift.json` remains separate operator state and supports the official `css_reload` action |
+| Warcraft Classic | Format, server gameplay, friendly fire and map pool | `WarcraftClassic.json` is loaded at plugin startup and requires Start or Restart after changes |
+
+The Start action sends the selected mode settings and starts or restarts the game in one request. Settings that are not declared as panel controls are normalized to the mode defaults and are not emitted into `panel_runtime.cfg`.
+
 Editable plugin configuration is seeded from the mode on first use and then stored under.
 
 ```text
 server/state/configs/<mode>/<original target path>
 ```
+
+A config declaration may set `editable` to `false`. Such a file is always deployed from the mode release, and a legacy file under `server/state/configs` cannot override it.
 
 The generated runtime cfg files, active mode state, deployment inventory, audit data and backups also live under `server/state`. This directory is ignored by Git except for its placeholder.
 

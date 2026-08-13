@@ -13,6 +13,16 @@
     "runtime_cfg": "panel_runtime.cfg"
   },
   "settings": {
+    "panel": {
+      "controls": [
+        "format",
+        "identity",
+        "gameplay",
+        "friendly_fire",
+        "map_pool"
+      ],
+      "note": "The panel owns the CS2 server settings for HeroShift. HeroShift skill overrides remain in heroshift.json and can be reloaded with the official css_reload action."
+    },
     "formats": [
       {
         "key": "5v5",

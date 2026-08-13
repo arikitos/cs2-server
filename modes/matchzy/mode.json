@@ -3,6 +3,7 @@
   "label": "MatchZy",
   "implementation": "MatchZy competitive match server",
   "order": 10,
+  "server_config": false,
   "requires": {
     "metamod": "2.0.0-git1410",
     "counterstrikesharp": "1.0.371"
@@ -13,6 +14,10 @@
     "runtime_cfg": "panel_runtime.cfg"
   },
   "settings": {
+    "panel": {
+      "controls": [],
+      "note": "MatchZy owns its complete match configuration. The panel starts the upstream mode unchanged and exposes only lifecycle, status, players, logs and official MatchZy commands."
+    },
     "formats": [
       {
         "key": "5v5",
@@ -21,10 +26,7 @@
         "capacity": 10,
         "team_size": 5,
         "game_alias": "competitive",
-        "default": true,
-        "cfg": [
-          "matchzy_minimum_ready_required 10"
-        ]
+        "default": true
       },
       {
         "key": "2v2",
@@ -32,10 +34,7 @@
         "detail": "4 players - Wingman",
         "capacity": 4,
         "team_size": 2,
-        "game_alias": "wingman",
-        "cfg": [
-          "matchzy_minimum_ready_required 4"
-        ]
+        "game_alias": "wingman"
       },
       {
         "key": "1v1",
@@ -43,10 +42,7 @@
         "detail": "2 players",
         "capacity": 2,
         "team_size": 1,
-        "game_alias": "competitive",
-        "cfg": [
-          "matchzy_minimum_ready_required 2"
-        ]
+        "game_alias": "competitive"
       }
     ],
     "defaults": {
@@ -88,9 +84,7 @@
       "overtime": true,
       "overtime_max_rounds": 6
     },
-    "extra_cfg": [
-      "matchzy_autostart_mode 1"
-    ]
+    "extra_cfg": []
   },
   "plugins": [
     {
@@ -144,7 +138,8 @@
   "configs": [
     {
       "name": "MatchZy config.cfg",
-      "target": "cfg/MatchZy/config.cfg"
+      "target": "cfg/MatchZy/config.cfg",
+      "editable": false
     }
   ],
   "actions": [

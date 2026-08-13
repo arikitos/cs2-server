@@ -45,7 +45,10 @@ class ModeManagerTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def make_mode(self, name: str, plugin: str, *, with_config: bool = False) -> None:
+    def make_mode(
+        self, name: str, plugin: str, *, with_config: bool = False,
+        config_editable: bool = True,
+    ) -> None:
         root = self.modes / name
         plugin_dir = root / f"addons/counterstrikesharp/plugins/{plugin}"
         plugin_dir.mkdir(parents=True)
@@ -57,7 +60,11 @@ class ModeManagerTests(unittest.TestCase):
         if with_config:
             target = f"addons/counterstrikesharp/plugins/{plugin}/config.json"
             (plugin_dir / "config.json").write_text('{"value": 1}\n', encoding="utf-8")
-            configs.append({"name": "config.json", "target": target})
+            configs.append({
+                "name": "config.json",
+                "target": target,
+                "editable": config_editable,
+            })
         write_json(
             root / "mode.json",
             {
@@ -157,6 +164,25 @@ class ModeManagerTests(unittest.TestCase):
             name="config.json",
         )
         self.assertEqual(json.loads(deployed.read_text(encoding="utf-8"))["value"], 3)
+
+    def test_upstream_owned_config_ignores_operator_override(self) -> None:
+        self.make_mode("alpha", "Alpha", with_config=True, config_editable=False)
+        target = "addons/counterstrikesharp/plugins/Alpha/config.json"
+        override = self.state / "configs/alpha" / target
+        override.parent.mkdir(parents=True)
+        override.write_text('{"value": 99}\n', encoding="utf-8")
+
+        self.apply("alpha")
+        deployed = self.server / "game/csgo" / target
+        self.assertEqual(json.loads(deployed.read_text(encoding="utf-8"))["value"], 1)
+        with self.assertRaisesRegex(mode_manager.ModeError, "owned by the upstream"):
+            mode_manager.sync_config(
+                modes_root=self.modes,
+                server_root=self.server,
+                state_root=self.state,
+                mode="alpha",
+                name="config.json",
+            )
 
     def test_failed_install_restores_previous_mode(self) -> None:
         self.make_mode("alpha", "Alpha")

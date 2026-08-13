@@ -60,6 +60,23 @@ class RepositoryContractTests(unittest.TestCase):
                 self.assertTrue((root / plugin["path"]).exists(), f"{name}: {plugin['path']}")
             self.assertFalse((root / "cfg/server.cfg").exists())
 
+    def test_mode_panel_controls_match_config_ownership(self) -> None:
+        definitions, errors = mode_defs.load_definitions(ROOT / "modes")
+        self.assertEqual(errors, [])
+        self.assertEqual(definitions["matchzy"]["panel"]["controls"], [])
+        self.assertEqual(
+            definitions["retakes"]["panel"]["controls"],
+            ["format", "identity", "map_pool"],
+        )
+        expected_full = ["format", "identity", "gameplay", "friendly_fire", "map_pool"]
+        self.assertEqual(definitions["heroshift"]["panel"]["controls"], expected_full)
+        self.assertEqual(definitions["warcraft"]["panel"]["controls"], expected_full)
+        matchzy_config = next(
+            config for config in definitions["matchzy"]["configs"]
+            if config["name"] == "MatchZy config.cfg"
+        )
+        self.assertFalse(matchzy_config["editable"])
+
     def test_companion_plugins_are_mode_local(self) -> None:
         for name in ("matchzy", "retakes", "heroshift", "warcraft"):
             plugins = ROOT / "modes" / name / "addons/counterstrikesharp/plugins"

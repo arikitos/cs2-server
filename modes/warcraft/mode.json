@@ -13,6 +13,16 @@
     "runtime_cfg": "panel_runtime.cfg"
   },
   "settings": {
+    "panel": {
+      "controls": [
+        "format",
+        "identity",
+        "gameplay",
+        "friendly_fire",
+        "map_pool"
+      ],
+      "note": "The panel owns the CS2 server settings for Warcraft Classic. WarcraftClassic.json owns XP, races and abilities and requires Start or Restart after an edit."
+    },
     "formats": [
       {
         "key": "5v5",

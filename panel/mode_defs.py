@@ -35,13 +35,15 @@ BOT_CHATTER_MODES = ("off", "radio", "minimal", "normal")
 ACTION_GROUPS = ("match", "practice", "teams", "bots", "server", "map", "readonly", "plugin")
 GAME_ALIASES = ("competitive", "casual", "wingman", "deathmatch")
 TARGET_PREFIXES = ("addons/", "cfg/")
+PANEL_CONTROLS = ("format", "identity", "gameplay", "friendly_fire", "map_pool")
 
 _TOP_KEYS = {
     "id", "label", "implementation", "order", "server_config", "startup",
     "settings", "plugins", "configs", "actions", "requires", "note",
 }
 _STARTUP_KEYS = {"game_alias", "mode_cfg", "runtime_cfg", "note"}
-_SETTINGS_KEYS = {"formats", "defaults", "extra_cfg", "note"}
+_SETTINGS_KEYS = {"formats", "defaults", "extra_cfg", "panel", "note"}
+_PANEL_KEYS = {"controls", "note"}
 _FORMAT_KEYS = {
     "key", "label", "detail", "capacity", "team_size", "game_alias",
     "default", "cfg", "plugin_config", "note",
@@ -49,7 +51,7 @@ _FORMAT_KEYS = {
 _PLUGIN_CONFIG_KEYS = {"config", "set", "note"}
 _PLUGIN_KEYS = {"name", "path", "role", "verify", "note"}
 _VERIFY_KEYS = {"required", "aliases", "note"}
-_CONFIG_KEYS = {"name", "target", "note"}
+_CONFIG_KEYS = {"name", "target", "editable", "note"}
 _ACTION_KEYS = {
     "key", "label", "cmd", "impact", "description", "confirm", "group", "arg_hint", "note",
 }
@@ -264,10 +266,27 @@ def parse_definition(raw: object, mode_id: str) -> dict:
             "shared": False,
             "absolute": False,
             "optional": False,
+            "editable": _bool(config_obj, "editable", spot, default=True),
         })
     config_names = {config["name"] for config in configs}
 
     settings_raw = _obj(doc.get("settings"), _SETTINGS_KEYS, f"{where}.settings")
+    panel_raw = _obj(settings_raw.get("panel", {}), _PANEL_KEYS, f"{where}.settings.panel")
+    controls_raw = panel_raw.get("controls", list(PANEL_CONTROLS))
+    if not isinstance(controls_raw, list):
+        raise DefinitionError(f"{where}.settings.panel.controls: expected a list")
+    controls: list[str] = []
+    for index, control in enumerate(controls_raw):
+        if not isinstance(control, str) or control not in PANEL_CONTROLS:
+            raise DefinitionError(
+                f"{where}.settings.panel.controls[{index}]: expected one of "
+                + ", ".join(PANEL_CONTROLS)
+            )
+        if control not in controls:
+            controls.append(control)
+    panel_note = panel_raw.get("note", "")
+    if not isinstance(panel_note, str):
+        raise DefinitionError(f"{where}.settings.panel.note: expected a string")
     formats_raw = settings_raw.get("formats")
     if not isinstance(formats_raw, list) or not formats_raw:
         raise DefinitionError(f"{where}.settings.formats: expected a non-empty list")
@@ -419,6 +438,7 @@ def parse_definition(raw: object, mode_id: str) -> dict:
         "formats": formats,
         "defaults": defaults,
         "extra_cfg": extra_cfg,
+        "panel": {"controls": controls, "note": panel_note.strip()},
         "plugins": plugins,
         "configs": configs,
         "actions": actions,

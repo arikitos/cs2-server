@@ -9,10 +9,9 @@ import time
 def apply_saved_runtime(panel, mode: str) -> dict:
     """Replay persisted panel settings after CS2 and its game mode are ready."""
     settings = panel.validate_mode_settings(mode, panel.load_mode(mode))
-    commands = [
-        *panel.hot_convar_lines(settings),
-        *panel.selected_format(mode, settings).get("cfg", []),
-    ]
+    commands = panel.hot_convar_lines(mode, settings)
+    if panel.panel_control_enabled(mode, "format"):
+        commands.extend(panel.selected_format(mode, settings).get("cfg", []))
     for command in commands:
         panel.rcon_command(panel.GAME_CONTAINER, command, 5)
     panel.STATE_TIMESTAMPS["last_config_apply"] = panel.now_iso()

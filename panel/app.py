@@ -112,6 +112,20 @@ MODE_FORMATS = {
     mode: {entry["key"]: entry for entry in definition["formats"]}
     for mode, definition in MODE_DEFS.items()
 }
+MODE_PANEL = {mode: definition["panel"] for mode, definition in MODE_DEFS.items()}
+PANEL_CONTROL_FIELDS = {
+    "format": {"format"},
+    "identity": {"hostname"},
+    "gameplay": {
+        "max_rounds", "freezetime", "warmup_time", "round_time", "buy_time",
+        "c4_timer", "start_money", "max_money", "overtime", "overtime_max_rounds",
+    },
+    "friendly_fire": {
+        "friendly_fire", "ff_bullet_reduction", "ff_grenade_reduction",
+        "ff_other_reduction", "tk_punish",
+    },
+    "map_pool": {"map_pool"},
+}
 GAME_CONTAINERS = [GAME_CONTAINER]  # retained for response compatibility
 
 # A format owns the slot count and the game alias, so it needs a fresh launch.
@@ -435,23 +449,39 @@ def validate_hostname(value: object) -> str:
     return hostname
 
 
+def panel_control_enabled(mode: str, control: str) -> bool:
+    return control in MODE_PANEL[mode]["controls"]
+
+
+def panel_field_editable(mode: str, field: str) -> bool:
+    return any(
+        field in fields and panel_control_enabled(mode, control)
+        for control, fields in PANEL_CONTROL_FIELDS.items()
+    )
+
+
+def panel_setting(mode: str, settings: dict, field: str):
+    defaults = DEFAULT_MODE_SETTINGS[mode]
+    return settings.get(field, defaults[field]) if panel_field_editable(mode, field) else defaults[field]
+
+
 def validate_mode_settings(mode: str, settings: dict) -> dict:
     defaults = DEFAULT_MODE_SETTINGS[mode]
     formats = MODE_FORMATS[mode]
-    key = str(settings.get("format", defaults["format"]))
+    key = str(panel_setting(mode, settings, "format"))
     if key not in formats:
         raise ValueError(f"Match format must be one of {', '.join(formats)}")
     match_format = formats[key]
 
-    pool = normalize_map_pool(settings.get("map_pool"), defaults["map_pool"])
+    pool = normalize_map_pool(panel_setting(mode, settings, "map_pool"), defaults["map_pool"])
     round_time = _bounded_float(
-        settings.get("round_time"), defaults["round_time"], 0.5, 60, "Round time"
+        panel_setting(mode, settings, "round_time"), defaults["round_time"], 0.5, 60, "Round time"
     )
     start_money = _bounded_int(
-        settings.get("start_money"), defaults["start_money"], 0, 65535, "Start money"
+        panel_setting(mode, settings, "start_money"), defaults["start_money"], 0, 65535, "Start money"
     )
     max_money = _bounded_int(
-        settings.get("max_money"), defaults["max_money"], 0, 65535, "Max money"
+        panel_setting(mode, settings, "max_money"), defaults["max_money"], 0, 65535, "Max money"
     )
     if max_money < start_money:
         raise ValueError("Max money must be greater than or equal to start money")
@@ -463,7 +493,7 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
         "map": pool[0],
         "capacity": match_format["capacity"],
         "game_alias": match_format["game_alias"],
-        "hostname": validate_hostname(settings.get("hostname", defaults["hostname"])),
+        "hostname": validate_hostname(panel_setting(mode, settings, "hostname")),
         # These settings are intentionally fixed because the streamlined panel
         # no longer exposes their former advanced controls.
         "lan": False,
@@ -472,12 +502,12 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
         "limit_teams": 0,
         "auto_team_balance": False,
         "spectators_max": defaults["spectators_max"],
-        "max_rounds": _bounded_int(settings.get("max_rounds"), defaults["max_rounds"], 1, 120, "Max rounds"),
-        "freezetime": _bounded_int(settings.get("freezetime"), defaults["freezetime"], 0, 60, "Freeze time"),
-        "warmup_time": _bounded_int(settings.get("warmup_time"), defaults["warmup_time"], 0, 600, "Warmup time"),
+        "max_rounds": _bounded_int(panel_setting(mode, settings, "max_rounds"), defaults["max_rounds"], 1, 120, "Max rounds"),
+        "freezetime": _bounded_int(panel_setting(mode, settings, "freezetime"), defaults["freezetime"], 0, 60, "Freeze time"),
+        "warmup_time": _bounded_int(panel_setting(mode, settings, "warmup_time"), defaults["warmup_time"], 0, 600, "Warmup time"),
         "round_time": round_time,
-        "buy_time": _bounded_int(settings.get("buy_time"), defaults["buy_time"], 0, 600, "Buy time"),
-        "c4_timer": _bounded_int(settings.get("c4_timer"), defaults["c4_timer"], 10, 90, "C4 timer"),
+        "buy_time": _bounded_int(panel_setting(mode, settings, "buy_time"), defaults["buy_time"], 0, 600, "Buy time"),
+        "c4_timer": _bounded_int(panel_setting(mode, settings, "c4_timer"), defaults["c4_timer"], 10, 90, "C4 timer"),
         "start_money": start_money,
         "max_money": max_money,
         "bot_quota": match_format["capacity"],
@@ -485,14 +515,14 @@ def validate_mode_settings(mode: str, settings: dict) -> dict:
         "bot_difficulty": 3,
         "bot_chatter": "normal",
         "bot_join_after_player": True,
-        "friendly_fire": normalize_friendly_fire(settings.get("friendly_fire"), defaults["friendly_fire"]),
+        "friendly_fire": normalize_friendly_fire(panel_setting(mode, settings, "friendly_fire"), defaults["friendly_fire"]),
         "ff_bullet_reduction": defaults["ff_bullet_reduction"],
         "ff_grenade_reduction": defaults["ff_grenade_reduction"],
         "ff_other_reduction": defaults["ff_other_reduction"],
         "tk_punish": defaults["tk_punish"],
-        "overtime": _validated_bool(settings.get("overtime"), defaults["overtime"], "Overtime"),
+        "overtime": _validated_bool(panel_setting(mode, settings, "overtime"), defaults["overtime"], "Overtime"),
         "overtime_max_rounds": _bounded_int(
-            settings.get("overtime_max_rounds"), defaults["overtime_max_rounds"], 2, 30, "Overtime rounds"
+            panel_setting(mode, settings, "overtime_max_rounds"), defaults["overtime_max_rounds"], 2, 30, "Overtime rounds"
         ),
     }
 
@@ -522,45 +552,55 @@ def validate_server_password(value: object, *, allow_empty: bool = False) -> str
 
 # "nades" keeps grenade friendly fire but zeroes bullet and other damage, which
 # is how the stock competitive friendly-fire scaling convars are meant to be used.
-def hot_convar_lines(settings: dict) -> list[str]:
+def hot_convar_lines(mode: str, settings: dict) -> list[str]:
     friendly_fire = normalize_friendly_fire(settings.get("friendly_fire"), "off")
     enabled = 0 if friendly_fire == "off" else 1
     bullets = 0.0 if friendly_fire == "nades" else float(settings.get("ff_bullet_reduction", 0.33))
     other = 0.0 if friendly_fire == "nades" else float(settings.get("ff_other_reduction", 0.4))
     grenades = float(settings.get("ff_grenade_reduction", 0.25))
     round_time = float(settings.get("round_time", 1.92))
-    return [
-        f'hostname "{validate_hostname(settings.get("hostname", "CS2 Server"))}"',
-        f"sv_lan {1 if settings.get('lan') else 0}",
-        f"sv_cheats {1 if settings.get('cheats') else 0}",
-        f"sv_allow_lobby_connect_only {1 if settings.get('allow_lobby_connect_only') else 0}",
-        f"sv_maxplayers {settings.get('capacity', 10)}",
-        f"mp_limitteams {settings.get('limit_teams', 0)}",
-        f"mp_autoteambalance {1 if settings.get('auto_team_balance') else 0}",
-        f"mp_spectators_max {settings.get('spectators_max', 2)}",
-        f"bot_quota {settings.get('bot_quota', settings.get('capacity', 10))}",
-        f"bot_quota_mode {settings.get('bot_quota_mode', 'match')}",
-        f"bot_difficulty {settings.get('bot_difficulty', 3)}",
-        f"bot_chatter {settings.get('bot_chatter', 'normal')}",
-        f"bot_join_after_player {1 if settings.get('bot_join_after_player', True) else 0}",
-        f"mp_friendlyfire {enabled}",
-        f"ff_damage_reduction_bullets {bullets:g}",
-        f"ff_damage_reduction_grenade {grenades:g}",
-        f"ff_damage_reduction_other {other:g}",
-        f"mp_tkpunish {1 if settings.get('tk_punish') else 0}",
-        f"mp_maxrounds {settings.get('max_rounds', 24)}",
-        f"mp_freezetime {settings.get('freezetime', 15)}",
-        f"mp_warmuptime {settings.get('warmup_time', 60)}",
-        f"mp_roundtime {round_time:g}",
-        f"mp_roundtime_defuse {round_time:g}",
-        f"mp_roundtime_hostage {round_time:g}",
-        f"mp_buytime {settings.get('buy_time', 20)}",
-        f"mp_c4timer {settings.get('c4_timer', 40)}",
-        f"mp_startmoney {settings.get('start_money', 800)}",
-        f"mp_maxmoney {settings.get('max_money', 16000)}",
-        f"mp_overtime_enable {1 if settings.get('overtime') else 0}",
-        f"mp_overtime_maxrounds {settings.get('overtime_max_rounds', 6)}",
-    ]
+    lines: list[str] = []
+    if panel_control_enabled(mode, "identity"):
+        lines.extend([
+            f'hostname "{validate_hostname(settings.get("hostname", "CS2 Server"))}"',
+            f"sv_lan {1 if settings.get('lan') else 0}",
+            f"sv_cheats {1 if settings.get('cheats') else 0}",
+            f"sv_allow_lobby_connect_only {1 if settings.get('allow_lobby_connect_only') else 0}",
+        ])
+    if panel_control_enabled(mode, "format"):
+        lines.append(f"sv_maxplayers {settings.get('capacity', 10)}")
+    if panel_control_enabled(mode, "gameplay"):
+        lines.extend([
+            f"mp_limitteams {settings.get('limit_teams', 0)}",
+            f"mp_autoteambalance {1 if settings.get('auto_team_balance') else 0}",
+            f"mp_spectators_max {settings.get('spectators_max', 2)}",
+            f"bot_quota {settings.get('bot_quota', settings.get('capacity', 10))}",
+            f"bot_quota_mode {settings.get('bot_quota_mode', 'match')}",
+            f"bot_difficulty {settings.get('bot_difficulty', 3)}",
+            f"bot_chatter {settings.get('bot_chatter', 'normal')}",
+            f"bot_join_after_player {1 if settings.get('bot_join_after_player', True) else 0}",
+            f"mp_maxrounds {settings.get('max_rounds', 24)}",
+            f"mp_freezetime {settings.get('freezetime', 15)}",
+            f"mp_warmuptime {settings.get('warmup_time', 60)}",
+            f"mp_roundtime {round_time:g}",
+            f"mp_roundtime_defuse {round_time:g}",
+            f"mp_roundtime_hostage {round_time:g}",
+            f"mp_buytime {settings.get('buy_time', 20)}",
+            f"mp_c4timer {settings.get('c4_timer', 40)}",
+            f"mp_startmoney {settings.get('start_money', 800)}",
+            f"mp_maxmoney {settings.get('max_money', 16000)}",
+            f"mp_overtime_enable {1 if settings.get('overtime') else 0}",
+            f"mp_overtime_maxrounds {settings.get('overtime_max_rounds', 6)}",
+        ])
+    if panel_control_enabled(mode, "friendly_fire"):
+        lines.extend([
+            f"mp_friendlyfire {enabled}",
+            f"ff_damage_reduction_bullets {bullets:g}",
+            f"ff_damage_reduction_grenade {grenades:g}",
+            f"ff_damage_reduction_other {other:g}",
+            f"mp_tkpunish {1 if settings.get('tk_punish') else 0}",
+        ])
+    return lines
 
 
 def generate_runtime_cfg(mode: str, settings: dict, password_line: str) -> str:
@@ -570,8 +610,8 @@ def generate_runtime_cfg(mode: str, settings: dict, password_line: str) -> str:
         f'echo "[CS2 Manager] Applying {mode} runtime settings"',
         f'echo "[CS2 Manager] Match format {match_format["key"]} ({match_format["game_alias"]})"',
         password_line,
-        *hot_convar_lines(settings),
-        *match_format["cfg"],
+        *hot_convar_lines(mode, settings),
+        *(match_format["cfg"] if panel_control_enabled(mode, "format") else []),
         *MODE_DEFS[mode]["extra_cfg"],
     ]
     return "\n".join(lines) + "\n"
@@ -1222,6 +1262,7 @@ def api_status():
                     "implementation": meta["implementation"],
                     "container": GAME_CONTAINER,
                     "server_config": meta["server_config"],
+                    "panel": MODE_PANEL[mode],
                     "capacity": CAPACITY_RANGES[mode],
                     "formats": [
                         {key: entry[key] for key in mode_defs.FORMAT_PUBLIC_FIELDS}
@@ -1375,7 +1416,19 @@ def api_server_map():
 @app.get("/api/v3/modes")
 @require_auth
 def api_modes():
-    return jsonify({"ok": True, "modes": {mode: load_mode(mode) for mode in MODES}, "order": MODE_ORDER, "meta": {mode: {"label": MODES[mode]["label"], "implementation": MODES[mode]["implementation"]} for mode in MODES}})
+    return jsonify({
+        "ok": True,
+        "modes": {mode: load_mode(mode) for mode in MODES},
+        "order": MODE_ORDER,
+        "meta": {
+            mode: {
+                "label": MODES[mode]["label"],
+                "implementation": MODES[mode]["implementation"],
+                "panel": MODE_PANEL[mode],
+            }
+            for mode in MODES
+        },
+    })
 
 
 @app.get("/api/v3/modes/<mode>")
@@ -1393,6 +1446,7 @@ def api_mode_get(mode):
             "implementation": MODES[mode]["implementation"],
             "container": GAME_CONTAINER,
             "game_alias": definition["startup"]["game_alias"],
+            "panel": MODE_PANEL[mode],
             "capacity": CAPACITY_RANGES[mode],
             "requires": definition["requires"],
             "plugins": [{"name": p["name"], "role": p["role"], "required": p["required"]} for p in definition["plugins"]],
@@ -1438,10 +1492,10 @@ def api_mode_apply(mode):
     map_reloaded = False
     if active and active["mode"] == mode and rcon_reachable(GAME_CONTAINER):
         try:
-            for line in hot_convar_lines(settings):
+            for line in hot_convar_lines(mode, settings):
                 rcon_command(GAME_CONTAINER, line)
             live_map = parse_current_map(rcon_command(GAME_CONTAINER, "status", 4))
-            if live_map and live_map != settings["map"]:
+            if panel_control_enabled(mode, "map_pool") and live_map and live_map != settings["map"]:
                 rcon_command(GAME_CONTAINER, f"changelevel {settings['map']}")
                 map_reloaded = True
             applied_hot = True
@@ -1566,6 +1620,8 @@ def mode_config_path(mode: str, name: str) -> Path:
     entry = next((item for item in definition["configs"] if item["name"] == name), None) if definition else None
     if entry is None:
         raise FileNotFoundError(f"{mode} does not declare config {name!r}")
+    if not entry["editable"]:
+        raise PermissionError(f"{name} is owned by the upstream {mode} release")
     source = mode_defs.mount_source_path(entry, mode_dir(mode), mode_dir(mode))
     target = DATA_DIR / "configs" / mode / Path(*entry["target"].split("/"))
     if not target.exists():

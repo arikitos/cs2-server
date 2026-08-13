@@ -92,3 +92,32 @@ Make a fresh clone installable on a local Windows computer with Docker Desktop, 
 - A live Docker Desktop and CS2 smoke test requires the target Windows computer and cannot be completed in this workspace.
 - `setup-on-windows.ps1` cannot be executed here because this Linux workspace does not have Windows PowerShell, Docker Desktop or a persistent CS2 installation.
 - Upstream release upgrades may change archive layouts. The direct overlay contract intentionally makes such changes visible instead of normalizing them through hidden adapters.
+
+## Mode configuration ownership follow-up
+
+### Goal
+
+Make each mode expose only the settings it actually owns, keep upstream-owned plugin configuration immutable and ensure Start applies the visible settings before the game container launches.
+
+### Work log
+
+- [x] Add declarative panel controls to every mode manifest.
+- [x] Lock MatchZy to its upstream configuration and remove generated match overrides.
+- [x] Stop Retakes panel settings from competing with its map-start `retakes.cfg`.
+- [x] Keep HeroShift and Warcraft CS2 convars panel-managed.
+- [x] Make non-editable release configs ignore legacy operator overrides.
+- [x] Render only the selected mode's relevant format, identity, gameplay, friendly-fire and map controls.
+- [x] Send pending settings through the Start request before starting or restarting the container.
+- [x] Remove unused legacy HeroShift panel styles.
+- [x] Complete repository-wide verification and review the final diff.
+- [x] Publish the verified change directly to `main`.
+
+### Verification record
+
+- `python3 -m unittest discover -s server/tests -v`, 25 tests passed.
+- `python3 -m py_compile panel/*.py server/runtime/mode_manager.py`, passed.
+- The inline dashboard JavaScript passed `node --check`.
+- Shell syntax checks for runtime, framework, updater and operational scripts, passed.
+- All four mode manifests parsed as JSON and passed the declarative panel ownership contract.
+- `git diff --check`, passed.
+- Docker Compose and a live CS2 launch were not run because Docker Desktop and the persistent game installation are not available in this Linux workspace.

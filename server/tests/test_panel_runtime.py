@@ -8,11 +8,14 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PANEL = ROOT / "panel"
 sys.path.insert(0, str(PANEL))
+
+import config_guard  # noqa: E402
 
 
 class DummyFlask:
@@ -157,12 +160,70 @@ class PanelRuntimeTests(unittest.TestCase):
         self.assertEqual(container.started, 1)
         self.assertEqual(container.restarted, 0)
 
+    def test_start_request_applies_pending_mode_settings(self):
+        container = DummyContainer("created")
+        self.panel.client = DummyClient(container)
+        self.panel.queue_runtime_ready = lambda mode, rollback=None: None
+        with mock.patch.object(self.panel.request, "get_json", return_value={"freezetime": 8}):
+            response = self.panel.api_mode_start.__wrapped__("heroshift")
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["settings"]["freezetime"], 8)
+        runtime = self.panel.runtime_cfg_path("heroshift").read_text(encoding="utf-8")
+        self.assertIn("mp_freezetime 8", runtime)
+        self.assertEqual(container.started, 1)
+
     def test_retakes_config_is_seeded_outside_mode(self):
         settings = self.panel.validate_mode_settings("retakes", {"format": "4v3"})
         changed = self.panel.apply_format_plugin_config("retakes", settings)
         self.assertEqual(changed, "RetakesPlugin.json")
         target = self.panel.mode_config_path("retakes", "RetakesPlugin.json")
         self.assertTrue(target.is_relative_to(self.panel.DATA_DIR / "configs"))
+
+    def test_matchzy_is_locked_to_upstream_defaults(self):
+        settings = self.panel.validate_mode_settings(
+            "matchzy",
+            {
+                "format": "1v1",
+                "map_pool": ["de_nuke"],
+                "hostname": "operator override",
+                "freezetime": 1,
+            },
+        )
+        defaults = self.panel.DEFAULT_MODE_SETTINGS["matchzy"]
+        self.assertEqual(settings["format"], defaults["format"])
+        self.assertEqual(settings["map_pool"], defaults["map_pool"])
+        self.assertEqual(settings["hostname"], defaults["hostname"])
+        self.assertEqual(settings["freezetime"], defaults["freezetime"])
+        runtime = self.panel.generate_runtime_cfg("matchzy", settings, 'sv_password ""')
+        commands = [line for line in runtime.splitlines() if line and not line.startswith(("//", "echo", "sv_password"))]
+        self.assertEqual(commands, [])
+        with self.assertRaisesRegex(PermissionError, "owned by the upstream"):
+            self.panel.mode_config_path("matchzy", "MatchZy config.cfg")
+
+    def test_retakes_runtime_does_not_override_plugin_gameplay(self):
+        settings = self.panel.validate_mode_settings("retakes", {"format": "4v3"})
+        commands = self.panel.hot_convar_lines("retakes", settings)
+        self.assertIn("sv_maxplayers 7", commands)
+        self.assertTrue(any(line.startswith("hostname ") for line in commands))
+        for prefix in ("mp_freezetime ", "mp_warmuptime ", "mp_maxrounds ", "mp_maxmoney ", "bot_quota "):
+            self.assertFalse(any(line.startswith(prefix) for line in commands), prefix)
+
+    def test_hero_and_warcraft_keep_panel_gameplay_controls(self):
+        for mode in ("heroshift", "warcraft"):
+            settings = self.panel.validate_mode_settings(mode, {"freezetime": 7})
+            commands = self.panel.hot_convar_lines(mode, settings)
+            self.assertIn("mp_freezetime 7", commands)
+
+    def test_post_ready_guard_respects_mode_ownership(self):
+        captured = []
+        with mock.patch.object(self.panel, "rcon_command", side_effect=lambda _container, command, _timeout: captured.append(command)):
+            config_guard.apply_saved_runtime(self.panel, "matchzy")
+        self.assertEqual(captured, [])
+
+        with mock.patch.object(self.panel, "rcon_command", side_effect=lambda _container, command, _timeout: captured.append(command)):
+            config_guard.apply_saved_runtime(self.panel, "retakes")
+        for prefix in ("mp_freezetime ", "mp_warmuptime ", "mp_maxrounds ", "mp_maxmoney ", "bot_quota "):
+            self.assertFalse(any(line.startswith(prefix) for line in captured), prefix)
 
 
 if __name__ == "__main__":

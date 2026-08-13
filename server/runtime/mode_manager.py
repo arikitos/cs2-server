@@ -184,6 +184,8 @@ def build_plan(
         target_rel = _relative(target, "config target").as_posix()
         if target_rel not in plan:
             raise ModeError(f"declared config is not in the mode payload: {target_rel}")
+        if config.get("editable", True) is False:
+            continue
         override = state_root / "configs" / mode / Path(*PurePosixPath(target_rel).parts)
         if override.exists():
             if override.is_symlink() or not override.is_file():
@@ -415,6 +417,8 @@ def sync_config(
     )
     if config is None:
         raise ModeError(f"unknown config {name!r} for mode {mode}")
+    if config.get("editable", True) is False:
+        raise ModeError(f"config {name!r} is owned by the upstream {mode} release")
     target_rel = _relative(config["target"], "config target")
     override = state_root / "configs" / mode / Path(*target_rel.parts)
     if not override.is_file() or override.is_symlink():

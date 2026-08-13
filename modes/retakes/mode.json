@@ -3,6 +3,7 @@
   "label": "Retakes",
   "implementation": "Retakes with Instadefuse",
   "order": 20,
+  "server_config": false,
   "requires": {
     "metamod": "2.0.0-git1410",
     "counterstrikesharp": "1.0.371"
@@ -13,6 +14,14 @@
     "runtime_cfg": "panel_runtime.cfg"
   },
   "settings": {
+    "panel": {
+      "controls": [
+        "format",
+        "identity",
+        "map_pool"
+      ],
+      "note": "Retakes owns timing, rounds, economy, bots and friendly fire through cfg/cs2-retakes/retakes.cfg. Format changes update RetakesPlugin.json and apply on Start."
+    },
     "formats": [
       {
         "key": "5v4",
