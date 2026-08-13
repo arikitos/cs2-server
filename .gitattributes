@@ -3,3 +3,5 @@
 # here break `exec` in Docker (shebang becomes "/bin/bash\r", which doesn't exist).
 *.sh text eol=lf
 Dockerfile text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

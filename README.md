@@ -1,6 +1,8 @@
-# CS2 Server
+# CS2 Server for Windows
 
-A simple Docker Compose stack for one persistent Counter-Strike 2 server and one active game mode. The panel manages the existing server process. SteamCMD runs only as a separate maintenance job.
+A local Docker Desktop stack for one persistent Counter-Strike 2 server and one active game mode. A fresh Windows clone can be installed by double-clicking `install-windows.cmd`. The panel manages the existing server process, while SteamCMD runs only as a separate maintenance job.
+
+The Windows host runs Linux containers through Docker Desktop. The dedicated server files under `server/cs2` are therefore the Linux depot expected by the runtime container, not a native Windows CS2 installation.
 
 ## Repository layout
 
@@ -13,7 +15,8 @@ server/
   runtime/             Game image and transactional mode manager
   state/               Operator settings, generated cfg files and inventories
   updater/             SteamCMD maintenance image
-setup.ps1              First installation and safe reconfiguration
+install-windows.cmd    Double-click Windows installer
+setup-on-windows.ps1   Windows bootstrap and safe reconfiguration
 compose.yml            Runtime topology
 ```
 
@@ -53,30 +56,35 @@ modes/retakes/addons/counterstrikesharp/plugins/PanelBridge/
 
 Metamod and CounterStrikeSharp are shared foundations. Their pinned versions live in `server/frameworks/versions.json` and are installed once into the persistent server directory.
 
-## First setup
+## First setup on Windows
 
-Requirements are Docker with Compose and PowerShell 7 or newer.
+Install Git and Docker Desktop, then make sure Docker Desktop is configured to use Linux containers. Clone the repository and double-click.
 
-```powershell
-./setup.ps1
+```text
+install-windows.cmd
 ```
+
+The launcher uses the Windows PowerShell included with Windows, bypasses the local script execution policy only for this installation process, and starts Docker Desktop automatically when it is installed but not running.
 
 The setup script performs the following operations.
 
-1. Creates `.env` with absolute paths and random panel and RCON passwords.
-2. Creates the persistent server and state directories.
-3. Installs CS2 through the isolated SteamCMD service when needed.
-4. Installs the pinned Metamod and CounterStrikeSharp versions.
-5. Builds the game and panel images.
-6. Starts only the panel. The game remains stopped until a mode is selected.
+1. Verifies that the host is Windows and Docker Desktop is running Linux `amd64` containers.
+2. Creates `.env` with absolute paths and random panel and RCON passwords.
+3. Creates the persistent server and state directories.
+4. Installs CS2 into `server/cs2` through the isolated SteamCMD service when needed.
+5. Installs the pinned Metamod and CounterStrikeSharp versions.
+6. Builds the game and panel images.
+7. Starts only the panel. The game remains stopped until a mode is selected.
 
 The panel binds to `127.0.0.1` by default. Set `PANEL_BIND` deliberately if it must be reachable from another host.
 
-For an existing installation, set `CS2_DATA_PATH` in `.env` before rerunning setup. The operation is idempotent. Optional switches are available for controlled recovery.
+Rerunning `install-windows.cmd` preserves the generated passwords and an existing `CS2_DATA_PATH`. If the CS2 binary is already present, SteamCMD does not download the game again. The repository path is refreshed automatically so a moved clone keeps using its current modes and configuration.
+
+For a server installation outside the repository, set `CS2_DATA_PATH` in `.env` before rerunning setup. Optional recovery switches can be passed directly to the PowerShell script.
 
 ```powershell
-./setup.ps1 -SkipGameInstall
-./setup.ps1 -SkipFrameworkInstall
+powershell.exe -ExecutionPolicy Bypass -File .\setup-on-windows.ps1 -SkipGameInstall
+powershell.exe -ExecutionPolicy Bypass -File .\setup-on-windows.ps1 -SkipFrameworkInstall
 ```
 
 ## Updating or replacing a plugin
@@ -105,10 +113,10 @@ The generated runtime cfg files, active mode state, deployment inventory, audit 
 
 Update or validate the base CS2 installation from the panel. The backend stops the game, runs the dedicated updater container, repairs the Metamod search path, validates the installation and restores the previously selected mode.
 
-Manual equivalents are.
+Manual PowerShell equivalents are.
 
-```bash
-CS2_UPDATER_CONFIRM="UPDATE CS2" docker compose --profile maintenance run --rm cs2-updater
+```powershell
+docker compose --profile maintenance run --rm -e "CS2_UPDATER_CONFIRM=UPDATE CS2" cs2-updater
 docker compose --profile maintenance run --rm cs2-modinstaller
 ```
 
@@ -121,6 +129,8 @@ The mode manager inventories individual files with SHA256 values. Deployment is 
 The first activation after upgrading from the old directory-based inventory keeps a permanent copy under `server/state/backups/legacy-mode-layout-<timestamp>`. This is the only migration backup that may contain old generated files.
 
 ## Development verification
+
+The Python checks run directly on any development host with Python. Shell syntax checks run in CI or a Linux development shell.
 
 ```bash
 python3 -m unittest discover -s server/tests -v

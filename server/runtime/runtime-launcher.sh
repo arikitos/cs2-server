@@ -106,28 +106,9 @@ STEAM_ACCOUNT_ARGS=()
 PASSWORD_ARGS=()
 [[ -n "${CS2_PW:-}" ]] && PASSWORD_ARGS=(+sv_password "${CS2_PW}")
 
-CS2_EXECUTOR="${CS2_EXECUTOR:-native}"
+log "Launching mode=${CS2_ACTIVE_MODE}, alias=${CS2_GAMEALIAS}, map=${CS2_STARTMAP}, maxplayers=${CS2_MAXPLAYERS}"
 
-case "${CS2_EXECUTOR}" in
-    native)
-        CS2_COMMAND=(./cs2.sh)
-        ;;
-    fex)
-        [[ -x /usr/bin/FEXInterpreter ]] || fail "FEXInterpreter is missing"
-        [[ -n "${FEX_ROOTFS:-}" ]] || fail "FEX_ROOTFS is not configured"
-        [[ -e "${FEX_ROOTFS}" ]] || fail "FEX RootFS is missing at ${FEX_ROOTFS}"
-
-        export LD_LIBRARY_PATH="${STEAMAPPDIR}/game/bin/linuxsteamrt64:${LD_LIBRARY_PATH:-}"
-        CS2_COMMAND=(/usr/bin/FEXInterpreter "${CS2_BIN}")
-        ;;
-    *)
-        fail "Unsupported CS2_EXECUTOR: ${CS2_EXECUTOR}"
-        ;;
-esac
-
-log "Launching mode=${CS2_ACTIVE_MODE}, alias=${CS2_GAMEALIAS}, map=${CS2_STARTMAP}, maxplayers=${CS2_MAXPLAYERS}, executor=${CS2_EXECUTOR}"
-
-exec "${CS2_COMMAND[@]}" -dedicated \
+exec ./cs2.sh -dedicated \
     "${IP_ARGS[@]}" \
     -port "${CS2_PORT:-27015}" \
     -console \

@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 [[ -f .env ]] || {
-  echo "Missing .env. Run pwsh ./setup.ps1 first." >&2
+  echo "Missing .env. Run setup-on-windows.ps1 on the Windows host first." >&2
   exit 1
 }
 
