@@ -84,7 +84,8 @@ Make a fresh clone installable on a local Windows computer with Docker Desktop, 
 - `python3 -m py_compile panel/*.py server/runtime/mode_manager.py`, passed.
 - Shell syntax checks for the runtime, framework, updater and operational scripts, passed.
 - `git diff --check`, passed.
-- Docker Compose validation and the live installer were not run because this workspace has neither Docker nor Windows PowerShell.
+- GitHub Actions CI run `31698918104`, passed, including Docker Compose validation, all 18 tests and source syntax checks.
+- The live installer was not run because this workspace has neither Windows nor Docker Desktop.
 
 ## Open risks
 
