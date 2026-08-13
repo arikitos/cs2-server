@@ -1,5 +1,6 @@
 ﻿using CounterStrikeSharp.API.Modules.Utils;
 using RetakesAllocatorCore;
+using RetakesAllocatorCore.Config;
 
 namespace RetakesAllocatorTest;
 
