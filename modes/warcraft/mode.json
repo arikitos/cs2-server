@@ -1,0 +1,166 @@
+{
+  "id": "warcraft",
+  "label": "Warcraft Classic",
+  "implementation": "Classic Warcraft 3 races, skills, ultimates and XP progression",
+  "order": 50,
+  "requires": {
+    "metamod": "2.0.0-git1410",
+    "counterstrikesharp": "1.0.371"
+  },
+  "startup": {
+    "game_alias": "competitive",
+    "mode_cfg": "mode_warcraft.cfg",
+    "runtime_cfg": "panel_runtime.cfg"
+  },
+  "settings": {
+    "formats": [
+      {
+        "key": "5v5",
+        "label": "5v5",
+        "detail": "10 players",
+        "capacity": 10,
+        "team_size": 5,
+        "game_alias": "competitive",
+        "default": true
+      },
+      {
+        "key": "2v2",
+        "label": "2v2",
+        "detail": "4 players - Wingman",
+        "capacity": 4,
+        "team_size": 2,
+        "game_alias": "wingman"
+      },
+      {
+        "key": "1v1",
+        "label": "1v1",
+        "detail": "2 players",
+        "capacity": 2,
+        "team_size": 1,
+        "game_alias": "competitive"
+      }
+    ],
+    "defaults": {
+      "format": "5v5",
+      "map_pool": [
+        "de_dust2",
+        "de_mirage",
+        "de_inferno",
+        "de_nuke",
+        "de_ancient",
+        "de_anubis",
+        "de_overpass"
+      ],
+      "hostname": "Warcraft Classic Server",
+      "lan": false,
+      "cheats": false,
+      "allow_lobby_connect_only": false,
+      "limit_teams": 0,
+      "auto_team_balance": false,
+      "spectators_max": 2,
+      "max_rounds": 24,
+      "freezetime": 15,
+      "warmup_time": 20,
+      "round_time": 1.92,
+      "buy_time": 20,
+      "c4_timer": 40,
+      "start_money": 800,
+      "max_money": 16000,
+      "bot_quota": 10,
+      "bot_quota_mode": "match",
+      "bot_difficulty": 3,
+      "bot_chatter": "normal",
+      "bot_join_after_player": true,
+      "friendly_fire": "off",
+      "ff_bullet_reduction": 0.33,
+      "ff_grenade_reduction": 0.25,
+      "ff_other_reduction": 0.4,
+      "tk_punish": false,
+      "overtime": false,
+      "overtime_max_rounds": 6
+    },
+    "extra_cfg": []
+  },
+  "plugins": [
+    {
+      "name": "WarcraftClassic",
+      "path": "addons/counterstrikesharp/plugins/WarcraftClassic",
+      "role": "plugin",
+      "verify": {
+        "required": true,
+        "aliases": [
+          "warcraftclassic",
+          "warcraft classic"
+        ]
+      }
+    },
+    {
+      "name": "PanelBridge",
+      "path": "addons/counterstrikesharp/plugins/PanelBridge",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "panel bridge",
+          "panelbridge"
+        ]
+      }
+    },
+    {
+      "name": "ClutchAnnounce",
+      "path": "addons/counterstrikesharp/plugins/ClutchAnnouncePlugin",
+      "role": "util",
+      "verify": {
+        "required": false,
+        "aliases": [
+          "clutch announce",
+          "clutchannounce"
+        ]
+      }
+    }
+  ],
+  "configs": [
+    {
+      "name": "WarcraftClassic.json",
+      "target": "addons/counterstrikesharp/configs/plugins/WarcraftClassic/WarcraftClassic.json"
+    }
+  ],
+  "actions": [
+    {
+      "key": "restart_round",
+      "label": "Restart Current Game",
+      "cmd": "mp_restartgame 1",
+      "impact": "In-game round",
+      "description": "Restarts the game after one second.",
+      "confirm": true,
+      "group": "match"
+    },
+    {
+      "key": "warmup_end",
+      "label": "End Warmup",
+      "cmd": "mp_warmup_end",
+      "impact": "In-game phase",
+      "description": "Ends warmup.",
+      "confirm": true,
+      "group": "match"
+    },
+    {
+      "key": "kick_bots",
+      "label": "Kick All Bots",
+      "cmd": "bot_kick",
+      "impact": "Players",
+      "description": "Removes all bots.",
+      "confirm": true,
+      "group": "bots"
+    },
+    {
+      "key": "wcstatus",
+      "label": "Warcraft Runtime Status",
+      "cmd": "css_wcstatus",
+      "impact": "Read only",
+      "description": "Reports Warcraft Classic version, persistence and hook state.",
+      "confirm": false,
+      "group": "readonly"
+    }
+  ]
+}

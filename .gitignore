@@ -1,42 +1,19 @@
 .env
 
-# Persistent CS2 installation.
-server/*
-manager/steamcmd/cs2-dedicated/
+# Steam installation and operator-owned state.
+server/cs2/
+server/state/*
+!server/state/.gitkeep
 
-# Package inboxes keep their structure, but downloaded archives stay local.
-installs/**/*.zip
-installs/**/*.tmp
-!installs/**/.gitkeep
-!installs/README.md
-
-# Runtime and package backups.
-manager/backups/*
-!manager/backups/.gitkeep
-
-# Local source build artifacts.
-manager/modes/*/src/**/bin/
-manager/modes/*/src/**/obj/
-manager/shared/components/*/src/**/bin/
-manager/shared/components/*/src/**/obj/
-
-# Runtime release debug symbols are not required in production.
-manager/modes/*/release/**/*.pdb
-manager/shared/components/*/release/**/*.pdb
-
-# Leftover download and extraction scratch.
-downloads/
-
-# Panel runtime state.
-manager/panel-data/*.tmp
-manager/data/*.tmp
-manager/data/audit/
-manager/data/runtime/
-manager/data/secrets.json
-manager/data/console_history.json
-manager/data/package-update.lock
-manager/data/.package-update-*/
-
-# Python bytecode.
-__pycache__/
+# Local build and test output.
+**/bin/
+**/obj/
+**/__pycache__/
 *.py[cod]
+*.tmp
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Download and extraction scratch.
+downloads/
