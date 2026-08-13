@@ -25,7 +25,28 @@ jobs:
 
       - name: Test allocator
         working-directory: plugins-src/retakes-allocator
-        run: dotnet test cs2-retakes-allocator.sln --configuration Release
+        shell: bash
+        run: |
+          set -o pipefail
+          log="${RUNNER_TEMP}/retakes-allocator-tests.log"
+          if dotnet test cs2-retakes-allocator.sln --configuration Release \
+            --logger "console;verbosity=normal" 2>&1 | tee "$log"; then
+            exit 0
+          fi
+          message="$(tail -n 40 "$log")"
+          message="${message//'%'/'%25'}"
+          message="${message//$'\r'/'%0D'}"
+          message="${message//$'\n'/'%0A'}"
+          echo "::error title=RetakesAllocator tests failed::$message"
+          exit 1
+
+      - name: Upload allocator test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retakes-allocator-test-log
+          path: ${{ runner.temp }}/retakes-allocator-tests.log
+          if-no-files-found: ignore
 
       - name: Build allocator
         working-directory: plugins-src/retakes-allocator
