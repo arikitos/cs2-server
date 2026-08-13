@@ -466,7 +466,7 @@ public class RetakesAllocator : BasePlugin
     public HookResult OnPostItemPurchase(EventItemPurchase @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (Helpers.IsWarmup() || !Helpers.PlayerIsValid(player) || !player.PlayerPawn.IsValid)
+        if (Helpers.IsWarmup() || player is null || !Helpers.PlayerIsValid(player) || !player.PlayerPawn.IsValid)
         {
             return HookResult.Continue;
         }
@@ -583,6 +583,7 @@ public class RetakesAllocator : BasePlugin
         {
             var p = Utilities.GetEntityFromIndex<CBasePlayerWeapon>((int) pEntity.EntityInstance.Index);
             if (
+                p is null ||
                 !p.IsValid ||
                 !p.DesignerName.StartsWith("weapon") ||
                 p.DesignerName.Equals("weapon_c4") ||
@@ -637,7 +638,7 @@ public class RetakesAllocator : BasePlugin
         menu.GatherAndHandleVotes();
 
         var allPlayers = Utilities.GetPlayers()
-            .Where(player => Helpers.PlayerIsValid(player) && player.Connected == PlayerConnectedState.PlayerConnected)
+            .Where(player => Helpers.PlayerIsValid(player) && player.Connected == PlayerConnectedState.Connected)
             .ToList();
 
         OnRoundPostStartHelper.Handle(
