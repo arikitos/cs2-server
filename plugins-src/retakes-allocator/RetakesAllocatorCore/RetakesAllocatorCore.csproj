@@ -16,7 +16,10 @@
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.14"/>
         <PackageReference Include="MySqlConnector" Version="2.3.4" />
         <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="7.0.0" />
-        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
+        <!-- 2.1.12+ builds libe_sqlite3.so against GLIBC_2.34; the Steam Runtime 3
+             (sniper) game image ships glibc 2.31, so the native load fails at plugin
+             init. 2.1.11 is the newest bundle still built against GLIBC_2.28. -->
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
     </ItemGroup>
 
     <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition=" '$(CopyPath)' != '' and $(Configuration) != 'Release' ">
