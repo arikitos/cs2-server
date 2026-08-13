@@ -77,6 +77,46 @@ class RepositoryContractTests(unittest.TestCase):
         )
         self.assertFalse(matchzy_config["editable"])
 
+    def test_retakes_official_style_automatic_loadout_contract(self) -> None:
+        retakes_root = ROOT / "modes/retakes"
+        manifest = json.loads((retakes_root / "mode.json").read_text(encoding="utf-8"))
+        allocator = json.loads(
+            (
+                retakes_root
+                / "addons/counterstrikesharp/plugins/RetakesAllocator/config/config.json"
+            ).read_text(encoding="utf-8")
+        )
+        plugin = json.loads(
+            (
+                retakes_root
+                / "addons/counterstrikesharp/configs/plugins/RetakesPlugin/RetakesPlugin.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(manifest["settings"]["defaults"]["format"], "4v3")
+        self.assertEqual(manifest["settings"]["defaults"]["max_rounds"], 15)
+        self.assertEqual(plugin["GameSettings"]["MaxPlayers"], 7)
+        self.assertFalse(plugin["GameSettings"]["EnableFallbackAllocation"])
+        self.assertEqual(
+            allocator["RoundTypeManualOrdering"],
+            [
+                {"Type": "Pistol", "Count": 1},
+                {"Type": "HalfBuy", "Count": 1},
+                {"Type": "FullBuy", "Count": 13},
+            ],
+        )
+        self.assertEqual(allocator["AllowedWeaponSelectionTypes"], ["Default"])
+        self.assertEqual(allocator["FullBuyPrimaryWeaponPool"]["Terrorist"], ["AK47"])
+        self.assertEqual(
+            allocator["FullBuyPrimaryWeaponPool"]["CounterTerrorist"],
+            ["M4A1S", "M4A4"],
+        )
+        self.assertTrue(allocator["EnableAutomaticPreferredWeapon"])
+        self.assertEqual(allocator["AutomaticPreferredWeapon"], "AWP")
+        self.assertEqual(allocator["MaxAutomaticPreferredWeaponsPerRound"], 1)
+        self.assertEqual(allocator["MinPlayersForAutomaticPreferredWeapon"], 5)
+        self.assertEqual(allocator["ChanceForPreferredWeapon"], 100)
+
     def test_companion_plugins_are_mode_local(self) -> None:
         for name in ("matchzy", "retakes", "heroshift", "warcraft"):
             plugins = ROOT / "modes" / name / "addons/counterstrikesharp/plugins"

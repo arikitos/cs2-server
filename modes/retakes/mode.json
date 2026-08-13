@@ -1,7 +1,7 @@
 {
   "id": "retakes",
   "label": "Retakes",
-  "implementation": "Retakes with Instadefuse",
+  "implementation": "Retakes with automatic official-style loadouts, Instadefuse and autoplant",
   "order": 20,
   "server_config": false,
   "requires": {
@@ -29,7 +29,6 @@
         "detail": "9 players - 5 CT retake vs 4 T",
         "capacity": 9,
         "team_size": 5,
-        "default": true,
         "plugin_config": {
           "config": "RetakesPlugin.json",
           "set": {
@@ -44,6 +43,7 @@
         "detail": "7 players - 4 CT retake vs 3 T",
         "capacity": 7,
         "team_size": 4,
+        "default": true,
         "plugin_config": {
           "config": "RetakesPlugin.json",
           "set": {
@@ -54,7 +54,7 @@
       }
     ],
     "defaults": {
-      "format": "5v4",
+      "format": "4v3",
       "map_pool": [
         "de_dust2",
         "de_mirage",
@@ -73,15 +73,15 @@
       "limit_teams": 0,
       "auto_team_balance": false,
       "spectators_max": 2,
-      "max_rounds": 24,
-      "freezetime": 5,
+      "max_rounds": 15,
+      "freezetime": 7,
       "warmup_time": 30,
       "round_time": 1.92,
-      "buy_time": 20,
+      "buy_time": 0,
       "c4_timer": 40,
-      "start_money": 800,
-      "max_money": 16000,
-      "bot_quota": 9,
+      "start_money": 0,
+      "max_money": 0,
+      "bot_quota": 7,
       "bot_quota_mode": "match",
       "bot_difficulty": 3,
       "bot_chatter": "normal",
@@ -116,6 +116,17 @@
       "verify": {
         "required": false,
         "aliases": []
+      }
+    },
+    {
+      "name": "RetakesAllocator",
+      "path": "addons/counterstrikesharp/plugins/RetakesAllocator",
+      "role": "plugin",
+      "verify": {
+        "required": true,
+        "aliases": [
+          "retakes allocator"
+        ]
       }
     },
     {
@@ -159,6 +170,10 @@
     {
       "name": "RetakesPlugin.json",
       "target": "addons/counterstrikesharp/configs/plugins/RetakesPlugin/RetakesPlugin.json"
+    },
+    {
+      "name": "RetakesAllocator.json",
+      "target": "addons/counterstrikesharp/plugins/RetakesAllocator/config/config.json"
     }
   ],
   "actions": [

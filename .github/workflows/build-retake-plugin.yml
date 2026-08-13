@@ -1,0 +1,59 @@
+name: Build customized RetakesAllocator
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "plugins-src/retakes-allocator/**"
+      - "modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator/config/**"
+      - ".github/workflows/build-retake-plugin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test allocator
+        working-directory: plugins-src/retakes-allocator
+        run: dotnet test cs2-retakes-allocator.sln --configuration Release
+
+      - name: Build allocator
+        working-directory: plugins-src/retakes-allocator
+        run: >-
+          dotnet build RetakesAllocator/RetakesAllocator.csproj
+          --configuration Release
+          --output "${{ runner.temp }}/RetakesAllocator"
+
+      - name: Install allocator in Retakes mode
+        run: |
+          plugin="modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator"
+          output="${{ runner.temp }}/RetakesAllocator"
+          rm -f "$output/CounterStrikeSharp.API.dll"
+          mkdir -p "$output/gamedata"
+          cp plugins-src/retakes-allocator/Resources/RetakesAllocator_gamedata.json \
+            "$output/gamedata/RetakesAllocator_gamedata.json"
+          find "$plugin" -mindepth 1 -maxdepth 1 \
+            ! -name config ! -name BUILD_REQUIRED.md -exec rm -rf {} +
+          cp -a "$output/." "$plugin/"
+          rm -f "$plugin/BUILD_REQUIRED.md"
+
+      - name: Commit built plugin
+        run: |
+          if git diff --quiet -- modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator
+          git commit -m "build: update customized RetakesAllocator"
+          git push

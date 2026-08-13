@@ -1,0 +1,140 @@
+{
+  "UsableWeapons": [
+    "Glock",
+    "USPS",
+    "P2000",
+    "P250",
+    "Deagle",
+    "FiveSeven",
+    "Tec9",
+    "Mac10",
+    "MP9",
+    "Galil",
+    "Famas",
+    "AK47",
+    "M4A1S",
+    "M4A4",
+    "AWP"
+  ],
+  "AllowedWeaponSelectionTypes": [
+    "Default"
+  ],
+  "DefaultWeapons": {
+    "Terrorist": {
+      "PistolRound": "Glock",
+      "Secondary": "Glock",
+      "HalfBuyPrimary": "Mac10",
+      "FullBuyPrimary": "AK47"
+    },
+    "CounterTerrorist": {
+      "PistolRound": "USPS",
+      "Secondary": "USPS",
+      "HalfBuyPrimary": "MP9",
+      "FullBuyPrimary": "M4A1S"
+    }
+  },
+  "FullBuyPrimaryWeaponPool": {
+    "Terrorist": [
+      "AK47"
+    ],
+    "CounterTerrorist": [
+      "M4A1S",
+      "M4A4"
+    ]
+  },
+  "MaxNades": {
+    "GLOBAL": {
+      "Terrorist": {
+        "Flashbang": 2,
+        "Smoke": 1,
+        "Molotov": 1,
+        "HighExplosive": 1
+      },
+      "CounterTerrorist": {
+        "Flashbang": 2,
+        "Smoke": 1,
+        "Incendiary": 1,
+        "HighExplosive": 1
+      }
+    }
+  },
+  "MaxTeamNades": {
+    "GLOBAL": {
+      "Terrorist": {
+        "Pistol": "AverageOnePerPlayer",
+        "HalfBuy": "AverageOnePerPlayer",
+        "FullBuy": "AverageOnePointFivePerPlayer"
+      },
+      "CounterTerrorist": {
+        "Pistol": "AverageOnePerPlayer",
+        "HalfBuy": "AverageOnePerPlayer",
+        "FullBuy": "AverageOnePointFivePerPlayer"
+      }
+    }
+  },
+  "RoundTypeSelection": "ManualOrdering",
+  "RoundTypePercentages": {
+    "Pistol": 7,
+    "HalfBuy": 7,
+    "FullBuy": 86
+  },
+  "RoundTypeRandomFixedCounts": {
+    "Pistol": 1,
+    "HalfBuy": 1,
+    "FullBuy": 13
+  },
+  "RoundTypeManualOrdering": [
+    {
+      "Type": "Pistol",
+      "Count": 1
+    },
+    {
+      "Type": "HalfBuy",
+      "Count": 1
+    },
+    {
+      "Type": "FullBuy",
+      "Count": 13
+    }
+  ],
+  "MigrateOnStartup": true,
+  "ResetStateOnGameRestart": true,
+  "AllowAllocationAfterFreezeTime": true,
+  "UseOnTickFeatures": false,
+  "CapabilityWeaponPaints": false,
+  "EnableRoundTypeAnnouncement": true,
+  "EnableRoundTypeAnnouncementCenter": false,
+  "EnableBombSiteAnnouncementCenter": false,
+  "BombSiteAnnouncementCenterToCTOnly": false,
+  "DisableDefaultBombPlantedCenterMessage": false,
+  "ForceCloseBombSiteAnnouncementCenterOnPlant": true,
+  "BombSiteAnnouncementCenterDelay": 1.0,
+  "BombSiteAnnouncementCenterShowTimer": 5.0,
+  "EnableBombSiteAnnouncementChat": false,
+  "EnableNextRoundTypeVoting": false,
+  "NumberOfExtraVipChancesForPreferredWeapon": 0,
+  "AllowPreferredWeaponForEveryone": false,
+  "EnableAutomaticPreferredWeapon": true,
+  "AutomaticPreferredWeapon": "AWP",
+  "MaxAutomaticPreferredWeaponsPerRound": 1,
+  "MinPlayersForAutomaticPreferredWeapon": 5,
+  "ChanceForPreferredWeapon": 100,
+  "MaxPreferredWeaponsPerTeam": {
+    "Terrorist": 1,
+    "CounterTerrorist": 1
+  },
+  "MinPlayersPerTeamForPreferredWeapon": {
+    "Terrorist": 3,
+    "CounterTerrorist": 3
+  },
+  "EnableCanAcquireHook": false,
+  "LogLevel": "Information",
+  "ChatMessagePluginName": "Retakes",
+  "ChatMessagePluginPrefix": null,
+  "InGameGunMenuCenterCommands": "",
+  "InGameGunMenuChatCommands": "",
+  "ZeusPreference": "Never",
+  "DatabaseProvider": "Sqlite",
+  "DatabaseConnectionString": "Data Source=data.db; Pooling=False",
+  "AutoUpdateSignatures": false
+}

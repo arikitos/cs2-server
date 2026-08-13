@@ -173,7 +173,7 @@ class PanelRuntimeTests(unittest.TestCase):
         self.assertEqual(container.started, 1)
 
     def test_retakes_config_is_seeded_outside_mode(self):
-        settings = self.panel.validate_mode_settings("retakes", {"format": "4v3"})
+        settings = self.panel.validate_mode_settings("retakes", {"format": "5v4"})
         changed = self.panel.apply_format_plugin_config("retakes", settings)
         self.assertEqual(changed, "RetakesPlugin.json")
         target = self.panel.mode_config_path("retakes", "RetakesPlugin.json")
