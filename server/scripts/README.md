@@ -6,4 +6,4 @@
 
 `smoke-test.sh` verifies the live panel, mode switching, file isolation and the absence of SteamCMD activity in the game container.
 
-Use `setup.ps1` at the repository root for first installation and framework setup.
+Use `install-windows.cmd` at the repository root for first installation and framework setup.

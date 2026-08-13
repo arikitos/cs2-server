@@ -19,9 +19,31 @@ class RepositoryContractTests(unittest.TestCase):
     def test_runtime_layout_is_direct(self) -> None:
         for name in ("panel", "modes", "server"):
             self.assertTrue((ROOT / name).is_dir(), name)
-        self.assertTrue((ROOT / "setup.ps1").is_file())
+        self.assertTrue((ROOT / "install-windows.cmd").is_file())
+        self.assertTrue((ROOT / "setup-on-windows.ps1").is_file())
+        self.assertFalse((ROOT / "setup.ps1").exists())
         self.assertFalse((ROOT / "manager").exists())
         self.assertFalse((ROOT / "installs").exists())
+
+    def test_windows_installer_contract(self) -> None:
+        launcher = (ROOT / "install-windows.cmd").read_text(encoding="utf-8")
+        setup = (ROOT / "setup-on-windows.ps1").read_text(encoding="utf-8")
+
+        self.assertIn("powershell.exe", launcher)
+        self.assertIn("setup-on-windows.ps1", launcher)
+        self.assertIn('$env:OS -ne "Windows_NT"', setup)
+        self.assertIn('Docker/Docker/Docker Desktop.exe', setup)
+        self.assertIn('$dockerOs -ne "linux"', setup)
+        self.assertIn('@("amd64", "x86_64")', setup)
+        self.assertIn('"server/cs2"', setup)
+        self.assertIn('New-Object System.Text.UTF8Encoding($false)', setup)
+
+    def test_runtime_has_no_arm_emulation_path(self) -> None:
+        launcher = (ROOT / "server/runtime/runtime-launcher.sh").read_text(encoding="utf-8")
+        self.assertIn("exec ./cs2.sh -dedicated", launcher)
+        self.assertNotIn("CS2_EXECUTOR", launcher)
+        self.assertNotIn("FEX", launcher)
+        self.assertFalse((ROOT / "server/runtime/Dockerfile.fex").exists())
 
     def test_all_mode_definitions_and_payloads_are_valid(self) -> None:
         definitions, errors = mode_defs.load_definitions(ROOT / "modes")

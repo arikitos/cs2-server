@@ -15,7 +15,8 @@ improvements are intentionally deferred to a follow-up pull request.
 panel/                 Dashboard backend and current UI
 modes/                 Direct release-shaped mode overlays
 server/                Persistent CS2 data, runtime, updater, frameworks and tests
-setup.ps1              One-time bootstrap and local setup
+install-windows.cmd    Double-click Windows entry point
+setup-on-windows.ps1   Windows bootstrap and local setup
 compose.yml            One game container, one panel and maintenance services
 ```
 
@@ -58,9 +59,35 @@ compose.yml            One game container, one panel and maintenance services
   plugin files and preserved an unmanaged framework sentinel.
 - `git diff --check`, passed.
 
+## Windows local runtime follow-up
+
+### Goal
+
+Make a fresh clone installable on a local Windows computer with Docker Desktop, without carrying an inactive Raspberry Pi or FEX execution path.
+
+### Work log
+
+- [x] Start a clean branch from the merged `main` state.
+- [x] Add a double-click Windows command launcher.
+- [x] Make the PowerShell bootstrap compatible with Windows PowerShell and PowerShell 7.
+- [x] Start Docker Desktop when installed but not running, then validate Linux `amd64` containers.
+- [x] Keep fresh CS2 data under `server/cs2` and preserve an explicitly configured existing data path.
+- [x] Remove the unused FEX Dockerfile and launcher branch.
+- [x] Update setup references, Windows documentation, CI scope and repository contract tests.
+- [x] Run focused and repository-wide verification available in the Linux workspace.
+- [x] Review the final diff for stale platform references and accidental edits.
+- [ ] Publish the branch and open a draft pull request.
+
+### Verification record
+
+- `python3 -m unittest discover -s server/tests -v`, 18 tests passed, including the Windows installer and native runtime repository contracts.
+- `python3 -m py_compile panel/*.py server/runtime/mode_manager.py`, passed.
+- Shell syntax checks for the runtime, framework, updater and operational scripts, passed.
+- `git diff --check`, passed.
+- Docker Compose validation and the live installer were not run because this workspace has neither Docker nor Windows PowerShell.
+
 ## Open risks
 
-- Live CS2 and FEX smoke tests require the target server and cannot be completed in this workspace.
-- `setup.ps1` cannot be executed here because this Linux workspace does not have
-  PowerShell or a persistent CS2 installation.
+- A live Docker Desktop and CS2 smoke test requires the target Windows computer and cannot be completed in this workspace.
+- `setup-on-windows.ps1` cannot be executed here because this Linux workspace does not have Windows PowerShell, Docker Desktop or a persistent CS2 installation.
 - Upstream release upgrades may change archive layouts. The direct overlay contract intentionally makes such changes visible instead of normalizing them through hidden adapters.
