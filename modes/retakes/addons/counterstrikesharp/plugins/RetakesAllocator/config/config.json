@@ -9,11 +9,13 @@
     "Tec9",
     "Mac10",
     "MP9",
+    "MP7",
     "Galil",
     "Famas",
     "AK47",
     "M4A1S",
     "M4A4",
+    "Scout",
     "AWP"
   ],
   "AllowedWeaponSelectionTypes": [
