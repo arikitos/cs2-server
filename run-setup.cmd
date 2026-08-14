@@ -12,13 +12,13 @@ if errorlevel 1 (
 )
 
 echo Starting the CS2 server installer.
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup-on-windows.ps1"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
 set "setup_exit_code=%ERRORLEVEL%"
 
 echo.
 if not "%setup_exit_code%"=="0" (
     echo Installation failed with exit code %setup_exit_code%.
-    echo Review the error above, then run install-windows.cmd again.
+    echo Review the error above, then run run-setup.cmd again.
     pause
     exit /b %setup_exit_code%
 )

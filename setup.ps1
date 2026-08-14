@@ -166,7 +166,7 @@ if (-not $SkipGameInstall -and -not (Test-Path -LiteralPath $gameBinary)) {
     if ($LASTEXITCODE -ne 0) { throw "SteamCMD installation failed" }
 }
 if (-not (Test-Path -LiteralPath $gameBinary)) {
-    throw "CS2 is not installed at $dataPath. Run setup-on-windows.ps1 without -SkipGameInstall."
+    throw "CS2 is not installed at $dataPath. Run setup.ps1 without -SkipGameInstall."
 }
 
 if (-not $SkipFrameworkInstall) {

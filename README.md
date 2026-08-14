@@ -1,6 +1,6 @@
 # CS2 Server for Windows
 
-A local Docker Desktop stack for one persistent Counter-Strike 2 server and one active game mode. A fresh Windows clone can be installed by double-clicking `install-windows.cmd`. The panel manages the existing server process, while SteamCMD runs only as a separate maintenance job.
+A local Docker Desktop stack for one persistent Counter-Strike 2 server and one active game mode. A fresh Windows clone can be installed by double-clicking `run-setup.cmd`. The panel manages the existing server process, while SteamCMD runs only as a separate maintenance job.
 
 The Windows host runs Linux containers through Docker Desktop. The dedicated server files under `server/cs2` are therefore the Linux depot expected by the runtime container, not a native Windows CS2 installation.
 
@@ -15,8 +15,8 @@ server/
   runtime/             Game image and transactional mode manager
   state/               Operator settings, generated cfg files and inventories
   updater/             SteamCMD maintenance image
-install-windows.cmd    Double-click Windows installer
-setup-on-windows.ps1   Windows bootstrap and safe reconfiguration
+run-setup.cmd    Double-click Windows installer
+setup.ps1   Windows bootstrap and safe reconfiguration
 compose.yml            Runtime topology
 ```
 
@@ -61,7 +61,7 @@ Metamod and CounterStrikeSharp are shared foundations. Their pinned versions liv
 Install Git and Docker Desktop, then make sure Docker Desktop is configured to use Linux containers. Clone the repository and double-click.
 
 ```text
-install-windows.cmd
+run-setup.cmd
 ```
 
 The launcher uses the Windows PowerShell included with Windows, bypasses the local script execution policy only for this installation process, and starts Docker Desktop automatically when it is installed but not running.
@@ -78,13 +78,13 @@ The setup script performs the following operations.
 
 The panel binds to `127.0.0.1` by default. Set `PANEL_BIND` deliberately if it must be reachable from another host.
 
-Rerunning `install-windows.cmd` preserves the generated passwords and an existing `CS2_DATA_PATH`. If the CS2 binary is already present, SteamCMD does not download the game again. The repository path is refreshed automatically so a moved clone keeps using its current modes and configuration.
+Rerunning `run-setup.cmd` preserves the generated passwords and an existing `CS2_DATA_PATH`. If the CS2 binary is already present, SteamCMD does not download the game again. The repository path is refreshed automatically so a moved clone keeps using its current modes and configuration.
 
 For a server installation outside the repository, set `CS2_DATA_PATH` in `.env` before rerunning setup. Optional recovery switches can be passed directly to the PowerShell script.
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\setup-on-windows.ps1 -SkipGameInstall
-powershell.exe -ExecutionPolicy Bypass -File .\setup-on-windows.ps1 -SkipFrameworkInstall
+powershell.exe -ExecutionPolicy Bypass -File .\setup.ps1 -SkipGameInstall
+powershell.exe -ExecutionPolicy Bypass -File .\setup.ps1 -SkipFrameworkInstall
 ```
 
 ## Updating or replacing a plugin

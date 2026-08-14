@@ -122,7 +122,7 @@ def _check_requirements(
             )
         if active != wanted:
             raise ModeError(
-                f"mode requires {name}={wanted}, server has {active!r}; run setup-on-windows.ps1"
+                f"mode requires {name}={wanted}, server has {active!r}; run setup.ps1"
             )
 
 
