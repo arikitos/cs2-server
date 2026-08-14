@@ -21,6 +21,8 @@ public class RoundTypeManager
     private readonly List<RoundType> _roundsOrder = new();
     private int _roundTypeManualOrderingPosition;
 
+    private int _loadoutSequenceRoundNumber;
+
     private RoundTypeManager()
     {
         Initialize();
@@ -56,6 +58,7 @@ public class RoundTypeManager
                 break;
         }
         _roundTypeManualOrderingPosition = 0;
+        _loadoutSequenceRoundNumber = 1;
     }
 
     public void SetMap(string map)
@@ -74,7 +77,10 @@ public class RoundTypeManager
 
         switch (_roundTypeSelection)
         {
+            // Falls back to Random when LoadoutSequence is selected but RoundLoadoutSequence is
+            // empty or invalid at runtime, preserving legacy behavior instead of crashing.
             case RoundTypeSelectionOption.Random:
+            case RoundTypeSelectionOption.LoadoutSequence:
                 return GetRandomRoundType();
             case RoundTypeSelectionOption.ManualOrdering:
             case RoundTypeSelectionOption.RandomFixedCounts:
@@ -125,5 +131,39 @@ public class RoundTypeManager
     public void SetCurrentRoundType(RoundType? currentRoundType)
     {
         _currentRoundType = currentRoundType;
+    }
+
+    public bool IsLoadoutSequenceActive()
+    {
+        return _roundTypeSelection == RoundTypeSelectionOption.LoadoutSequence
+               && Configs.GetConfigData().RoundLoadoutSequence.Count > 0;
+    }
+
+    public int GetCurrentLoadoutSequenceRoundNumber()
+    {
+        return _loadoutSequenceRoundNumber;
+    }
+
+    public void AdvanceLoadoutSequenceRound()
+    {
+        _loadoutSequenceRoundNumber++;
+    }
+
+    public RoundLoadoutStage GetCurrentLoadoutStage()
+    {
+        var roundNumber = _loadoutSequenceRoundNumber;
+        var stage = Configs.GetConfigData().RoundLoadoutSequence
+            .FirstOrDefault(s => s.ContainsRound(roundNumber));
+
+        if (stage is not null)
+        {
+            return stage;
+        }
+
+        // Round number is past the last bounded stage and no open-ended stage exists;
+        // fall back to the last configured stage (config validation prevents gaps for well-formed sequences).
+        return Configs.GetConfigData().RoundLoadoutSequence
+            .OrderBy(s => s.FromRound)
+            .Last();
     }
 }

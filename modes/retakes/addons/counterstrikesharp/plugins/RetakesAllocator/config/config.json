@@ -72,7 +72,7 @@
       }
     }
   },
-  "RoundTypeSelection": "ManualOrdering",
+  "RoundTypeSelection": "LoadoutSequence",
   "RoundTypePercentages": {
     "Pistol": 7,
     "HalfBuy": 7,
@@ -95,6 +95,58 @@
     {
       "Type": "FullBuy",
       "Count": 13
+    }
+  ],
+  "RoundLoadoutSequence": [
+    {
+      "FromRound": 1,
+      "ToRound": 1,
+      "TerroristPrimaryWeapons": [],
+      "TerroristSecondaryWeapons": ["Glock"],
+      "CounterTerroristPrimaryWeapons": [],
+      "CounterTerroristSecondaryWeapons": ["USPS"],
+      "PreferredWeapon": null,
+      "MaxPreferredWeapons": 0
+    },
+    {
+      "FromRound": 2,
+      "ToRound": 2,
+      "TerroristPrimaryWeapons": [],
+      "TerroristSecondaryWeapons": ["Deagle", "P250", "Tec9"],
+      "CounterTerroristPrimaryWeapons": [],
+      "CounterTerroristSecondaryWeapons": ["Deagle", "P250", "FiveSeven"],
+      "PreferredWeapon": null,
+      "MaxPreferredWeapons": 0
+    },
+    {
+      "FromRound": 3,
+      "ToRound": 3,
+      "TerroristPrimaryWeapons": ["Mac10", "MP7"],
+      "TerroristSecondaryWeapons": ["Glock"],
+      "CounterTerroristPrimaryWeapons": ["MP9", "MP7"],
+      "CounterTerroristSecondaryWeapons": ["USPS"],
+      "PreferredWeapon": null,
+      "MaxPreferredWeapons": 0
+    },
+    {
+      "FromRound": 4,
+      "ToRound": 4,
+      "TerroristPrimaryWeapons": ["Scout", "Galil"],
+      "TerroristSecondaryWeapons": ["Glock"],
+      "CounterTerroristPrimaryWeapons": ["Scout", "Famas"],
+      "CounterTerroristSecondaryWeapons": ["USPS"],
+      "PreferredWeapon": null,
+      "MaxPreferredWeapons": 0
+    },
+    {
+      "FromRound": 5,
+      "ToRound": null,
+      "TerroristPrimaryWeapons": ["AK47"],
+      "TerroristSecondaryWeapons": ["Glock"],
+      "CounterTerroristPrimaryWeapons": ["M4A4", "M4A1S"],
+      "CounterTerroristSecondaryWeapons": ["USPS"],
+      "PreferredWeapon": "AWP",
+      "MaxPreferredWeapons": 1
     }
   ],
   "MigrateOnStartup": true,

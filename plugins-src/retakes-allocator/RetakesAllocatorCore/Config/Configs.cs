@@ -128,6 +128,7 @@ public enum RoundTypeSelectionOption
     Random,
     RandomFixedCounts,
     ManualOrdering,
+    LoadoutSequence,
 }
 
 public record RoundTypeManualOrderingItem(RoundType Type, int Count);
@@ -235,6 +236,8 @@ public record ConfigData
         new RoundTypeManualOrderingItem(RoundType.FullBuy, 15),
     };
 
+    public List<RoundLoadoutStage> RoundLoadoutSequence { get; set; } = new();
+
     public bool MigrateOnStartup { get; set; } = true;
     public bool ResetStateOnGameRestart { get; set; } = true;
     public bool AllowAllocationAfterFreezeTime { get; set; } = true;
@@ -316,6 +319,7 @@ public record ConfigData
         warnings.AddRange(ValidateDefaultWeapons(CsTeam.CounterTerrorist));
         warnings.AddRange(ValidateFullBuyPrimaryWeaponPool(CsTeam.Terrorist));
         warnings.AddRange(ValidateFullBuyPrimaryWeaponPool(CsTeam.CounterTerrorist));
+        ValidateRoundLoadoutSequence();
 
         foreach (var warning in warnings)
         {
@@ -323,6 +327,134 @@ public record ConfigData
         }
 
         return warnings;
+    }
+
+    private void ValidateRoundLoadoutSequence()
+    {
+        if (RoundLoadoutSequence.Count == 0)
+        {
+            return;
+        }
+
+        var stages = RoundLoadoutSequence.OrderBy(stage => stage.FromRound).ToList();
+
+        var openEndedCount = stages.Count(stage => stage.ToRound is null);
+        if (openEndedCount > 1)
+        {
+            throw new Exception("'RoundLoadoutSequence' cannot contain more than one open-ended stage.");
+        }
+
+        var openEndedIndex = stages.FindIndex(stage => stage.ToRound is null);
+        if (openEndedIndex != -1 && openEndedIndex != stages.Count - 1)
+        {
+            throw new Exception("'RoundLoadoutSequence' open-ended stage must be the last stage.");
+        }
+
+        int? previousToRound = null;
+        foreach (var stage in stages)
+        {
+            if (stage.FromRound < 1)
+            {
+                throw new Exception($"'RoundLoadoutSequence' stage FromRound ({stage.FromRound}) must be >= 1.");
+            }
+
+            if (stage.ToRound is not null && stage.ToRound < stage.FromRound)
+            {
+                throw new Exception(
+                    $"'RoundLoadoutSequence' stage ToRound ({stage.ToRound}) cannot be less than FromRound ({stage.FromRound}).");
+            }
+
+            if (previousToRound is not null)
+            {
+                if (stage.FromRound <= previousToRound)
+                {
+                    throw new Exception(
+                        $"'RoundLoadoutSequence' stages overlap at round {stage.FromRound}.");
+                }
+
+                if (stage.FromRound > previousToRound + 1)
+                {
+                    throw new Exception(
+                        $"'RoundLoadoutSequence' has a gap between round {previousToRound} and round {stage.FromRound}.");
+                }
+            }
+
+            previousToRound = stage.ToRound;
+
+            if (stage.MaxPreferredWeapons < 0)
+            {
+                throw new Exception("'RoundLoadoutSequence' stage MaxPreferredWeapons cannot be negative.");
+            }
+
+            if (stage.MaxPreferredWeapons > 0)
+            {
+                if (stage.PreferredWeapon is null)
+                {
+                    throw new Exception(
+                        "'RoundLoadoutSequence' stage with MaxPreferredWeapons > 0 must set PreferredWeapon.");
+                }
+
+                if (!WeaponHelpers.IsPreferred(CsTeam.Terrorist, stage.PreferredWeapon.Value)
+                    || !WeaponHelpers.IsPreferred(CsTeam.CounterTerrorist, stage.PreferredWeapon.Value))
+                {
+                    throw new Exception(
+                        $"'RoundLoadoutSequence' stage PreferredWeapon ({stage.PreferredWeapon}) must be valid for both teams.");
+                }
+            }
+
+            ValidateLoadoutStageTeamWeapons(stage, CsTeam.Terrorist);
+            ValidateLoadoutStageTeamWeapons(stage, CsTeam.CounterTerrorist);
+        }
+    }
+
+    private void ValidateLoadoutStageTeamWeapons(RoundLoadoutStage stage, CsTeam team)
+    {
+        var primaryPool = stage.GetPrimaryWeapons(team);
+        var secondaryPool = stage.GetSecondaryWeapons(team);
+
+        if (primaryPool.Count == 0 && secondaryPool.Count == 0)
+        {
+            throw new Exception(
+                $"'RoundLoadoutSequence' stage starting at round {stage.FromRound} has no weapons configured for {team}.");
+        }
+
+        var validPrimaryWeapons = WeaponHelpers
+            .GetPossibleWeaponsForAllocationTypeWithoutConfig(WeaponAllocationType.HalfBuyPrimary, team)
+            .Concat(WeaponHelpers.GetPossibleWeaponsForAllocationTypeWithoutConfig(
+                WeaponAllocationType.FullBuyPrimary, team))
+            .ToHashSet();
+
+        foreach (var weapon in primaryPool)
+        {
+            if (!UsableWeapons.Contains(weapon))
+            {
+                throw new Exception(
+                    $"'RoundLoadoutSequence' primary weapon {weapon} for {team} is not in UsableWeapons.");
+            }
+
+            if (!validPrimaryWeapons.Contains(weapon))
+            {
+                throw new Exception($"{weapon} is not a valid primary weapon for {team}.");
+            }
+        }
+
+        var validSecondaryWeapons = WeaponHelpers
+            .GetPossibleWeaponsForAllocationTypeWithoutConfig(WeaponAllocationType.Secondary, team)
+            .ToHashSet();
+
+        foreach (var weapon in secondaryPool)
+        {
+            if (!UsableWeapons.Contains(weapon))
+            {
+                throw new Exception(
+                    $"'RoundLoadoutSequence' secondary weapon {weapon} for {team} is not in UsableWeapons.");
+            }
+
+            if (!validSecondaryWeapons.Contains(weapon))
+            {
+                throw new Exception($"{weapon} is not a valid secondary weapon for {team}.");
+            }
+        }
     }
 
     private ICollection<string> ValidateFullBuyPrimaryWeaponPool(CsTeam team)

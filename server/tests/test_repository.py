@@ -97,25 +97,54 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertEqual(manifest["settings"]["defaults"]["max_rounds"], 15)
         self.assertEqual(plugin["GameSettings"]["MaxPlayers"], 7)
         self.assertFalse(plugin["GameSettings"]["EnableFallbackAllocation"])
-        self.assertEqual(
-            allocator["RoundTypeManualOrdering"],
-            [
-                {"Type": "Pistol", "Count": 1},
-                {"Type": "HalfBuy", "Count": 1},
-                {"Type": "FullBuy", "Count": 13},
-            ],
-        )
         self.assertEqual(allocator["AllowedWeaponSelectionTypes"], ["Default"])
-        self.assertEqual(allocator["FullBuyPrimaryWeaponPool"]["Terrorist"], ["AK47"])
+
+        self.assertEqual(allocator["RoundTypeSelection"], "LoadoutSequence")
+        stages = allocator["RoundLoadoutSequence"]
+        self.assertEqual(len(stages), 5)
+        self.assertEqual([stage["FromRound"] for stage in stages], [1, 2, 3, 4, 5])
+        self.assertEqual([stage["ToRound"] for stage in stages], [1, 2, 3, 4, None])
+
+        round_1, round_2, round_3, round_4, round_5 = stages
+
+        self.assertEqual(round_1["TerroristPrimaryWeapons"], [])
+        self.assertEqual(round_1["TerroristSecondaryWeapons"], ["Glock"])
+        self.assertEqual(round_1["CounterTerroristPrimaryWeapons"], [])
+        self.assertEqual(round_1["CounterTerroristSecondaryWeapons"], ["USPS"])
+        self.assertIsNone(round_1["PreferredWeapon"])
+        self.assertEqual(round_1["MaxPreferredWeapons"], 0)
+
+        self.assertEqual(round_2["TerroristPrimaryWeapons"], [])
         self.assertEqual(
-            allocator["FullBuyPrimaryWeaponPool"]["CounterTerrorist"],
-            ["M4A1S", "M4A4"],
+            round_2["TerroristSecondaryWeapons"], ["Deagle", "P250", "Tec9"]
         )
-        self.assertTrue(allocator["EnableAutomaticPreferredWeapon"])
-        self.assertEqual(allocator["AutomaticPreferredWeapon"], "AWP")
-        self.assertEqual(allocator["MaxAutomaticPreferredWeaponsPerRound"], 1)
-        self.assertEqual(allocator["MinPlayersForAutomaticPreferredWeapon"], 5)
-        self.assertEqual(allocator["ChanceForPreferredWeapon"], 100)
+        self.assertEqual(round_2["CounterTerroristPrimaryWeapons"], [])
+        self.assertEqual(
+            round_2["CounterTerroristSecondaryWeapons"],
+            ["Deagle", "P250", "FiveSeven"],
+        )
+        self.assertEqual(round_2["MaxPreferredWeapons"], 0)
+
+        self.assertEqual(round_3["TerroristPrimaryWeapons"], ["Mac10", "MP7"])
+        self.assertEqual(round_3["TerroristSecondaryWeapons"], ["Glock"])
+        self.assertEqual(round_3["CounterTerroristPrimaryWeapons"], ["MP9", "MP7"])
+        self.assertEqual(round_3["CounterTerroristSecondaryWeapons"], ["USPS"])
+
+        self.assertEqual(round_4["TerroristPrimaryWeapons"], ["Scout", "Galil"])
+        self.assertEqual(round_4["TerroristSecondaryWeapons"], ["Glock"])
+        self.assertEqual(round_4["CounterTerroristPrimaryWeapons"], ["Scout", "Famas"])
+        self.assertEqual(round_4["CounterTerroristSecondaryWeapons"], ["USPS"])
+
+        self.assertEqual(round_5["FromRound"], 5)
+        self.assertIsNone(round_5["ToRound"])
+        self.assertEqual(round_5["TerroristPrimaryWeapons"], ["AK47"])
+        self.assertEqual(round_5["TerroristSecondaryWeapons"], ["Glock"])
+        self.assertEqual(
+            round_5["CounterTerroristPrimaryWeapons"], ["M4A4", "M4A1S"]
+        )
+        self.assertEqual(round_5["CounterTerroristSecondaryWeapons"], ["USPS"])
+        self.assertEqual(round_5["PreferredWeapon"], "AWP")
+        self.assertEqual(round_5["MaxPreferredWeapons"], 1)
 
     def test_companion_plugins_are_mode_local(self) -> None:
         for name in ("matchzy", "retakes", "heroshift", "warcraft"):

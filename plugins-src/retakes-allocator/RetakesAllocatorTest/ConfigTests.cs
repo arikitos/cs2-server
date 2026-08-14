@@ -74,4 +74,264 @@ public class ConfigTests : BaseTestFixture
             "Preferred is not a valid default weapon allocation type for config DefaultWeapons.Terrorist."
         ));
     }
+
+    private static RoundLoadoutStage MakeStage(int fromRound, int? toRound) => new()
+    {
+        FromRound = fromRound,
+        ToRound = toRound,
+        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+    };
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsGap()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    MakeStage(1, 1),
+                    MakeStage(3, null),
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("gap"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsOverlap()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    MakeStage(1, 3),
+                    MakeStage(2, null),
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("overlap"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsMultipleOpenEndedStages()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    MakeStage(1, null),
+                    MakeStage(2, null),
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("more than one open-ended stage"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRequiresOpenEndedStageLast()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    MakeStage(1, null),
+                    MakeStage(2, 3),
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("must be the last stage"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsInvalidRoundNumbers()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    MakeStage(0, null),
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain(">= 1"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsFiveSevenForTerrorist()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = null,
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.FiveSeven},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                    },
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("FiveSeven"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsTec9ForCounterTerrorist()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = null,
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.Tec9},
+                    },
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("Tec9"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsNegativeMaxPreferredWeapons()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = null,
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                        MaxPreferredWeapons = -1,
+                    },
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("cannot be negative"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceRejectsMissingBothPoolsForATeam()
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = null,
+                        TerroristSecondaryWeapons = new List<CsItem>(),
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                    },
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("no weapons configured"));
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceEmptyIsBackwardCompatible()
+    {
+        Assert.DoesNotThrow(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>(),
+            });
+        });
+    }
+
+    [Test]
+    public void TestRoundLoadoutSequenceValidOfficialProgressionPasses()
+    {
+        Assert.DoesNotThrow(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = 1,
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                    },
+                    new()
+                    {
+                        FromRound = 2,
+                        ToRound = 2,
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Deagle, CsItem.P250, CsItem.Tec9},
+                        CounterTerroristSecondaryWeapons =
+                            new List<CsItem> {CsItem.Deagle, CsItem.P250, CsItem.FiveSeven},
+                    },
+                    new()
+                    {
+                        FromRound = 3,
+                        ToRound = 3,
+                        TerroristPrimaryWeapons = new List<CsItem> {CsItem.Mac10, CsItem.MP7},
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristPrimaryWeapons = new List<CsItem> {CsItem.MP9, CsItem.MP7},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                    },
+                    new()
+                    {
+                        FromRound = 4,
+                        ToRound = 4,
+                        TerroristPrimaryWeapons = new List<CsItem> {CsItem.Scout, CsItem.Galil},
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristPrimaryWeapons = new List<CsItem> {CsItem.Scout, CsItem.Famas},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                    },
+                    new()
+                    {
+                        FromRound = 5,
+                        ToRound = null,
+                        TerroristPrimaryWeapons = new List<CsItem> {CsItem.AK47},
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristPrimaryWeapons = new List<CsItem> {CsItem.M4A4, CsItem.M4A1S},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                        PreferredWeapon = CsItem.AWP,
+                        MaxPreferredWeapons = 1,
+                    },
+                },
+            });
+        });
+    }
 }

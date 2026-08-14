@@ -4,12 +4,14 @@ This directory contains the source used to build the RetakesAllocator payload bu
 
 The source is based on [yonilerner/cs2-retakes-allocator](https://github.com/yonilerner/cs2-retakes-allocator) commit `95fad69a89000364ca467add3e78e61e6953d7ff`.
 
-The local customization keeps the upstream allocator architecture and adds two server-managed behaviors.
+The local customization keeps the upstream allocator architecture and adds a config-driven, official-style round loadout progression.
 
-- Full-buy primary weapon pools allow Terrorists to receive AK-47 rifles and Counter-Terrorists to receive either M4A1-S or M4A4 rifles without player menus.
-- Automatic preferred weapon allocation selects at most one random active player across both teams for an AWP when the configured minimum player count is reached.
+- `RoundTypeSelectionOption.LoadoutSequence` (config field `RoundTypeSelection: "LoadoutSequence"`) selects an ordered list of round stages, `RoundLoadoutSequence`, instead of the upstream Pistol/HalfBuy/FullBuy economy. Each stage is a `RoundLoadoutStage`: a one-based, inclusive `FromRound`/`ToRound` range (`ToRound: null` marks the final stage, which continues for every remaining round including matches longer than 15 rounds), independent `TerroristPrimaryWeapons`/`TerroristSecondaryWeapons`/`CounterTerroristPrimaryWeapons`/`CounterTerroristSecondaryWeapons` pools, and an optional `PreferredWeapon`/`MaxPreferredWeapons` pair.
+- Every player independently receives one random weapon from their team's configured secondary pool and, unless they are the round's preferred-weapon recipient, one random weapon from their team's configured primary pool. An empty primary pool (used for the pistol-only and secondary-only stages) means no primary weapon is distributed that round.
+- When a stage sets `MaxPreferredWeapons` to `1` (used for the final stage with `PreferredWeapon: "AWP"`), exactly one randomly selected active player across both T and CT receives that weapon instead of their team's normal primary weapon each round. No more than one preferred weapon is ever distributed in the same round, and none is distributed before a stage configures it.
+- `RoundLoadoutSequence` is validated at config load: round ranges must be contiguous and non-overlapping with at most one open-ended final stage, every configured weapon must be a valid, team-appropriate choice already recognized by the allocator's weapon-pool tables, and a stage that grants a preferred weapon must specify one valid for both teams. The whole feature is optional — an empty or absent `RoundLoadoutSequence` falls back to the upstream `RoundTypeSelection` behavior (`Random`, `RandomFixedCounts`, or `ManualOrdering`) so existing installs are unaffected until an operator opts in.
 
-The mode configuration selects one Pistol round, one HalfBuy round and thirteen FullBuy rounds. Players do not need to run `!awp` or select a weapon preference.
+The mode configuration uses `RoundTypeSelection: "LoadoutSequence"` with the five-stage progression described above. Players do not run `!awp`, open a weapon menu, or select a weapon preference; every loadout is allocated automatically.
 
 The repository workflow runs the allocator tests and builds `RetakesAllocator/RetakesAllocator.csproj` with .NET 10, matching CounterStrikeSharp API 1.0.371. It removes the server-provided CounterStrikeSharp API assembly, bundles the allocator gamedata, installs the release output under `modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator` and commits the deployable payload back to `main`.
 
