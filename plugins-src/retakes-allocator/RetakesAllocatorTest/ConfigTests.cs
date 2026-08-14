@@ -242,6 +242,59 @@ public class ConfigTests : BaseTestFixture
         Assert.That(error!.Message, Does.Contain("cannot be negative"));
     }
 
+    [TestCase(-1.0)]
+    [TestCase(100.1)]
+    public void TestRoundLoadoutSequenceRejectsOutOfRangePreferredWeaponChance(double chance)
+    {
+        var error = Assert.Catch(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = null,
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                        PreferredWeaponChance = chance,
+                    },
+                },
+            });
+        });
+        Assert.That(error, Is.Not.Null);
+        Assert.That(error!.Message, Does.Contain("must be between 0 and 100"));
+    }
+
+    [TestCase(0.0)]
+    [TestCase(25.0)]
+    [TestCase(100.0)]
+    public void TestRoundLoadoutSequenceAcceptsInRangePreferredWeaponChance(double chance)
+    {
+        Assert.DoesNotThrow(() =>
+        {
+            Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                RoundLoadoutSequence = new List<RoundLoadoutStage>
+                {
+                    new()
+                    {
+                        FromRound = 1,
+                        ToRound = null,
+                        TerroristPrimaryWeapons = new List<CsItem> {CsItem.AK47},
+                        TerroristSecondaryWeapons = new List<CsItem> {CsItem.Glock},
+                        CounterTerroristPrimaryWeapons = new List<CsItem> {CsItem.M4A4},
+                        CounterTerroristSecondaryWeapons = new List<CsItem> {CsItem.USPS},
+                        PreferredWeapon = CsItem.AWP,
+                        MaxPreferredWeapons = 1,
+                        PreferredWeaponChance = chance,
+                    },
+                },
+            });
+        });
+    }
+
     [Test]
     public void TestRoundLoadoutSequenceRejectsMissingBothPoolsForATeam()
     {

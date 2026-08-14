@@ -386,6 +386,12 @@ public record ConfigData
                 throw new Exception("'RoundLoadoutSequence' stage MaxPreferredWeapons cannot be negative.");
             }
 
+            if (stage.PreferredWeaponChance is < 0 or > 100)
+            {
+                throw new Exception(
+                    $"'RoundLoadoutSequence' stage PreferredWeaponChance ({stage.PreferredWeaponChance}) must be between 0 and 100.");
+            }
+
             if (stage.MaxPreferredWeapons > 0)
             {
                 if (stage.PreferredWeapon is null)

@@ -148,7 +148,8 @@
       "CounterTerroristPrimaryWeapons": ["M4A4", "M4A1S"],
       "CounterTerroristSecondaryWeapons": ["USPS"],
       "PreferredWeapon": "AWP",
-      "MaxPreferredWeapons": 1
+      "MaxPreferredWeapons": 1,
+      "PreferredWeaponChance": 25
     }
   ],
   "MigrateOnStartup": true,

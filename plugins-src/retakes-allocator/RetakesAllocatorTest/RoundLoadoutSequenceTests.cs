@@ -14,6 +14,7 @@ public class RoundLoadoutSequenceTests : BaseTestFixture
     public void ResetRandom()
     {
         RoundLoadoutAllocator.RandomIndex = n => new Random().Next(n);
+        RoundLoadoutAllocator.RandomPercent = () => new Random().NextDouble() * 100;
     }
 
     private static List<RoundLoadoutStage> BuildOfficialSequence()
@@ -321,6 +322,126 @@ public class RoundLoadoutSequenceTests : BaseTestFixture
             var awpCount = allocations.Values.Count(items => items.Contains(CsItem.AWP));
             Assert.That(awpCount, Is.LessThanOrEqualTo(1));
         }
+    }
+
+    private static void SetupFinalStageAwpChance(double chance)
+    {
+        var sequence = BuildOfficialSequence();
+        sequence[^1].PreferredWeaponChance = chance;
+        Configs.OverrideConfigDataForTests(new ConfigData
+        {
+            RoundTypeSelection = RoundTypeSelectionOption.LoadoutSequence,
+            RoundLoadoutSequence = sequence,
+        });
+        RoundTypeManager.Instance.Initialize();
+    }
+
+    [Test]
+    public void PreferredWeaponChance_DefaultsTo100_AndAlwaysAllocates()
+    {
+        SetupOfficialSequenceConfig();
+        Assert.That(BuildOfficialSequence()[^1].PreferredWeaponChance, Is.EqualTo(100));
+
+        var players = SevenPlayers();
+        for (var i = 0; i < 4; i++) AllocateRound(players, out _);
+
+        // A roll that would fail any chance below 100 must still allocate at the default.
+        RoundLoadoutAllocator.RandomPercent = () => 99.999;
+        for (var i = 0; i < 10; i++)
+        {
+            var allocations = AllocateRound(players, out _);
+            Assert.That(allocations.Values.Count(items => items.Contains(CsItem.AWP)), Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public void PreferredWeaponChance_RollBelowThreshold_AllocatesAwp()
+    {
+        SetupFinalStageAwpChance(25);
+        var players = SevenPlayers();
+        for (var i = 0; i < 4; i++) AllocateRound(players, out _);
+
+        RoundLoadoutAllocator.RandomPercent = () => 24.999;
+        var allocations = AllocateRound(players, out _);
+
+        Assert.That(allocations.Values.Count(items => items.Contains(CsItem.AWP)), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void PreferredWeaponChance_RollAtOrAboveThreshold_AllocatesNoAwp()
+    {
+        SetupFinalStageAwpChance(25);
+        var players = SevenPlayers();
+        for (var i = 0; i < 4; i++) AllocateRound(players, out _);
+
+        RoundLoadoutAllocator.RandomPercent = () => 25;
+        var allocations = AllocateRound(players, out _);
+
+        Assert.That(allocations.Values.Any(items => items.Contains(CsItem.AWP)), Is.False);
+    }
+
+    [Test]
+    public void PreferredWeaponChance_FailedRoll_StillGivesEveryPlayerTheirTeamRifle()
+    {
+        SetupFinalStageAwpChance(25);
+        var players = SevenPlayers();
+        for (var i = 0; i < 4; i++) AllocateRound(players, out _);
+
+        RoundLoadoutAllocator.RandomPercent = () => 99;
+        var allocations = AllocateRound(players, out var roundType);
+
+        Assert.That(roundType, Is.EqualTo(RoundType.FullBuy));
+        foreach (var (player, items) in allocations)
+        {
+            if (player.Team == CsTeam.Terrorist)
+            {
+                Assert.That(items, Does.Contain(CsItem.Glock));
+                Assert.That(items, Does.Contain(CsItem.AK47));
+            }
+            else
+            {
+                Assert.That(items, Does.Contain(CsItem.USPS));
+                Assert.That(items.Any(i => i is CsItem.M4A4 or CsItem.M4A1S), Is.True);
+            }
+        }
+    }
+
+    [Test]
+    public void PreferredWeaponChance_Zero_NeverAllocatesAwp()
+    {
+        SetupFinalStageAwpChance(0);
+        var players = SevenPlayers();
+        for (var i = 0; i < 4; i++) AllocateRound(players, out _);
+
+        for (var i = 0; i < 25; i++)
+        {
+            var allocations = AllocateRound(players, out _);
+            Assert.That(allocations.Values.Any(items => items.Contains(CsItem.AWP)), Is.False);
+        }
+    }
+
+    [Test]
+    public void PreferredWeaponChance_25_AllocatesAwpInRoughlyAQuarterOfRounds()
+    {
+        SetupFinalStageAwpChance(25);
+        var players = SevenPlayers();
+        for (var i = 0; i < 4; i++) AllocateRound(players, out _);
+
+        // Deterministic sweep across the roll space instead of sampling real randomness,
+        // so the assertion is exact rather than flaky.
+        var rounds = 0;
+        var awpRounds = 0;
+        for (var percent = 0; percent < 100; percent++)
+        {
+            var roll = percent;
+            RoundLoadoutAllocator.RandomPercent = () => roll;
+            var allocations = AllocateRound(players, out _);
+            rounds++;
+            if (allocations.Values.Any(items => items.Contains(CsItem.AWP))) awpRounds++;
+        }
+
+        Assert.That(rounds, Is.EqualTo(100));
+        Assert.That(awpRounds, Is.EqualTo(25));
     }
 
     [Test]
