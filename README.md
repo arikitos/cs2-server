@@ -97,8 +97,8 @@ The CS2 installation is physically stored on the Windows host. By default it is 
 The setup script writes absolute Windows host paths into `.env`.
 
 ```env
-PROJECT_PATH=C:/Users/Arik/cs2-server
-CS2_DATA_PATH=C:/Users/Arik/cs2-server/server/cs2
+PROJECT_PATH=C:/Users/<username>/cs2-server
+CS2_DATA_PATH=C:/Users/<username>/cs2-server/server/cs2
 ```
 
 Docker Compose maps those host paths into Linux paths used by the containers.
@@ -176,6 +176,28 @@ Use `PANEL_USERNAME`, which defaults to `admin`, and the generated `PANEL_PASSWO
 
 Select a mode in the dashboard and press Start. The first game launch begins only after a mode has been selected.
 
+## Daily operation
+
+1. Start Docker Desktop.
+2. Open `http://127.0.0.1:8080`.
+3. Select MatchZy, Retakes, HeroShift, or Warcraft Classic.
+4. Change only the settings exposed for that mode.
+5. Press Start to save the pending settings, deploy the mode, and launch the server.
+6. Use the same dashboard for status, players, approved commands, current-session logs, restart, and stop operations.
+
+Only one mode can run at a time. Selecting another mode and pressing Start stops the current game process, transactionally replaces its managed payload, and starts the new mode.
+
+## Updating an existing checkout
+
+Stop the game from the panel, update the repository, and rerun setup.
+
+```powershell
+git pull --ff-only
+.\run-setup.cmd
+```
+
+This preserves `.env`, `server/state`, and the existing CS2 installation. The installer rebuilds the local images and recreates the managed containers. It downloads the complete game only when the expected CS2 binary is missing.
+
 ## Repeating or repairing setup
 
 Running `run-setup.cmd` again preserves an existing `CS2_DATA_PATH`, panel password, and RCON password. The current repository path is refreshed automatically.
@@ -196,11 +218,12 @@ Use `SkipGameInstall` only when a valid Linux CS2 dedicated server already exist
 | Variable | Default or setup behavior | Responsibility |
 |---|---|---|
 | `SRCDS_TOKEN` | Empty | Steam game server login token passed to the game runtime |
-| `CS2_SERVERNAME` | Empty | Initial server name and the source value used by the shared server template |
+| `CS2_SERVERNAME` | `Arikitos's Server` | Initial server name and the source value used by the shared server template |
 | `CS2_PASSWORD` | Empty | Initial game password, panel state becomes authoritative after first use |
 | `CS2_RCON_PASSWORD` | Generated when empty | RCON authentication used by the panel and game |
 | `CS2_PORT` | `27015` | Published TCP and UDP game port |
-| `CS2_TV_PORT` | `27020` | Internal CSTV port, it is not published separately by the current Compose file |
+| `CS2_TV_ENABLE` | `0` | Enables CSTV explicitly. Keep disabled for one visible LAN server |
+| `CS2_TV_PORT` | `27020` | Internal CSTV port, not published separately by the current Compose file |
 | `CS2_BASE_IMAGE` | Pinned image digest | Base image used by runtime and maintenance builds |
 | `CS2_UPDATER_MODE` | `update` | Default maintenance operation |
 | `CS2_UPDATER_CONFIRM` | Empty | Confirmation guard for direct maintenance use |
@@ -213,6 +236,22 @@ Use `SkipGameInstall` only when a valid Linux CS2 dedicated server already exist
 | `CS2_ALLOWED_MAPS` | Active competitive map list | Optional comma-separated map allowlist |
 
 Rerun setup after changing values that are injected into container definitions, so Docker Compose can recreate containers with the new environment.
+
+## CSTV, MatchZy demos, and duplicate LAN entries
+
+CSTV is a second server endpoint used for spectators and demo recording. When it is enabled, CS2 can show both the game server and the CSTV endpoint in the LAN browser. This is not a second `cs2-game` container.
+
+The default configuration keeps CSTV disabled and MatchZy does not force it on. This produces one game server entry under normal operation.
+
+To enable MatchZy demo recording deliberately, set this value in `.env`.
+
+```env
+CS2_TV_ENABLE=1
+```
+
+Rerun `run-setup.cmd` to recreate the game container with the new environment, then start MatchZy from the panel. A separate CSTV entry may be visible while CSTV is enabled.
+
+The current Compose topology does not publish `CS2_TV_PORT` to the Windows host. CSTV can therefore support server-side MatchZy recording, but direct spectator connections to port `27020` are not part of the default setup.
 
 ## What the panel manages
 
@@ -475,7 +514,7 @@ Audit entries are stored as daily JSON Lines files under `server/state/audit`.
 - Warcraft XP level grant and removal controls are not implemented in the current panel action catalog.
 - The RCON console is allowlisted and does not accept arbitrary server commands.
 - SteamCMD and some maintenance operations are controlled workflows, not an interactive terminal.
-- The Compose file does not publish `CS2_TV_PORT` separately.
+- CSTV spectator connections are not published by the default Compose topology.
 
 ## Troubleshooting
 
@@ -490,6 +529,8 @@ Audit entries are stored as daily JSON Lines files under `server/state/audit`.
 | RCON does not become ready | Check `CS2_RCON_PASSWORD`, the game logs, and required plugin health |
 | A plugin loads defaults instead of operator settings | Confirm that the override exists under the exact `server/state/configs/<mode>/<target>` path |
 | A changed `.env` value is ignored | Rerun setup so Docker Compose can recreate the affected container |
+| The server appears twice in the LAN browser | Keep `CS2_TV_ENABLE=0`, rerun setup, and restart the active mode. When CSTV is enabled, the second entry is the CSTV endpoint on port `27020` |
+| Two different game servers remain visible with CSTV disabled | Run `docker ps --format "table {{.Names}}\t{{.Ports}}"` and stop any older CS2 container or native server process that is still running |
 | Panel login credentials are unknown | Read `PANEL_USERNAME` and `PANEL_PASSWORD` from the local `.env` file |
 
 ## Development verification
