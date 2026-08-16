@@ -30,7 +30,7 @@ services:
       CS2_LAN: "0"
       CS2_SERVER_HIBERNATE: "0"
       CS2_LOG: "on"
-      TV_ENABLE: "0"
+      TV_ENABLE: ${CS2_TV_ENABLE:-0}
       TV_PORT: ${CS2_TV_PORT:-27020}
       MODE_STATE_PATH: /state/runtime/active-mode.json
       MODE_VERSIONS_PATH: /frameworks/versions.json

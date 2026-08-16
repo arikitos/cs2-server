@@ -21,7 +21,7 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertTrue((ROOT / name).is_dir(), name)
         self.assertTrue((ROOT / "run-setup.cmd").is_file())
         self.assertTrue((ROOT / "setup.ps1").is_file())
-        self.assertFalse((ROOT / "setup.ps1").exists())
+        self.assertFalse((ROOT / "setup-on-windows.ps1").exists())
         self.assertFalse((ROOT / "manager").exists())
         self.assertFalse((ROOT / "installs").exists())
 
@@ -222,6 +222,21 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("build: ./panel", compose)
         self.assertIn("${PROJECT_PATH}/modes:/modes:ro", compose)
         self.assertNotIn("./manager", compose)
+
+    def test_cstv_is_opt_in_and_matchzy_does_not_force_it(self) -> None:
+        compose = (ROOT / "compose.yml").read_text(encoding="utf-8")
+        env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        server_config = (ROOT / "server/config/server.cfg").read_text(
+            encoding="utf-8"
+        )
+        matchzy_cfg = (ROOT / "modes/matchzy/cfg/mode_matchzy.cfg").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("TV_ENABLE: ${CS2_TV_ENABLE:-0}", compose)
+        self.assertIn("CS2_TV_ENABLE=0", env_example)
+        self.assertIn("tv_enable {{TV_ENABLE}}", server_config)
+        self.assertNotIn("tv_enable 1", matchzy_cfg)
 
 
 if __name__ == "__main__":
