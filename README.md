@@ -218,7 +218,7 @@ Use `SkipGameInstall` only when a valid Linux CS2 dedicated server already exist
 | Variable | Default or setup behavior | Responsibility |
 |---|---|---|
 | `SRCDS_TOKEN` | Empty | Steam game server login token passed to the game runtime |
-| `CS2_SERVERNAME` | `Arikitos's Server` | Initial server name and the source value used by the shared server template |
+| `CS2_SERVERNAME` | Empty | Initial server name and the source value used by the shared server template |
 | `CS2_PASSWORD` | Empty | Initial game password, panel state becomes authoritative after first use |
 | `CS2_RCON_PASSWORD` | Generated when empty | RCON authentication used by the panel and game |
 | `CS2_PORT` | `27015` | Published TCP and UDP game port |
