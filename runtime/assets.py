@@ -63,7 +63,7 @@ def download(component, destination):
     return digest
 
 
-def copy_payload(source, destination):
+def copy_payload(source, destination, single_plugin=None):
     """Handle CSSharp-relative plugin releases and csgo-relative MatchZy releases."""
     source, destination = Path(source), Path(destination)
     if (source / 'addons').is_dir():
@@ -71,6 +71,12 @@ def copy_payload(source, destination):
     elif (source / 'plugins').is_dir():
         payload = source
         destination = destination / 'addons/counterstrikesharp'
+    elif single_plugin:
+        assemblies = list(source.rglob(single_plugin + '.dll'))
+        if len(assemblies) != 1:
+            raise ValueError('Expected one assembly for ' + single_plugin)
+        payload = assemblies[0].parent
+        destination = destination / 'addons/counterstrikesharp/plugins' / single_plugin
     else:
         raise ValueError('Release does not contain the expected addons/plugins tree')
     shutil.copytree(payload, destination, dirs_exist_ok=True)
@@ -97,7 +103,7 @@ def main():
                 with tempfile.TemporaryDirectory() as config_backup:
                     previous = Path(config_backup) / 'previous'
                     shutil.copytree(modes / mode, previous)
-                    copy_payload(unpacked, modes / mode)
+                    copy_payload(unpacked, modes / mode, 'InstadefusePlugin' if name == 'instadefuse' else None)
                     shutil.copytree(previous, modes / mode, dirs_exist_ok=True)
     # The source-built bridge is global and must never be removed by a mode switch.
     shutil.copytree('/built/LocalManager', frameworks / 'addons/counterstrikesharp/plugins/LocalManager', dirs_exist_ok=True)

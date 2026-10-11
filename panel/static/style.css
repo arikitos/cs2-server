@@ -506,7 +506,7 @@ th { color:var(--muted); font-weight:500; font-size:11px; text-transform:upperca
 th,td { padding:14px 10px; border-bottom:1px solid var(--border); }
 th:first-child,td:first-child { padding-left:0; }
 td { vertical-align:middle; }
-.player-id { display:block; margin-top:5px; font-size:11px; font-family:ui-monospace,monospace; overflow-wrap:anywhere; }
+.player-id { display:block; margin-top:5px; font-size:11px; font-family:ui-monospace,monospace; white-space:nowrap; }
 .row-actions { gap:6px; }
 .empty-state { font-size:13px; padding:12px 0; margin-bottom:0; }
 .address-input { display:flex; gap:8px; align-items:stretch; min-width:0; }
