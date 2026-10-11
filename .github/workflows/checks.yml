@@ -19,3 +19,37 @@ jobs:
       - run: node --check panel/static/app.js
       - run: sh -n runtime/entrypoint.sh
       - run: docker compose config --quiet
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and bootstrap the real panel
+        run: docker compose up -d --build --wait
+      - name: Build runtime through the panel's Docker API and inspect the game volume
+        run: |
+          docker compose exec -T panel python - <<'PY'
+          from panel.core import Controller, config_from
+          controller = Controller()
+          assert controller.preflight()['supported']
+          controller.engine.build('/app/runtime', 'cs2-local-runtime:1', print)
+          controller.engine.volume(controller.game_volume)
+          inspection = controller.manifest()
+          assert inspection['manifest'] == ''
+          assert inspection['free_bytes'] > 0
+          controller.config = config_from({})
+          controller.write_config()
+          print('Real Docker API build, job container and persistent volume smoke passed.')
+          PY
+      - name: Verify runtime user can read the private configuration
+        run: |
+          docker run --rm --user 1000:1000 \
+            --mount type=volume,src=cs2-local-config,dst=/config,readonly \
+            --entrypoint python3 cs2-local-runtime:1 \
+            -c 'import json,pathlib; settings=json.loads(pathlib.Path("/config/server.json").read_text()); assert settings["port"] == 27015; print("Runtime configuration permissions passed.")'
+      - name: Cleanup ephemeral smoke-test services
+        if: always()
+        run: |
+          docker rm -f cs2-local-job cs2-local-server || true
+          docker compose down --volumes
+          docker volume rm cs2-local-game || true
