@@ -1,0 +1,31 @@
+name: cs2-local
+services:
+  panel:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - panel-state:/state
+      - server-config:/config
+    environment:
+      CS2_NETWORK: cs2-local-network
+      CS2_CONFIG_VOLUME: cs2-local-config
+      CS2_GAME_VOLUME: cs2-local-game
+    networks: [control]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  panel-state:
+    name: cs2-local-panel-state
+  server-config:
+    name: cs2-local-config
+    labels:
+      io.cs2-local.managed: "true"
+networks:
+  control:
+    name: cs2-local-network
