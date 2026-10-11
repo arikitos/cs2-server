@@ -1,0 +1,16 @@
+{
+  "id": "deathmatch",
+  "label": "Deathmatch (Official)",
+  "requires": {
+    "metamod": "2.0.0-git1474",
+    "counterstrikesharp": "1.0.376"
+  },
+  "startup": {
+    "game_alias": "deathmatch",
+    "mode_cfg": "mode_deathmatch.cfg",
+    "runtime_cfg": "panel_runtime.cfg"
+  },
+  "plugins": [],
+  "configs": [],
+  "actions": []
+}

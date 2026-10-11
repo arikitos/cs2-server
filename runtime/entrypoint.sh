@@ -3,13 +3,17 @@ set -eu
 if [ "$(id -u)" = 0 ]; then
     # Initialize only the mount root; avoid recursively scanning the game on every start.
     chown steam:steam /game
+    if [ -d /telemetry ]; then chown steam:steam /telemetry; fi
     exec runuser -u steam -- "$0" "$@"
 fi
 case "${1:-server}" in
-  install|update)
-    python3 /opt/cs2/install.py
+  install|update|validate)
+    python3 /opt/cs2/install.py "${1:-install}"
     test -x /game/game/bin/linuxsteamrt64/cs2
     grep -q '"buildid"' /game/steamapps/appmanifest_730.acf
+    ;;
+  repair)
+    python3 /opt/cs2/prepare.py
     ;;
   check)
     cd /opt/steamcmd

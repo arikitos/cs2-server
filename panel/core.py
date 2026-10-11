@@ -13,11 +13,11 @@ from pathlib import Path
 
 from .docker_engine import DockerEngine, EngineError
 
-IMAGE = 'cs2-local-runtime:1'
+IMAGE = 'cs2-local-runtime:2'
 SERVER = 'cs2-local-server'
 JOB = 'cs2-local-job'
-LABELS = {'io.cs2-local.managed': 'true'}
-BUSY = {'building', 'installing', 'checking', 'updating', 'starting'}
+LABELS = {'io.cs2-local.managed': 'true', 'io.cs2-local.runtime': '2'}
+BUSY = {'building', 'installing', 'checking', 'updating', 'starting', 'configuring', 'repairing', 'validating', 'restoring'}
 
 class Problem(Exception):
     def __init__(self, message, status=400, **details):
@@ -45,15 +45,21 @@ def password_hash(password, salt=None):
 def verify_password(password, encoded):
     return hmac.compare_digest(password_hash(password, encoded.split(':')[0]), encoded)
 
-def config_from(data):
+def config_from(data, existing=None):
+    existing = existing or {}
     def text(key, maximum=128, default=''):
-        value = str(data.get(key, default)).strip()
+        value = str(data.get(key, existing.get(key, default)))
+        if key != 'join_password':
+            value = value.strip()
         if len(value) > maximum or any(ord(c) < 32 or ord(c) == 127 for c in value):
             raise Problem(f'Invalid {key}')
         return value
     def number(key, low, high, default):
         try:
-            value = int(data.get(key, default))
+            raw = data.get(key, existing.get(key, default))
+            if isinstance(raw, bool):
+                raise ValueError()
+            value = int(raw)
         except (ValueError, TypeError):
             raise Problem(f'Invalid {key}')
         if not low <= value <= high:
@@ -62,21 +68,26 @@ def config_from(data):
     name = text('server_name', 64, 'My CS2 Server')
     if not name:
         raise Problem('Server name is required')
-    mode = text('network_mode', default='local')
-    if mode not in {'local', 'lan', 'internet'}:
-        raise Problem('Invalid network mode')
+    mode = str(data.get('network_mode', 'internet'))
+    if mode != 'internet':
+        raise Problem('This server uses Internet access')
     gslt = text('gslt', 32)
     if gslt and not re.fullmatch(r'[0-9a-fA-F]{32}', gslt):
         raise Problem('GSLT must contain 32 hexadecimal characters')
-    if mode == 'internet' and not gslt:
+    if not gslt:
         raise Problem('Internet mode requires a Game Server Login Token (GSLT)')
     game_map = text('map', 40, 'de_dust2')
     if game_map not in {'de_dust2', 'de_mirage', 'de_inferno', 'de_nuke', 'de_ancient', 'de_anubis', 'de_overpass'}:
         raise Problem('Choose a supported installation map')
+    if number('port', 27015, 27015, 27015) != 27015:
+        raise Problem('Game port is fixed at 27015')
+    game_mode = text('game_mode', 32, 'matchzy')
+    if game_mode not in {'matchzy', 'retakes', 'deathmatch'}:
+        raise Problem('Choose MatchZy, Retakes or Official Deathmatch')
     return {'server_name': name, 'network_mode': mode, 'gslt': gslt,
-            'port': number('port', 1024, 65535, 27015), 'max_players': number('max_players', 2, 64, 10),
+            'port': 27015, 'max_players': number('max_players', 2, 64, 10), 'game_mode': game_mode,
             'map': game_map, 'join_password': text('join_password', 64),
-            'rcon_password': secrets.token_urlsafe(32)}
+            'rcon_password': existing.get('rcon_password') or secrets.token_urlsafe(32)}
 
 def installed_build(manifest):
     match = re.search(r'"buildid"\s*"(\d+)"', manifest)
@@ -109,7 +120,7 @@ def public_build(output):
         return None
 
 class Controller:
-    def __init__(self, state='/state', config='/config', engine=None):
+    def __init__(self, state='/state', config='/config', engine=None, control=None, telemetry=None):
         self.state_dir, self.config_dir = Path(state), Path(config)
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -117,6 +128,8 @@ class Controller:
         self.network = os.environ.get('CS2_NETWORK', 'cs2-local-network')
         self.game_volume = os.environ.get('CS2_GAME_VOLUME', 'cs2-local-game')
         self.config_volume = os.environ.get('CS2_CONFIG_VOLUME', 'cs2-local-config')
+        self.control_volume = os.environ.get('CS2_CONTROL_VOLUME', 'cs2-local-control')
+        self.telemetry_volume = os.environ.get('CS2_TELEMETRY_VOLUME', 'cs2-local-telemetry')
         self.lock = threading.RLock()
         self.operation_lock = threading.Lock()
         self.sessions = {}
@@ -124,6 +137,8 @@ class Controller:
         self.logs = deque(maxlen=500)
         self.account = load_json(self.state_dir / 'account.json')
         self.config = load_json(self.config_dir / 'server.json')
+        if self.config:
+            self.config.setdefault('game_mode', 'matchzy')
         self.bootstrap = load_json(self.state_dir / 'bootstrap.json')
         self.job = load_json(self.state_dir / 'job.json', {'stage': 'idle', 'installed': False})
         if self.job['stage'] in BUSY:
@@ -133,13 +148,18 @@ class Controller:
             atomic_json(self.state_dir / 'bootstrap.json', self.bootstrap)
         if not self.account:
             print('First-time setup token: ' + self.bootstrap, flush=True)
+        from .management import Management
+        default_root = self.state_dir.parent if str(state) != '/state' else Path('/')
+        self.management = Management(self, control or os.environ.get('CS2_CONTROL_DIR', default_root / 'control'),
+                                      telemetry or os.environ.get('CS2_TELEMETRY_DIR', default_root / 'telemetry'))
 
     def redact(self, value):
         value = str(value)
         for secret in [self.bootstrap] + [self.config.get(k) for k in ('gslt', 'rcon_password', 'join_password') if self.config]:
             if secret:
                 value = value.replace(secret, '[REDACTED]')
-        return value
+        return re.sub(r'(?i)\b(rcon_password|sv_password|sv_setsteamaccount)\s+(?:"[^"\n]*"|[^\s\n]+)',
+                      r'\1 [REDACTED]', value)
 
     def log(self, value):
         with self.lock:
@@ -199,6 +219,8 @@ class Controller:
         path = self.config_dir / 'server.json'
         atomic_json(path, self.config, 0o640)
         if os.getuid() == 0:
+            self.config_dir.chmod(0o750)
+            os.chown(self.config_dir, 0, 1000)
             os.chown(path, 0, 1000)
 
     def preflight(self):
@@ -221,6 +243,13 @@ class Controller:
                 self.write_config()
             elif not self.job.get('installed'):
                 raise Problem('Install the server first', 409)
+            elif operation == 'configure':
+                data = {'config': config_from(data or {}, self.config)}
+            elif operation == 'restore':
+                backup = self.management.read_backup((data or {}).get('id'))
+                data = {'backup': backup, 'config': config_from(backup['config'], self.config)}
+            elif operation in {'start', 'restart', 'repair', 'validate'}:
+                config_from(self.config, self.config)
             self.set_stage('building' if operation == 'install' else 'checking' if operation == 'start' else 'starting')
             thread = threading.Thread(target=self.worker, args=(operation, data or {}), daemon=True)
             thread.start()
@@ -232,6 +261,8 @@ class Controller:
         mounts = [{'Type': 'volume', 'Source': self.game_volume, 'Target': '/game'}]
         if with_config:
             mounts.append({'Type': 'volume', 'Source': self.config_volume, 'Target': '/config', 'ReadOnly': True})
+            mounts.append({'Type': 'volume', 'Source': self.control_volume, 'Target': '/control', 'ReadOnly': True})
+            mounts.append({'Type': 'volume', 'Source': self.telemetry_volume, 'Target': '/telemetry'})
         return mounts
 
     def run_job(self, operation):
@@ -245,7 +276,7 @@ class Controller:
             self.engine.request('POST', f'/containers/create?name={JOB}', {
                 'Image': IMAGE, 'Cmd': [operation], 'Tty': True,
                 'Labels': {**LABELS, 'io.cs2-local.operation': operation},
-                'HostConfig': {'Mounts': self.mounts(), 'Init': True,
+                'HostConfig': {'Mounts': self.mounts(operation == 'repair'), 'Init': True,
                                'LogConfig': {'Type':'json-file', 'Config':{'max-size':'10m','max-file':'3'}}},
             })
             self.engine.request('POST', f'/containers/{JOB}/start')
@@ -271,12 +302,26 @@ class Controller:
                 continue
         raise Problem('Could not inspect the game volume')
 
+    def ensure_runtime(self):
+        try:
+            self.engine.request('GET', '/images/' + IMAGE + '/json')
+        except EngineError as error:
+            if error.status != 404:
+                raise
+            self.set_stage('building')
+            self.engine.build(Path(__file__).resolve().parent.parent / 'runtime', IMAGE, self.log)
+
     def create_server(self):
-        if self.engine.inspect(SERVER):
-            return
+        existing = self.engine.inspect(SERVER)
+        if existing:
+            if (existing['Config'].get('Labels') or {}).get('io.cs2-local.runtime') == '2':
+                return
+            if existing['State']['Running']:
+                raise Problem('Restart the server to upgrade its plugin runtime', 409)
+            self.engine.remove(SERVER)
         port = str(self.config['port'])
         proxy_port = str(self.config['port'] + 1 if self.config['port'] < 65535 else 65534)
-        udp_host = '127.0.0.1' if self.config['network_mode'] == 'local' else '0.0.0.0'
+        udp_host = '0.0.0.0'
         self.engine.request('POST', f'/containers/create?name={SERVER}', {
             'Image': IMAGE, 'Cmd': ['server'], 'Labels': LABELS,
             'ExposedPorts': {port + '/udp': {}, proxy_port + '/tcp': {}},
@@ -291,6 +336,7 @@ class Controller:
         })
 
     def launch_server(self):
+        self.ensure_runtime()
         self.create_server()
         self.engine.request('POST', f'/containers/{SERVER}/start')
         self.set_stage('starting')
@@ -299,16 +345,44 @@ class Controller:
             info = self.engine.inspect(SERVER)
             health = info['State'].get('Health', {}).get('Status')
             if health == 'healthy':
-                self.set_stage('ready', installed=True)
-                self.log('CS2 is responding to server queries. Ready to connect.')
-                return
+                try:
+                    self.verify_plugins()
+                except Exception as error:
+                    self.log('Waiting for required plugins: ' + str(error))
+                else:
+                    self.set_stage('ready', installed=True)
+                    self.log('CS2, Metamod, CounterStrikeSharp and the selected mode are ready.')
+                    return
             if not info['State']['Running'] or health == 'unhealthy':
                 raise Problem('CS2 did not become healthy. Check the server console.')
             time.sleep(3)
         raise Problem('Timed out waiting for CS2 readiness. Check the server console.')
 
+    def rcon_command(self, command):
+        proxy_port = self.config['port'] + 1 if self.config['port'] < 65535 else 65534
+        return self.redact(rcon('cs2', proxy_port, self.config['rcon_password'], command))
+
+    def verify_plugins(self):
+        meta = self.rcon_command('meta list').lower()
+        plugins = self.rcon_command('css_plugins list').lower()
+        if 'counterstrikesharp' not in meta or 'unknown command' in plugins:
+            raise Problem('Metamod/CounterStrikeSharp did not load')
+        required = {'matchzy': ['matchzy'], 'retakes': ['retakes', 'retakes allocator', 'instadefuse'], 'deathmatch': []}[self.config['game_mode']]
+        normalized = plugins.replace(' ', '')
+        if any(name.replace(' ', '') not in normalized for name in required):
+            raise Problem('A required mode plugin did not load')
+        if 'CS2LOCAL_OK' not in self.rcon_command('css_local_reload'):
+            raise Problem('The permanent management plugin did not load')
+
     def worker(self, operation, data):
         try:
+            self.management.audit(operation, outcome='started')
+            if operation in {'configure', 'restore'}:
+                self.reconfigure(operation, data)
+                return
+            if operation in {'repair', 'validate'}:
+                self.maintenance(operation)
+                return
             if operation == 'restart':
                 if self.engine.inspect(SERVER):
                     self.engine.request('POST', f'/containers/{SERVER}/stop?t=30')
@@ -329,6 +403,7 @@ class Controller:
                 if not build:
                     raise Problem('SteamCMD completed without an installed build ID')
                 self.set_stage('starting', installed=True, installed_build=build, available_build=None)
+                self.write_config()
                 self.launch_server()
             elif operation == 'start':
                 info = self.engine.inspect(SERVER)
@@ -346,6 +421,7 @@ class Controller:
                     self.set_stage('update_available', installed_build=local, available_build=remote)
                     return
                 if local != remote:
+                    self.management.backup('before-update')
                     self.set_stage('updating')
                     self.run_job('update')
                     local = installed_build(self.manifest()['manifest'])
@@ -357,11 +433,85 @@ class Controller:
                 if self.engine.inspect(SERVER):
                     self.engine.request('POST', f'/containers/{SERVER}/stop?t=30')
                 self.set_stage('idle')
+            self.management.audit(operation, outcome='completed')
         except Exception as error:
             self.log(str(error))
             self.set_stage('failed', str(error))
+            self.management.audit(operation, outcome='failed: ' + str(error))
         finally:
             self.operation_lock.release()
+
+    def reconfigure(self, operation, data):
+        import copy
+        previous_config, previous_users = copy.deepcopy(self.config), copy.deepcopy(self.management.users)
+        info = self.engine.inspect(SERVER)
+        running = bool(info and info['State']['Running'])
+        self.management.backup('before-' + operation)
+        self.set_stage('restoring' if operation == 'restore' else 'configuring')
+        if running:
+            self.engine.request('POST', f'/containers/{SERVER}/stop?t=30')
+        try:
+            self.config = data['config']
+            self.write_config()
+            if operation == 'restore':
+                self.management.users = data['backup']['users']
+                self.management.write_policy()
+            self.engine.remove(SERVER)
+            self.ensure_runtime()
+            if running:
+                self.launch_server()
+            else:
+                self.set_stage('idle')
+            self.management.audit(operation, outcome='completed')
+        except Exception as error:
+            self.log('Restoring previous settings after failed configuration: ' + str(error))
+            self.config = previous_config
+            self.management.users = previous_users
+            self.write_config()
+            self.management.write_policy()
+            self.engine.remove(SERVER)
+            if running:
+                try:
+                    self.launch_server()
+                except Exception as rollback_error:
+                    raise Problem('Configuration failed and the previous server could not start: ' + str(rollback_error)) from error
+            raise Problem('Configuration failed; previous settings were restored: ' + str(error)) from error
+
+    def maintenance(self, operation):
+        self.management.backup('before-' + operation)
+        info = self.engine.inspect(SERVER)
+        running = bool(info and info['State']['Running'])
+        if running:
+            self.engine.request('POST', f'/containers/{SERVER}/stop?t=30')
+        self.ensure_runtime()
+        self.set_stage('validating' if operation == 'validate' else 'repairing')
+        self.run_job(operation)
+        if running:
+            self.launch_server()
+        else:
+            self.set_stage('idle')
+        self.management.audit(operation, outcome='completed')
+
+    def settings(self):
+        if not self.config:
+            return {'settings': None}
+        # Intentional owner-only settings endpoint; never expose Steam/RCON credentials.
+        return {'settings': {k: self.config[k] for k in ('server_name', 'port', 'max_players', 'map', 'game_mode', 'join_password')},
+                'has_gslt': bool(self.config.get('gslt'))}
+
+    def metrics(self):
+        info = self.engine.inspect(SERVER)
+        if not info or not info['State']['Running']:
+            return {'cpu_percent': None, 'memory_bytes': None, 'memory_limit': None}
+        stats = self.engine.request('GET', f'/containers/{SERVER}/stats?stream=false')
+        current, previous = stats.get('cpu_stats', {}), stats.get('precpu_stats', {})
+        cpu = current.get('cpu_usage', {}).get('total_usage', 0) - previous.get('cpu_usage', {}).get('total_usage', 0)
+        system = current.get('system_cpu_usage', 0) - previous.get('system_cpu_usage', 0)
+        cores = current.get('online_cpus') or len(current.get('cpu_usage', {}).get('percpu_usage', [])) or 1
+        memory = stats.get('memory_stats', {})
+        cache = memory.get('stats', {}).get('inactive_file', memory.get('stats', {}).get('total_inactive_file', 0))
+        return {'cpu_percent': round(cpu / system * cores * 100, 1) if system > 0 and cpu >= 0 else None,
+                'memory_bytes': max(memory.get('usage', 0) - cache, 0), 'memory_limit': memory.get('limit')}
 
     def status(self):
         server, engine_error = None, None
@@ -370,7 +520,7 @@ class Controller:
         except Exception as error:
             engine_error = self.redact(error)
         with self.lock:
-            config = {k: self.config[k] for k in ('server_name', 'port', 'map', 'max_players', 'network_mode')} if self.config else None
+            config = {k: self.config[k] for k in ('server_name', 'port', 'map', 'max_players', 'network_mode', 'game_mode')} if self.config else None
             return {'job': dict(self.job), 'config': config, 'logs': list(self.logs), 'docker_error': engine_error,
                     'server': {'running': server['State']['Running'], 'health': server['State'].get('Health', {}).get('Status', 'unknown'),
                                'started_at': server['State'].get('StartedAt')} if server else None}
@@ -384,8 +534,7 @@ class Controller:
             info = self.engine.inspect(SERVER)
             if not info or not info['State']['Running']:
                 raise Problem('Server is not running', 409)
-            proxy_port = self.config['port'] + 1 if self.config['port'] < 65535 else 65534
-            return self.redact(rcon('cs2', proxy_port, self.config['rcon_password'], command))
+            return self.rcon_command(command)
         finally:
             self.operation_lock.release()
 
