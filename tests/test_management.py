@@ -19,7 +19,7 @@ from panel.management import steam_id
 from panel.server import Handler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'runtime'))
-from assets import extract, safe_path
+from assets import extract, safe_path, copy_payload
 from prepare import prepare, repair_metamod
 from mode_manager import ModeError
 
@@ -167,6 +167,19 @@ class ManagementTests(ControllerFixture, unittest.TestCase):
         self.assertFalse(self.manager.users[IDENTITY]['banned'])
 
 class RuntimeTests(ControllerFixture, unittest.TestCase):
+    def test_single_plugin_release_deploys_to_the_correct_css_directory(self):
+        source = self.root / 'release/InstadefusePlugin'
+        source.mkdir(parents=True)
+        (source / 'InstadefusePlugin.dll').write_text('assembly')
+        destination = self.root / 'mode'
+        copy_payload(source.parent, destination, 'InstadefusePlugin')
+        self.assertTrue((destination / 'addons/counterstrikesharp/plugins/InstadefusePlugin/InstadefusePlugin.dll').is_file())
+
+    def test_all_runtime_json_and_plugin_localizations_are_valid(self):
+        for path in (Path(__file__).resolve().parents[1] / 'runtime').rglob('*.json'):
+            with self.subTest(path=str(path)):
+                json.loads(path.read_text())
+
     def test_archive_extraction_rejects_traversal_and_links(self):
         for name in ['../../escape','/absolute','addons/../../escape','a\\b']:
             with self.subTest(name=name),self.assertRaises(ValueError):safe_path(self.root,name)
