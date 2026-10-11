@@ -1,8 +1,12 @@
 """Stream SteamCMD output and require explicit download success, not just exit 0."""
 import subprocess
+import sys
 
-process = subprocess.Popen(['/opt/steamcmd/steamcmd.sh', '+force_install_dir', '/game', '+login',
-                            'anonymous', '+app_update', '730', '+quit'], cwd='/opt/steamcmd',
+arguments = ['/opt/steamcmd/steamcmd.sh', '+force_install_dir', '/game', '+login',
+             'anonymous', '+app_update', '730']
+if len(sys.argv) > 1 and sys.argv[1] == 'validate':
+    arguments.append('validate')
+process = subprocess.Popen(arguments + ['+quit'], cwd='/opt/steamcmd',
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 success = False
 for line in process.stdout:

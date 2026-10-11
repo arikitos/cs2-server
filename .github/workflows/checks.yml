@@ -1,4 +1,4 @@
-name: Installer checks
+name: Server manager checks
 on:
   push:
   pull_request:
@@ -19,34 +19,89 @@ jobs:
       - run: node --check panel/static/app.js
       - run: sh -n runtime/entrypoint.sh
       - run: docker compose config --quiet
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise desktop and mobile panel
+        env:
+          CS2_SCREENSHOT_DIR: browser-screenshots
+        run: |
+          python tests/ui_fixture.py > /tmp/cs2-ui-fixture.log 2>&1 &
+          for attempt in $(seq 1 30); do curl -sf http://127.0.0.1:8090/api/health && break; sleep 1; done
+          node tests/browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-screenshots
+          path: browser-screenshots
+  allocator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test runtime/plugins/retakes-allocator/RetakesAllocatorTest/RetakesAllocatorTest.csproj -c Release
+      - run: dotnet build runtime/plugins/LocalManager/LocalManager.csproj -c Release
   docker-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Build and bootstrap the real panel
         run: docker compose up -d --build --wait
-      - name: Build runtime through the panel's Docker API and inspect the game volume
+      - name: Build all pinned plugins through the production Docker API
         run: |
           docker compose exec -T panel python - <<'PY'
-          from panel.core import Controller, config_from
+          from panel.core import Controller, config_from, IMAGE
           controller = Controller()
           assert controller.preflight()['supported']
-          controller.engine.build('/app/runtime', 'cs2-local-runtime:1', print)
+          controller.engine.build('/app/runtime', IMAGE, print)
           controller.engine.volume(controller.game_volume)
           inspection = controller.manifest()
           assert inspection['manifest'] == ''
           assert inspection['free_bytes'] > 0
-          controller.config = config_from({})
+          controller.config = config_from({'gslt':'a'*32})
           controller.write_config()
-          print('Real Docker API build, job container and persistent volume smoke passed.')
+          print('Real Docker build, plugin compilation, checksummed downloads and game volume inspection passed.')
           PY
-      - name: Verify runtime user can read the private configuration
+      - name: Verify private configuration and permanent policy permissions
         run: |
           docker run --rm --user 1000:1000 \
             --mount type=volume,src=cs2-local-config,dst=/config,readonly \
-            --entrypoint python3 cs2-local-runtime:1 \
-            -c 'import json,pathlib; settings=json.loads(pathlib.Path("/config/server.json").read_text()); assert settings["port"] == 27015; print("Runtime configuration permissions passed.")'
+            --mount type=volume,src=cs2-local-control,dst=/control,readonly \
+            --entrypoint python3 cs2-local-runtime:2 \
+            -c 'import json,pathlib; settings=json.loads(pathlib.Path("/config/server.json").read_text()); assert settings["port"] == 27015; assert json.loads(pathlib.Path("/control/policy.json").read_text())["bans"] == []; print("Private runtime configuration and policy permissions passed.")'
+      - name: Verify actual packaged mode files and permanent frameworks
+        run: |
+          docker run --rm -i --user 1000:1000 --entrypoint python3 cs2-local-runtime:2 - <<'PY'
+          import sys, pathlib, tempfile
+          sys.path.insert(0, '/opt/cs2')
+          from prepare import prepare
+          from mode_manager import verify_mode
+          root = pathlib.Path(tempfile.mkdtemp())
+          csgo = root / 'game/csgo'
+          csgo.mkdir(parents=True)
+          (csgo / 'gameinfo.gi').write_text('SearchPaths {\n Game csgo\n}')
+          settings = {'game_mode':'matchzy', 'max_players':10, 'map':'de_dust2'}
+          for mode in ('matchzy', 'retakes', 'deathmatch'):
+              settings['game_mode'] = mode
+              prepare(settings, game=root)
+              assert (csgo/'addons/counterstrikesharp/plugins/LocalManager/LocalManager.dll').is_file()
+              assert (csgo/'addons/counterstrikesharp/bin/linuxsteamrt64/counterstrikesharp.so').is_file()
+              match = csgo/'addons/counterstrikesharp/plugins/MatchZy/MatchZy.dll'
+              retake = csgo/'addons/counterstrikesharp/plugins/RetakesPlugin/RetakesPlugin.dll'
+              assert match.exists() == (mode == 'matchzy')
+              assert retake.exists() == (mode == 'retakes')
+              print(mode, 'actual assets deployed with permanent frameworks and isolated plugins')
+          PY
       - name: Cleanup ephemeral smoke-test services
         if: always()
         run: |

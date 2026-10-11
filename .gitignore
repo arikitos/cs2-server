@@ -3,3 +3,8 @@ __pycache__/
 .env
 .local-state/
 .local-config/
+**/bin/
+**/obj/
+node_modules/
+browser-screenshots/
+.cs2-test-*/

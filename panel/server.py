@@ -70,6 +70,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.respond(200, self.controller.status())
                 if path == '/api/preflight':
                     return self.respond(200, self.controller.preflight())
+                getters = {'/api/settings': self.controller.settings,
+                           '/api/address': self.controller.management.public_address,
+                           '/api/players': self.controller.management.players,
+                           '/api/users': self.controller.management.registry,
+                           '/api/modes': self.controller.management.modes,
+                           '/api/metrics': self.controller.metrics,
+                           '/api/backups': self.controller.management.backups,
+                           '/api/audit': self.controller.management.audit_rows}
+                if path in getters:
+                    return self.respond(200, getters[path]())
                 if path == '/api/console':
                     return self.respond(200, {'output': self.controller.redact(self.controller.engine.logs('cs2-local-server'))})
                 raise Problem('Not found', 404)
@@ -113,7 +123,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(200, {'ok': True}, cookie='cs2_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0')
             if path == '/api/command':
                 return self.respond(200, {'output': self.controller.command(data.get('command'))})
-            operations = {'/api/install': 'install', '/api/start': 'start', '/api/stop': 'stop', '/api/restart': 'restart'}
+            if path == '/api/users/action':
+                return self.respond(200, self.controller.management.user_action(data))
+            if path == '/api/mode/action':
+                return self.respond(200, self.controller.management.mode_action(data))
+            if path == '/api/address/refresh':
+                return self.respond(200, self.controller.management.public_address(force=True))
+            if path == '/api/backup':
+                if not self.controller.operation_lock.acquire(blocking=False):
+                    raise Problem('Wait for the current operation', 409)
+                try:
+                    return self.respond(201, {'id': self.controller.management.backup()})
+                finally:
+                    self.controller.operation_lock.release()
+            operations = {'/api/install': 'install', '/api/start': 'start', '/api/stop': 'stop', '/api/restart': 'restart',
+                          '/api/configure': 'configure', '/api/repair': 'repair', '/api/validate': 'validate', '/api/restore': 'restore'}
             if path not in operations:
                 raise Problem('Not found', 404)
             self.controller.start_operation(operations[path], data)

@@ -1,6 +1,12 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS plugins
+WORKDIR /src
+COPY plugins/ /src/
+RUN dotnet publish LocalManager/LocalManager.csproj -c Release -o /built/LocalManager \
+    && dotnet publish retakes-allocator/RetakesAllocator/RetakesAllocator.csproj -c Release -o /built/RetakesAllocator
+
 FROM registry.gitlab.steamos.cloud/steamrt/steamrt4/sdk
 USER root
-ENV DEBIAN_FRONTEND=noninteractive HOME=/home/steam
+ENV DEBIAN_FRONTEND=noninteractive HOME=/home/steam DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl lib32z1 python3 util-linux socat && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --user-group --uid 1000 steam \
@@ -9,8 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        | tar -xz -C /opt/steamcmd \
     && chown -R steam:steam /opt/steamcmd /home/steam /game \
     && runuser -u steam -- /opt/steamcmd/steamcmd.sh +quit
-COPY entrypoint.sh health.py launch.py install.py /opt/cs2/
-RUN chmod 755 /opt/cs2/entrypoint.sh
+COPY . /opt/cs2/
+COPY --from=plugins /built /built
+RUN python3 /opt/cs2/assets.py && rm -rf /built /opt/cs2/plugins \
+    && chmod 755 /opt/cs2/entrypoint.sh
 EXPOSE 27015/udp 27015/tcp
 ENTRYPOINT ["/opt/cs2/entrypoint.sh"]
 CMD ["server"]

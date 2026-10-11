@@ -1,197 +1,105 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CS2 Local · Control panel</title>
-<link rel="stylesheet" href="/style.css">
-<script src="/app.js" defer>
-</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CS2 Local · Your server</title>
+<link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
 </head>
 <body>
 <aside>
-<a class="brand" href="/">◈ <span>CS2<span class="brand-sub">LOCAL CONTROL</span>
-</span>
-</a>
+<a class="brand" href="/">◈ <span>CS2<span class="brand-sub">LOCAL CONTROL</span></span></a>
 <small>YOUR SERVER</small>
 <nav>
 <button class="nav active" data-view="dashboard">▦ Dashboard</button>
 <button class="nav" data-view="console">›_ Console</button>
+<button class="nav" data-view="users">♟ Users & bans</button>
+<button class="nav" data-view="maintenance">↻ Maintenance</button>
 </nav>
-<div class="sidebar-note">One server.<br>Your machine. Your rules.<span>Docker · SteamCMD · CS2</span>
-</div>
+<div class="sidebar-note">One server.<br>Your machine. Your rules.<span>Docker · CS2 · MatchZy</span></div>
 <button id="logout" class="secondary hidden">Sign out</button>
 </aside>
 <main>
-<div class="topbar">
-<span>Local server workspace</span>
-<span class="local-pill">● LOCAL PANEL</span>
-</div>
-<div id="notice" class="notice hidden" role="alert">
-</div>
+<div class="topbar"><span>Personal server workspace</span><span class="local-pill">● LOCAL PANEL</span></div>
+<div id="notice" class="notice hidden" role="alert"></div>
 <section id="auth" class="hidden">
-<div class="eyebrow">WELCOME TO CS2 LOCAL</div>
-<h1 id="auth-title">Set up your control panel</h1>
+<div class="eyebrow">WELCOME TO CS2 LOCAL</div><h1 id="auth-title">Set up your control panel</h1>
 <p id="auth-copy">Create the administrator account for this computer.</p>
 <form id="auth-form" class="card narrow">
-<label id="token-field">Setup token<input name="setup_token" autocomplete="off">
-<small>Copy it from <code>docker compose logs panel</code>. It protects the first setup.</small>
-</label>
-<label>Admin username<input name="username" autocomplete="username" minlength="3" maxlength="32" required>
-</label>
-<label>Panel password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
-</label>
+<label id="token-field">Setup token<input name="setup_token" autocomplete="off"><small>Copy it from <code>docker compose logs panel</code>.</small></label>
+<label>Admin username<input name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
+<label>Panel password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
 <button class="primary" id="auth-submit">Create administrator</button>
 </form>
 </section>
 <section id="dashboard" class="hidden">
 <header class="server-header card">
-<div>
-<div class="eyebrow">PERSONAL COUNTER-STRIKE 2 SERVER</div>
-<h1 id="server-name">Your CS2 server <span id="badge" class="badge">Not installed</span>
-</h1>
-<div class="server-meta">
-<span id="address">127.0.0.1:27015</span>
-<span id="map-label">de_dust2</span>
-<span id="mode-label">Competitive</span>
+<div><div class="eyebrow">PERSONAL COUNTER-STRIKE 2 SERVER</div>
+<h1>Your CS2 Server <span id="badge" class="badge">Not installed</span></h1>
+<div class="server-meta"><span id="address">Detecting public IP…</span><span id="map-label">de_dust2</span><span id="mode-label">FaceIt (MatchZy)</span></div>
 </div>
-</div>
-<div class="actions">
-<button id="start" class="success">▶ Start</button>
-<button id="restart" class="secondary">↻ Restart</button>
-<button id="stop" class="danger">■ Stop</button>
-</div>
+<div class="actions"><button id="start" class="success">▶ Start</button><button id="restart" class="secondary">↻ Restart</button><button id="stop" class="danger">■ Stop</button></div>
 </header>
-<div id="installer">
-<div class="section-heading">
-<div>
-<h2>Install your server</h2>
-<p>A guided setup. SteamCMD installs anonymously — no Steam password needed.</p>
+<section class="card players-card" aria-labelledby="players-title">
+<div class="card-heading"><div><h2 id="players-title">Players <span id="player-count" class="count">0</span></h2><p>Connected players. Game admin permissions are separate from your panel account.</p></div><button id="refresh-players" class="secondary compact">Refresh</button></div>
+<p id="players-message" class="empty-state">Start the server to see connected players.</p>
+<div class="table-wrap"><table id="players-table" class="hidden"><thead><tr><th>Player</th><th>Team</th><th>Ping</th><th>Actions</th></tr></thead><tbody id="players-body"></tbody></table></div>
+</section>
+<form id="server-form">
+<div class="section-heading"><div><h2>Server settings</h2><p id="settings-copy">Set up your server for friends outside your LAN.</p></div><span class="step">INTERNET · 27015</span></div>
+<div class="card"><div class="form-grid settings-grid">
+<label>Server Name<input name="server_name" value="My CS2 Server" maxlength="64" required></label>
+<label>IP + Port<span class="address-input"><input id="public-address" readonly aria-label="Public IP and port" placeholder="Detecting public IP…"><button id="copy-address" type="button" class="secondary compact">Copy</button></span><small id="address-help">Share this address with your friends.</small></label>
+<label>Player Slots<input name="max_players" type="number" min="2" max="64" value="10" required></label>
+<label>Map<select name="map"><option>de_dust2</option><option>de_mirage</option><option>de_inferno</option><option>de_nuke</option><option>de_ancient</option><option>de_anubis</option><option>de_overpass</option></select></label>
+<label>Join Password<input name="join_password" type="password" maxlength="64" autocomplete="off"><small>Leave empty to keep the server open.</small></label>
+</div></div>
+<div class="section-heading"><div><h2>Game mode</h2><p>Choose one mode for this server.</p></div></div>
+<div class="card modes-card">
+<div class="framework-base"><span class="base-icon">◈</span><div><strong>Metamod + CounterStrikeSharp</strong><small>Always installed · shared by all game modes</small></div><span class="base-tag">REQUIRED BASE</span></div>
+<div class="mode-grid">
+<label class="mode-option"><input type="radio" name="game_mode" value="matchzy" checked><span><strong>FaceIt <small>MatchZy</small></strong><small>Competitive matches, ready-up and practice tools</small></span></label>
+<label class="mode-option"><input type="radio" name="game_mode" value="retakes"><span><strong>Retakes <small>B3none</small></strong><small>Retake rounds with your automatic loadouts</small></span></label>
+<label class="mode-option"><input type="radio" name="game_mode" value="deathmatch"><span><strong>Deathmatch <small>Official</small></strong><small>Valve's standard deathmatch rules</small></span></label>
 </div>
-<span class="step">FIRST-TIME SETUP</span>
+<p id="mode-note" class="mode-note">FaceIt is the label for your MatchZy match preset.</p>
 </div>
-<div id="preflight" class="preflight">Checking your Docker engine…</div>
-<form id="install-form" class="card">
-<div class="form-grid">
-<label>Server name<input name="server_name" value="My CS2 Server" maxlength="64" required>
-</label>
-<label>Network access<select name="network_mode">
-<option value="local">This computer only</option>
-<option value="lan">Local network (LAN)</option>
-<option value="internet">Internet / friends outside your LAN</option>
-</select>
-</label>
-<label>Game port<input name="port" type="number" min="1024" max="65535" value="27015" required>
-</label>
-<label>Player slots<input name="max_players" type="number" min="2" max="64" value="10" required>
-</label>
-<label>Initial map<select name="map">
-<option>de_dust2</option>
-<option>de_mirage</option>
-<option>de_inferno</option>
-<option>de_nuke</option>
-<option>de_ancient</option>
-<option>de_anubis</option>
-<option>de_overpass</option>
-</select>
-</label>
-<label>Join password <span class="optional">optional</span>
-<input name="join_password" type="password" maxlength="64" autocomplete="off">
-</label>
-<label id="gslt-field" class="hidden full">Game Server Login Token (GSLT)<input name="gslt" type="password" maxlength="32" autocomplete="off">
-<small>Create a token for app <code>730</code> at <a href="https://steamcommunity.com/dev/managegameservers" target="_blank" rel="noopener noreferrer">Steam game server management ↗</a>. Do not enter your Steam account password.</small>
-</label>
+<div id="credentials-card" class="card credentials-card">
+<h3>Steam server token</h3><label>Game Server Login Token (GSLT)<input name="gslt" type="password" maxlength="32" pattern="[0-9a-fA-F]{32}" autocomplete="off" required><small>Create a token for app ID 730 at <a href="https://steamcommunity.com/dev/managegameservers" target="_blank" rel="noreferrer">Steam game server accounts</a>. Downloading the game uses anonymous SteamCMD login.</small></label>
 </div>
 <div class="install-footer">
-<p>Allocate at least 80 GiB of free Docker storage and preferably 8 GiB of RAM. The first download is large; subsequent starts reuse it.</p>
-<button id="install" class="primary">↓ Install & start server</button>
+<div><p id="install-copy">The installer builds your runtime, installs CS2 and the required plugins, then starts the selected mode.</p><small id="preflight">Checking Docker…</small></div>
+<button id="save-server" class="primary">Install & start server</button>
 </div>
 </form>
-</div>
 <div id="installed-details" class="hidden">
-<div class="section-heading">
-<div>
-<h2>Server overview</h2>
-<p>Your installation stays on this machine between restarts.</p>
-</div>
-<button id="copy-connect" class="secondary">Copy connect command</button>
-</div>
+<div class="section-heading"><div><h2>Server overview</h2><p>Your game installation stays in Docker between restarts.</p></div><button id="refresh-address" class="secondary compact">Refresh public IP</button></div>
 <div class="metrics">
-<div class="card">
-<small>SERVER HEALTH</small>
-<strong id="health">—</strong>
-<span class="metric-icon">◈</span>
+<div class="card"><small>SERVER HEALTH</small><strong id="health">—</strong><span class="metric-icon">◈</span></div>
+<div class="card"><small>CPU / MEMORY</small><strong id="resources">—</strong><span class="metric-icon">▦</span></div>
+<div class="card"><small>INSTALLED BUILD</small><strong id="build">—</strong><span class="metric-icon">↓</span></div>
 </div>
-<div class="card">
-<small>INSTALLED BUILD</small>
-<strong id="build">—</strong>
-<span class="metric-icon">↓</span>
+<div class="card"><h3>Mode commands</h3><div id="mode-actions" class="actions mode-actions"></div><p id="no-mode-actions" class="hidden">Deathmatch uses Valve's built-in rules. Additional commands are available in Console.</p><pre id="action-output"></pre></div>
 </div>
-<div class="card">
-<small>PLAYER CAPACITY</small>
-<strong id="slots">10 slots</strong>
-<span class="metric-icon">♟</span>
-</div>
-</div>
-<div class="info-grid">
-<div class="card">
-<h3>Server information</h3>
-<dl>
-<dt>Status</dt>
-<dd id="info-status">—</dd>
-<dt>Map</dt>
-<dd id="info-map">—</dd>
-<dt>Network</dt>
-<dd id="info-network">—</dd>
-<dt>Started</dt>
-<dd id="info-started">—</dd>
-</dl>
-</div>
-<div class="card">
-<h3>Installation & updates</h3>
-<p>Game files are stored in a persistent Docker volume. Starting a stopped server checks the public Steam build first.</p>
-<p>Available updates require your approval before downloading. Server startup never reinstalls the game.</p>
-<small>Initial release: competitive server + authenticated RCON console. Additional modes and Workshop management will follow.</small>
-</div>
-</div>
-</div>
-<div class="card log-card">
-<div class="log-heading">
-<h3>Installation activity</h3>
-<span id="stage">IDLE</span>
-</div>
-<pre id="install-log" aria-live="polite">Ready when you are.</pre>
-</div>
+<div class="card log-card"><div class="log-heading"><h3>Server activity</h3><span id="stage">IDLE</span></div><pre id="install-log" aria-live="polite">Ready when you are.</pre></div>
 </section>
 <section id="console" class="hidden">
-<div class="section-heading">
-<div>
-<h1>Server console</h1>
-<p>Live server output and direct commands through RCON.</p>
-</div>
-<button id="refresh-console" class="secondary">Refresh</button>
-</div>
-<pre id="console-output" class="card console-output">
-</pre>
-<form id="command-form" class="command-form">
-<label class="sr-only" for="command">RCON command</label>
-<input id="command" name="command" placeholder="Enter a server command, e.g. status" maxlength="1024" required>
-<button class="primary">Send command</button>
-</form>
-<pre id="command-output">
-</pre>
+<div class="section-heading"><div><h1>Server console</h1><p>Live server output and direct RCON commands.</p></div><button id="refresh-console" class="secondary">Refresh</button></div>
+<pre id="console-output" class="card console-output"></pre>
+<form id="command-form" class="command-form"><label class="sr-only" for="command">RCON command</label><input id="command" name="command" placeholder="Enter a server command, e.g. status" maxlength="1024" required><button class="primary">Send command</button></form><pre id="command-output"></pre>
+</section>
+<section id="users" class="hidden">
+<div class="section-heading"><div><h1>Users & bans</h1><p>Everyone who joined this server, saved by verified SteamID. Bans remain active across restarts.</p></div><button id="refresh-users" class="secondary">Refresh</button></div>
+<div class="actions registry-filters"><button class="secondary active" data-filter="all">All users</button><button class="secondary" data-filter="banned">Banned</button><button class="secondary" data-filter="admins">Admins</button></div>
+<div class="card"><p id="users-empty" class="empty-state">No player history yet.</p><div class="table-wrap"><table id="users-table" class="hidden"><thead><tr><th>Player</th><th>Last seen</th><th>Status</th><th>Manage</th></tr></thead><tbody id="users-body"></tbody></table></div></div>
+</section>
+<section id="maintenance" class="hidden">
+<div class="section-heading"><div><h1>Maintenance</h1><p>Configuration backups and controlled server maintenance.</p></div></div>
+<div class="card"><h3>Server maintenance</h3><p>Validate and repair stop the running server first. Configuration and user policies are backed up before changes.</p><div class="actions"><button id="edit-token" class="secondary">Update Steam token</button><button id="backup" class="primary">Back up settings</button><button id="repair" class="secondary">Repair plugins</button><button id="validate" class="secondary">Validate game files</button></div><small>Backups include server settings, Steam/RCON credentials and user permissions. They do not copy the full game installation.</small></div>
+<div class="section-heading"><h2>Saved backups</h2></div><div id="backups-list" class="card"></div>
+<div class="section-heading"><h2>Activity log</h2></div><div id="audit-list" class="card"></div>
 </section>
 </main>
-<dialog id="update-dialog">
-<div class="eyebrow">UPDATE AVAILABLE</div>
-<h2>A new CS2 build is ready</h2>
-<p id="update-description">
-</p>
-<p>The server will update before starting. Your installation and settings stay in place.</p>
-<div class="actions">
-<button id="cancel-update" class="secondary">Cancel</button>
-<button id="approve-update" class="primary">Update & start</button>
-</div>
-</dialog>
+<dialog id="update-dialog"><div class="eyebrow">UPDATE AVAILABLE</div><h2>A new CS2 build is ready</h2><p id="update-description"></p><p>The server will update before starting. Required plugins are reapplied to your existing installation.</p><div class="actions"><button id="cancel-update" class="secondary">Cancel</button><button id="approve-update" class="primary">Update & start</button></div></dialog>
+<dialog id="confirm-dialog"><h2 id="confirm-title"></h2><p id="confirm-description"></p><label id="argument-field" class="hidden">Arguments<input id="action-argument" maxlength="128"></label><div class="actions"><button id="cancel-action" class="secondary">Cancel</button><button id="confirm-action" class="danger">Confirm</button></div></dialog>
 </body>
 </html>

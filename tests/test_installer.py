@@ -9,7 +9,10 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from panel.core import Controller, Problem, config_from, installed_build, public_build, rcon, verify_password
+from panel.core import Controller, Problem, config_from as real_config_from, installed_build, public_build, rcon, verify_password
+
+def config_from(data):
+    return real_config_from({"gslt":"a" * 32, **data})
 from panel.docker_engine import DockerEngine, EngineError
 from panel.server import Handler
 
@@ -58,9 +61,10 @@ class FakeEngine:
 class ControllerFixture:
     def setUp(self):
         self.chown = patch('panel.core.os.chown').start()
+        patch('panel.core.Controller.verify_plugins').start()
         self.addCleanup(patch.stopall)
         self.print_patch = patch('builtins.print').start()
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = tempfile.TemporaryDirectory(prefix=".cs2-test-")
         self.root = Path(self.temporary.name)
         self.engine = FakeEngine()
         self.controller = Controller(self.root / 'state', self.root / 'config', self.engine)
@@ -103,7 +107,7 @@ class ControllerTests(ControllerFixture, unittest.TestCase):
         create = next(data for method, path, data in self.engine.calls if path.startswith('/containers/create'))
         self.assertEqual(create['HostConfig']['Mounts'][0]['Source'], 'cs2-local-game')
         self.assertEqual(create['HostConfig']['RestartPolicy']['Name'], 'unless-stopped')
-        self.assertEqual(create['HostConfig']['PortBindings']['27015/udp'][0]['HostIp'], '127.0.0.1')
+        self.assertEqual(create['HostConfig']['PortBindings']['27015/udp'][0]['HostIp'], '0.0.0.0')
         self.assertNotIn('rcon_password', json.dumps(create))
 
     def test_update_requires_matching_approval_and_rechecks_on_start(self):
@@ -163,12 +167,12 @@ class ControllerTests(ControllerFixture, unittest.TestCase):
         self.assertIn('80 GiB', self.controller.job['error'])
 
     def test_internet_udp_open_but_rcon_loopback_only(self):
-        self.controller.config = config_from({'network_mode':'internet','gslt':'a' * 32,'port':27016})
+        self.controller.config = config_from({'network_mode':'internet','gslt':'a' * 32,'port':27015})
         self.controller.create_server()
         creation = self.engine.containers['cs2-local-server']['Config']
         ports = creation['HostConfig']['PortBindings']
-        self.assertEqual(ports['27016/udp'][0]['HostIp'], '0.0.0.0')
-        self.assertEqual(ports['27017/tcp'][0]['HostIp'], '127.0.0.1')
+        self.assertEqual(ports['27015/udp'][0]['HostIp'], '0.0.0.0')
+        self.assertEqual(ports['27016/tcp'][0]['HostIp'], '127.0.0.1')
 
     def test_unsupported_engine_never_creates_installation(self):
         with patch.object(self.controller, 'preflight', return_value={'supported':False}):
@@ -197,7 +201,7 @@ class ControllerTests(ControllerFixture, unittest.TestCase):
             self.assertNotIn(self.controller.config[key], output)
 
     def test_validation_blocks_config_injection_and_requires_gslt(self):
-        for data in [{'server_name':'bad\nexec evil'}, {'network_mode':'internet'}, {'port':'bad'}, {'map':'+quit'}, {'gslt':'not-a-token'}]:
+        for data in [{'server_name':'bad\nexec evil'}, {'network_mode':'lan'}, {'gslt':''}, {'port':'bad'}, {'port':27016}, {'map':'+quit'}, {'gslt':'not-a-token'}]:
             with self.subTest(data=data), self.assertRaises(Problem):
                 config_from(data)
 

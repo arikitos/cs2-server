@@ -74,9 +74,14 @@ class DockerEngine:
     def build(self, context, image, log):
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode='w') as tar:
-            for path in sorted(Path(context).iterdir()):
+            for path in sorted(Path(context).rglob('*')):
+                relative = path.relative_to(context)
+                if any(part in {'__pycache__', 'bin', 'obj', '.git'} for part in relative.parts):
+                    continue
+                if path.is_symlink():
+                    raise EngineError('Runtime build context must not contain symbolic links')
                 if path.is_file() and path.suffix != '.pyc':
-                    tar.add(path, arcname=path.name)
+                    tar.add(path, arcname=relative.as_posix())
         def on_event(event):
             if event.get('error'):
                 raise EngineError(event['error'])

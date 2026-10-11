@@ -9,10 +9,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - panel-state:/state
       - server-config:/config
+      - control-data:/control
+      - server-telemetry:/telemetry:ro
     environment:
       CS2_NETWORK: cs2-local-network
       CS2_CONFIG_VOLUME: cs2-local-config
       CS2_GAME_VOLUME: cs2-local-game
+      CS2_CONTROL_VOLUME: cs2-local-control
+      CS2_TELEMETRY_VOLUME: cs2-local-telemetry
     networks: [control]
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"]
@@ -24,6 +28,14 @@ volumes:
     name: cs2-local-panel-state
   server-config:
     name: cs2-local-config
+    labels:
+      io.cs2-local.managed: "true"
+  control-data:
+    name: cs2-local-control
+    labels:
+      io.cs2-local.managed: "true"
+  server-telemetry:
+    name: cs2-local-telemetry
     labels:
       io.cs2-local.managed: "true"
 networks:
