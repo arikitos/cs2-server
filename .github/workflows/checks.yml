@@ -67,6 +67,8 @@ jobs:
           controller.engine.volume(controller.game_volume)
           inspection = controller.manifest()
           assert inspection['manifest'] == ''
+          assert inspection['exists'] is False
+          assert len(inspection['missing_files']) == 4
           assert inspection['free_bytes'] > 0
           controller.config = config_from({'gslt':'a'*32})
           controller.write_config()
@@ -77,11 +79,11 @@ jobs:
           docker run --rm --user 1000:1000 \
             --mount type=volume,src=cs2-local-config,dst=/config,readonly \
             --mount type=volume,src=cs2-local-control,dst=/control,readonly \
-            --entrypoint python3 cs2-local-runtime:2 \
+            --entrypoint python3 cs2-local-runtime:3 \
             -c 'import json,pathlib; settings=json.loads(pathlib.Path("/config/server.json").read_text()); assert settings["port"] == 27015; assert json.loads(pathlib.Path("/control/policy.json").read_text())["bans"] == []; print("Private runtime configuration and policy permissions passed.")'
       - name: Verify actual packaged mode files and permanent frameworks
         run: |
-          docker run --rm -i --user 1000:1000 --entrypoint python3 cs2-local-runtime:2 - <<'PY'
+          docker run --rm -i --user 1000:1000 --entrypoint python3 cs2-local-runtime:3 - <<'PY'
           import sys, pathlib, tempfile
           sys.path.insert(0, '/opt/cs2')
           from prepare import prepare

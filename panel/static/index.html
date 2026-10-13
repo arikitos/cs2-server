@@ -22,12 +22,12 @@
 <div class="topbar"><span>Personal server workspace</span><span class="local-pill">● LOCAL PANEL</span></div>
 <div id="notice" class="notice hidden" role="alert"></div>
 <section id="auth" class="hidden">
-<div class="eyebrow">WELCOME TO CS2 LOCAL</div><h1 id="auth-title">Set up your control panel</h1>
-<p id="auth-copy">Create the administrator account for this computer.</p>
+<div class="eyebrow">WELCOME TO CS2 LOCAL</div><h1 id="auth-title">Step 1: Create your panel account</h1>
+<p id="auth-copy">Choose your first panel username and password. Next, configure Steam and your server.</p>
 <form id="auth-form" class="card narrow">
 <label id="token-field">Setup token<input name="setup_token" autocomplete="off"><small>Copy it from <code>docker compose logs panel</code>.</small></label>
 <label>Admin username<input name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
-<label>Panel password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+<label>Panel password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required><small>Use 12-128 characters. This is your panel password, separate from Steam.</small></label>
 <button class="primary" id="auth-submit">Create administrator</button>
 </form>
 </section>
@@ -67,7 +67,7 @@
 <h3>Steam server token</h3><label>Game Server Login Token (GSLT)<input name="gslt" type="password" maxlength="32" pattern="[0-9a-fA-F]{32}" autocomplete="off" required><small>Create a token for app ID 730 at <a href="https://steamcommunity.com/dev/managegameservers" target="_blank" rel="noreferrer">Steam game server accounts</a>. Downloading the game uses anonymous SteamCMD login.</small></label>
 </div>
 <div class="install-footer">
-<div><p id="install-copy">The installer builds your runtime, installs CS2 and the required plugins, then starts the selected mode.</p><small id="preflight">Checking Docker…</small></div>
+<div><p id="install-copy">The installer checks your server directory, verifies existing files or downloads missing files, then starts the updated server.</p><small id="preflight">Checking Docker…</small></div>
 <button id="save-server" class="primary">Install & start server</button>
 </div>
 </form>
@@ -94,7 +94,7 @@
 </section>
 <section id="maintenance" class="hidden">
 <div class="section-heading"><div><h1>Maintenance</h1><p>Configuration backups and controlled server maintenance.</p></div></div>
-<div class="card"><h3>Server maintenance</h3><p>Validate and repair stop the running server first. Configuration and user policies are backed up before changes.</p><div class="actions"><button id="edit-token" class="secondary">Update Steam token</button><button id="backup" class="primary">Back up settings</button><button id="repair" class="secondary">Repair plugins</button><button id="validate" class="secondary">Validate game files</button></div><small>Backups include server settings, Steam/RCON credentials and user permissions. They do not copy the full game installation.</small></div>
+<div class="card"><h3>Server maintenance</h3><p>Verify & update reuses your server directory, checks all Steam files, updates them and starts the server. Maintenance backs up settings and stops a running server first.</p><div class="actions"><button id="edit-token" class="secondary">Update Steam token</button><button id="backup" class="primary">Back up settings</button><button id="verify-install" class="secondary">Verify & update server</button><button id="repair" class="secondary">Repair plugins</button><button id="validate" class="secondary">Validate game files</button></div><small>Backups include server settings, Steam/RCON credentials and user permissions. They do not copy the full game installation.</small></div>
 <div class="section-heading"><h2>Saved backups</h2></div><div id="backups-list" class="card"></div>
 <div class="section-heading"><h2>Activity log</h2></div><div id="audit-list" class="card"></div>
 </section>

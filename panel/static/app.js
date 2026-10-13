@@ -51,8 +51,8 @@ async function session() {
   const result = await api('session');
   csrf = result.csrf || ''; setupRequired = result.setup_required;
   show('auth', !result.authenticated); show('logout', result.authenticated); activeView();
-  $('auth-title').textContent = setupRequired ? 'Set up your control panel' : 'Welcome back';
-  $('auth-copy').textContent = setupRequired ? 'Create the administrator account for this computer.' : 'Sign in to manage your CS2 server.';
+  $('auth-title').textContent = setupRequired ? 'Step 1: Create your panel account' : 'Welcome back';
+  $('auth-copy').textContent = setupRequired ? 'Choose your first panel username and password. Next, configure Steam and your server.' : 'Sign in to manage your CS2 server.';
   $('auth-submit').textContent = setupRequired ? 'Create administrator' : 'Sign in';
   show('token-field', setupRequired); $('auth-form').elements.setup_token.required = setupRequired;
   $('auth-form').elements.password.autocomplete = setupRequired ? 'new-password' : 'current-password';
@@ -94,12 +94,13 @@ function render() {
   $('restart').disabled = !job.installed || busy || !running;
   $('stop').disabled = !job.installed || busy || !running;
   $('save-server').textContent = job.installed ? running ? 'Save & restart server' : 'Save settings' : 'Install & start server';
-  $('settings-copy').textContent = job.installed ? 'Changes apply to the next launch. Saving restarts a running server.' : 'Set up your server for friends outside your LAN.';
-  $('install-copy').textContent = job.installed ? 'Settings and mode changes keep your game files. An empty Join Password opens the server.' : 'Install CS2, Metamod, CounterStrikeSharp and your selected mode, then start the server.';
+  $('settings-copy').textContent = job.installed ? 'Changes apply to the next launch. Saving restarts a running server.' : 'Step 2: Configure your server and provide its Steam login token.';
+  $('install-copy').textContent = job.installed ? 'Settings and mode changes keep your game files. An empty Join Password opens the server.' : 'Check the server directory, verify and update existing files or download missing files, then start the selected mode.';
   show('installed-details', Boolean(job.installed));
   for (const input of $('server-form').elements) input.disabled = busy;
   $('copy-address').disabled = busy || !publicAddress;
   for (const id of ['backup', 'repair', 'validate']) $(id).disabled = busy || !job.installed;
+  $('verify-install').disabled = busy || !config || !hasGslt;
   $('edit-token').disabled = busy;
   $('stage').textContent = job.stage.replaceAll('_', ' ').toUpperCase();
   const log = $('install-log'), bottom = log.scrollHeight - log.scrollTop - log.clientHeight < 50;
@@ -274,6 +275,10 @@ $('logout').addEventListener('click', async () => {
 });
 $('backup').addEventListener('click', async () => {
   try { await api('backup', {}); await refresh(); } catch (error) { notify(error.message); }
+});
+$('verify-install').addEventListener('click', async () => {
+  if (await confirmAction('Verify & update server', 'Reuse the existing server directory, verify all Steam files and update to the latest build. The server will stop first and start after successful verification. Your panel account and saved settings are kept.') === null) return;
+  try { await api('install', {}); wasBusy = true; await refresh(); } catch (error) { notify(error.message); }
 });
 for (const action of ['repair','validate']) $(action).addEventListener('click', async () => {
   if (await confirmAction(action === 'repair' ? 'Repair required plugins' : 'Validate game files', 'The server will stop for maintenance, then restart if it was running.') === null) return;

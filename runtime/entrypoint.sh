@@ -20,7 +20,7 @@ case "${1:-server}" in
     ./steamcmd.sh +login anonymous +app_info_update 1 +app_info_print 730 +quit
     ;;
   inspect)
-    python3 -c 'import json,pathlib,shutil; p=pathlib.Path("/game/steamapps/appmanifest_730.acf"); print(json.dumps({"manifest":p.read_text() if p.exists() else "", "free_bytes":shutil.disk_usage("/game").free}))'
+    python3 /opt/cs2/inspection.py
     ;;
   server)
     mkdir -p /home/steam/.steam/sdk64

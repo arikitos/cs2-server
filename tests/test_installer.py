@@ -26,11 +26,14 @@ class FakeEngine:
         self.calls = []
         self.containers = {}
         self.built = False
+        self.image_present = False
 
     def request(self, method, path, data=None, **kwargs):
         self.calls.append((method, path, data))
         if path == '/info':
             return {'Architecture': 'x86_64', 'OSType': 'linux', 'MemTotal': 8 * 2**30}
+        if path.startswith('/images/') and not self.image_present:
+            raise EngineError('Image not found', 404)
         if '/containers/create' in path:
             name = path.split('name=')[1]
             self.containers[name] = {'Config': data, 'State': {'Running': False, 'ExitCode': 0}}
@@ -53,6 +56,7 @@ class FakeEngine:
 
     def build(self, context, image, log):
         self.built = True
+        self.image_present = True
         log('Runtime built')
 
     def logs(self, name, tail=200):
@@ -73,6 +77,7 @@ class ControllerFixture:
         self.temporary.cleanup()
 
     def configured(self, build='100'):
+        self.engine.image_present = True
         self.controller.config = config_from({})
         self.controller.write_config()
         self.controller.job.update(installed=True, installed_build=build)
@@ -97,11 +102,12 @@ class ControllerTests(ControllerFixture, unittest.TestCase):
 
     def test_install_build_download_persistence_and_readiness(self):
         self.controller.config = config_from({'server_name': 'Arik CS2'})
-        manifest = {'manifest': '"buildid" "100"', 'free_bytes': 100 * 2**30}
-        with patch.object(self.controller, 'manifest', return_value=manifest), patch.object(self.controller, 'run_job', return_value='') as run:
+        empty = {'manifest': '', 'exists': False, 'missing_files': ['game/cs2.sh'], 'free_bytes': 100 * 2**30}
+        installed = {'manifest': '"buildid" "100"', 'exists': True, 'missing_files': [], 'free_bytes': 10 * 2**30}
+        with patch.object(self.controller, 'manifest', side_effect=[empty, installed]), patch.object(self.controller, 'run_job', side_effect=['', metadata('100')]) as run:
             self.worker('install')
         self.assertTrue(self.engine.built)
-        run.assert_called_once_with('install')
+        self.assertEqual([call.args[0] for call in run.call_args_list], ['install', 'check'])
         self.assertEqual(self.controller.job['stage'], 'ready')
         self.assertTrue(self.controller.job['installed'])
         create = next(data for method, path, data in self.engine.calls if path.startswith('/containers/create'))
@@ -142,7 +148,7 @@ class ControllerTests(ControllerFixture, unittest.TestCase):
 
     def test_failed_install_can_retry_and_reuses_volume(self):
         self.controller.config = config_from({})
-        with patch.object(self.controller, 'manifest', return_value={'manifest':'', 'free_bytes':100 * 2**30}), patch.object(self.controller, 'run_job', side_effect=Problem('Network unavailable')):
+        with patch.object(self.controller, 'manifest', return_value={'manifest':'', 'exists':False, 'missing_files':['game/cs2.sh'], 'free_bytes':100 * 2**30}), patch.object(self.controller, 'run_job', side_effect=Problem('Network unavailable')):
             self.worker('install')
         self.assertEqual(self.controller.job['stage'], 'failed')
         self.assertFalse(self.controller.job['installed'])
@@ -151,16 +157,17 @@ class ControllerTests(ControllerFixture, unittest.TestCase):
 
     def test_resumes_still_running_install_before_inspection(self):
         self.controller.config = config_from({})
-        self.engine.containers['cs2-local-job'] = {'Config':{'Labels':{'io.cs2-local.operation':'install'}}, 'State':{'Running':True}}
-        with patch.object(self.controller, 'manifest', return_value={'manifest':'"buildid" "100"'}), patch.object(self.controller, 'run_job', return_value='download complete') as run:
+        self.engine.image_present = True
+        self.engine.containers['cs2-local-job'] = {'Config':{'Labels':{'io.cs2-local.operation':'install', 'io.cs2-local.runtime':'3'}}, 'State':{'Running':True}}
+        with patch.object(self.controller, 'manifest', return_value={'manifest':'"buildid" "100"', 'missing_files':[]}), patch.object(self.controller, 'run_job', side_effect=['download complete', metadata('100')]) as run:
             self.worker('install')
-        run.assert_called_once_with('install')
+        self.assertEqual([call.args[0] for call in run.call_args_list], ['install', 'check'])
         self.assertFalse(self.engine.built)
         self.assertEqual(self.controller.job['stage'], 'ready')
 
     def test_insufficient_space_fails_before_download(self):
         self.controller.config = config_from({})
-        with patch.object(self.controller, 'manifest', return_value={'manifest':'', 'free_bytes':10 * 2**30}), patch.object(self.controller, 'run_job') as run:
+        with patch.object(self.controller, 'manifest', return_value={'manifest':'', 'exists':False, 'missing_files':['game/cs2.sh'], 'free_bytes':10 * 2**30}), patch.object(self.controller, 'run_job') as run:
             self.worker('install')
         run.assert_not_called()
         self.assertEqual(self.controller.job['stage'], 'failed')
@@ -270,6 +277,7 @@ class HttpTests(ControllerFixture, unittest.TestCase):
     def test_http_auth_csrf_origin_host_and_secret_boundaries(self):
         status, _, _ = self.request_http('GET', '/api/status')
         self.assertEqual(status, 401)
+
         status, headers, body = self.request_http('POST', '/api/setup', {'setup_token':self.controller.bootstrap, 'username':'arik','password':'private-password-123'})
         self.assertEqual(status, 200)
         cookie = headers['Set-Cookie'].split(';')[0]
@@ -286,6 +294,21 @@ class HttpTests(ControllerFixture, unittest.TestCase):
         self.assertEqual(status, 200)
         status, _, _ = self.request_http('GET','/api/status',headers={'Cookie':cookie})
         self.assertEqual(status, 401)
+
+    def test_install_requires_initial_panel_account_csrf_and_steam_token(self):
+        status, _, _ = self.request_http('POST', '/api/install', {'gslt': 'a' * 32})
+        self.assertEqual(status, 401)
+        status, headers, body = self.request_http('POST', '/api/setup', {'setup_token': self.controller.bootstrap,
+                                                                      'username': 'first-owner', 'password': 'private-password-123'})
+        self.assertEqual(status, 200)
+        cookie = headers['Set-Cookie'].split(';')[0]
+        status, _, _ = self.request_http('POST', '/api/install', {'gslt': 'a' * 32}, {'Cookie': cookie})
+        self.assertEqual(status, 403)
+        status, _, response = self.request_http('POST', '/api/install', {}, {'Cookie': cookie, 'X-CSRF-Token': body['csrf']})
+        self.assertEqual(status, 400)
+        self.assertIn('Game Server Login Token', response['error'])
+        self.assertIsNone(self.controller.config)
+        self.assertEqual(self.engine.containers, {})
 
 class RconTests(unittest.TestCase):
     def test_authentication_and_multipart_command_response(self):

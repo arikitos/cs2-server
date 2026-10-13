@@ -13,11 +13,26 @@ docker compose up -d --build
 docker compose logs panel
 ```
 
-Open **http://localhost:8080**, copy the one-time **setup token** from the logs, and create your panel account. Complete the server form and supply a **Game Server Login Token (GSLT)** for app ID **730**, created at [Steam game server accounts](https://steamcommunity.com/dev/managegameservers).
+Open **http://localhost:8080**. First-time setup collects the required data in two steps:
+
+1. **Panel account**: copy the one-time **setup token** from the logs, choose your first administrator **username** (3-32 letters, numbers, dots, dashes or underscores), and a **panel password** (12-128 characters).
+2. **Server and Steam**: enter Server Name, Player Slots, Map, Join Password and game mode, then supply a **Game Server Login Token (GSLT)** for app ID **730**, created at [Steam game server accounts](https://steamcommunity.com/dev/managegameservers). Public IP and port are detected/fixed automatically. A blank Join Password opens the server.
 
 SteamCMD downloads CS2 anonymously. Do not supply a Steam password, Steam Guard code or SteamID for the download. The panel account and in-game admin permissions are separate. RCON receives an independent random password automatically.
 
-A browser cannot bootstrap Docker before the panel exists, so the Compose command is the only initial host step. Install builds the runtime and plugins, downloads/resumes CS2 in its persistent volume, starts the selected mode, and waits for A2S readiness plus RCON verification of the required frameworks and plugins. Failed downloads can be retried without deleting the game volume.
+A browser cannot bootstrap Docker before the panel exists, so the Compose command is the only initial host step. Install prepares the runtime and plugins, checks the persistent game directory, verifies/downloads CS2, starts the selected mode, and waits for A2S readiness plus RCON verification of the required frameworks and plugins. Failed downloads can be retried without deleting the game volume. The panel account must be created and authenticated before installation can start; installation refuses missing/invalid Steam tokens before doing any game work.
+
+## Existing files and repeat installation
+
+The server installation is the **`/game` directory inside the persistent Docker volume `cs2-local-game`**. It is not a disposable container directory or a host Steam client install. The installer creates this managed volume when missing and reuses it on every run:
+
+- **No game directory/files**: create the installation directory and download CS2 with anonymous SteamCMD.
+- **Existing or partial installation**: retain the directory and run **`app_update 730 validate`** in place. SteamCMD checks the official file contents, repairs missing/changed files, resumes downloads and updates the public build. A manifest/BuildID alone does not count as verified files.
+- **Before starting**: require SteamCMD's explicit success, the manifest, executable launcher/binary and game metadata, then fetch the current public BuildID and require a match. Verification/network errors or a newer build appearing during validation leave the server stopped and show a retryable error.
+
+After installation, **Maintenance → Verify & update server** runs this same installer again with the saved configuration. It backs up settings/user policy, stops a running game before touching game files, verifies/updates in place and starts after success. It preserves your panel username/password, GSLT, RCON password, server settings and user registry. A previously interrupted installer can resume; an old runtime's unfinished download receives full validation by the new runtime before startup.
+
+Install and **Verify & update server** explicitly authorize downloading required updates; ordinary **Start/Restart** keep their existing update-approval popup. Validation can restore modified official Steam files. Managed server/mode settings and the Metamod search path are reapplied on launch; manually changed official game files should be backed up separately. No Steam account password or Steam Guard code is requested or stored.
 
 ## Dashboard
 
@@ -91,7 +106,7 @@ Steam/RCON credentials never appear in status, user, backup-list or console resp
 | `GET /api/preflight`, `/api/status`, `/api/metrics` | Docker support, lifecycle and usage |
 | `GET /api/settings`, `POST /api/configure` | Owner settings; saving may restart the game |
 | `GET /api/address`, `POST /api/address/refresh` | Public IPv4 + fixed port |
-| `POST /api/install`, `/api/start`, `/api/stop`, `/api/restart` | Install/lifecycle; start may take `approved_build` |
+| `POST /api/install`, `/api/start`, `/api/stop`, `/api/restart` | Install/repeat verification/lifecycle; install accepts saved settings, start may take `approved_build` |
 | `GET /api/players`, `/api/users` | Live players and persistent user registry |
 | `POST /api/users/action` | `{steamid, action}`: kick, ban, unban, admin, remove_admin |
 | `GET /api/modes`, `POST /api/mode/action` | Mode catalog and registered mode commands |
@@ -110,7 +125,7 @@ sh -n runtime/entrypoint.sh
 docker compose config --quiet
 ```
 
-Python tests cover authentication/API boundaries, BuildID approvals, download persistence, operation locks, durable bans/admins/history, owner settings, public IP validation, backups, configuration rollback, safe archive extraction and transactional mode isolation. Docker is mocked in these local tests.
+Python tests cover authentication/API boundaries, first account/token requirements, empty/partial/complete/damaged installation detection, verified reuse and update failures, BuildID approvals, download persistence, operation locks, durable bans/admins/history, owner settings, public IP validation, backups, configuration rollback, safe archive extraction and transactional mode isolation. Docker and SteamCMD execution are mocked in these local tests.
 
 CI additionally compiles the .NET plugins, tests the legacy allocator, builds the real Docker runtime through the production Engine API, checks actual pinned archives and deployment of all three mode payloads, verifies runtime user access to private config/policy, and exercises the desktop/mobile panel using a deterministic browser fixture. Browser screenshots are attached to the CI run; fixture players/IP/usage are explicitly simulated test data.
 

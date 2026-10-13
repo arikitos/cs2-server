@@ -13,10 +13,10 @@ from pathlib import Path
 
 from .docker_engine import DockerEngine, EngineError
 
-IMAGE = 'cs2-local-runtime:2'
+IMAGE = 'cs2-local-runtime:3'
 SERVER = 'cs2-local-server'
 JOB = 'cs2-local-job'
-LABELS = {'io.cs2-local.managed': 'true', 'io.cs2-local.runtime': '2'}
+LABELS = {'io.cs2-local.managed': 'true', 'io.cs2-local.runtime': '3'}
 BUSY = {'building', 'installing', 'checking', 'updating', 'starting', 'configuring', 'repairing', 'validating', 'restoring'}
 
 class Problem(Exception):
@@ -234,13 +234,10 @@ class Controller:
             raise Problem('Another operation is running', 409)
         try:
             if operation == 'install':
-                if self.job.get('installed'):
-                    raise Problem('Server is already installed', 409)
                 info = self.preflight()
                 if not info['supported']:
                     raise Problem('CS2 requires a Linux x86-64 Docker engine. Use Linux containers on Windows; ARM is not supported.')
-                self.config = config_from(data or {})
-                self.write_config()
+                data = {'config': config_from(data or {}, self.config)}
             elif not self.job.get('installed'):
                 raise Problem('Install the server first', 409)
             elif operation == 'configure':
@@ -250,7 +247,7 @@ class Controller:
                 data = {'backup': backup, 'config': config_from(backup['config'], self.config)}
             elif operation in {'start', 'restart', 'repair', 'validate'}:
                 config_from(self.config, self.config)
-            self.set_stage('building' if operation == 'install' else 'checking' if operation == 'start' else 'starting')
+            self.set_stage('checking' if operation in {'install', 'start'} else 'starting')
             thread = threading.Thread(target=self.worker, args=(operation, data or {}), daemon=True)
             thread.start()
         except Exception:
@@ -314,7 +311,7 @@ class Controller:
     def create_server(self):
         existing = self.engine.inspect(SERVER)
         if existing:
-            if (existing['Config'].get('Labels') or {}).get('io.cs2-local.runtime') == '2':
+            if (existing['Config'].get('Labels') or {}).get('io.cs2-local.runtime') == LABELS['io.cs2-local.runtime']:
                 return
             if existing['State']['Running']:
                 raise Problem('Restart the server to upgrade its plugin runtime', 409)
@@ -388,23 +385,7 @@ class Controller:
                     self.engine.request('POST', f'/containers/{SERVER}/stop?t=30')
                 operation = 'start'
             if operation == 'install':
-                self.engine.volume(self.game_volume)
-                existing = self.engine.inspect(JOB)
-                resuming = existing and existing['State']['Running'] and existing['Config']['Labels'].get('io.cs2-local.operation') == 'install'
-                if not resuming:
-                    self.log('Building the Linux runtime and installing SteamCMD (game download follows).')
-                    self.engine.build(Path(__file__).resolve().parent.parent / 'runtime', IMAGE, self.log)
-                    volume = self.manifest()
-                    if volume['free_bytes'] < 80 * 2**30 and not installed_build(volume['manifest']):
-                        raise Problem('Allocate at least 80 GiB of free space to Docker before installing CS2.')
-                self.set_stage('installing')
-                self.run_job('install')
-                build = installed_build(self.manifest()['manifest'])
-                if not build:
-                    raise Problem('SteamCMD completed without an installed build ID')
-                self.set_stage('starting', installed=True, installed_build=build, available_build=None)
-                self.write_config()
-                self.launch_server()
+                self.install_server(data)
             elif operation == 'start':
                 info = self.engine.inspect(SERVER)
                 if info and info['State']['Running']:
@@ -440,6 +421,56 @@ class Controller:
             self.management.audit(operation, outcome='failed: ' + str(error))
         finally:
             self.operation_lock.release()
+
+    def install_server(self, data):
+        self.engine.volume(self.game_volume)
+        existing = self.engine.inspect(JOB)
+        resuming = bool(existing and existing['State']['Running'])
+        if resuming and existing['Config']['Labels'].get('io.cs2-local.operation') != 'install':
+            raise Problem('A previous Docker job is still running. Wait for it to finish.', 409)
+        # Keep a valid configuration on disk for retry, without resetting credentials.
+        if self.config:
+            self.management.backup('before-install')
+        info = self.engine.inspect(SERVER)
+        if info and info['State']['Running']:
+            self.engine.request('POST', f'/containers/{SERVER}/stop?t=30')
+        self.config = data.get('config', self.config)
+        self.write_config()
+        self.set_stage('checking', installed=False, verification=None)
+        self.ensure_runtime()
+        if resuming:
+            self.log('Resuming SteamCMD validation in the existing game directory.')
+        else:
+            volume = self.manifest()
+            if volume['exists']:
+                self.log('Existing server files found in /game. Verifying and updating them in place.')
+                if volume['missing_files']:
+                    self.log('Missing or invalid required files: ' + ', '.join(volume['missing_files']))
+                self.set_stage('validating')
+            else:
+                self.log('No server installation found. Creating it in the persistent /game directory.')
+                if volume['free_bytes'] < 80 * 2**30:
+                    raise Problem('Allocate at least 80 GiB of free space to Docker before installing CS2.')
+                self.set_stage('installing')
+        self.run_job('install')  # app_update 730 validate: repair/reuse and update, never delete the volume.
+        if resuming and existing['Config']['Labels'].get('io.cs2-local.runtime') != LABELS['io.cs2-local.runtime']:
+            self.log('The previous installer predates file verification. Validating its retained files with the current runtime.')
+            self.set_stage('validating')
+            self.run_job('install')
+        volume = self.manifest()
+        build = installed_build(volume['manifest'])
+        if not build or volume['missing_files']:
+            raise Problem('SteamCMD finished but required server files or its build ID are missing. Retry installation.')
+        self.set_stage('checking')
+        remote = public_build(self.run_job('check'))
+        if not remote:
+            raise Problem('Cannot verify the latest Steam build. Retry installation; the server was not started.')
+        if build != remote:
+            raise Problem('A newer Steam build is available. Retry installation to finish updating; the server was not started.')
+        self.log('SteamCMD file validation passed. Installed build ' + build + ' matches the latest public build.')
+        self.set_stage('starting', installed=True, installed_build=build, available_build=None,
+                       verification={'build': build, 'checked_at': time.time()})
+        self.launch_server()
 
     def reconfigure(self, operation, data):
         import copy
