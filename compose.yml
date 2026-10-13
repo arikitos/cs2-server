@@ -1,0 +1,114 @@
+name: cs2-server
+
+# One Steam installation, one game process, one active mode. SteamCMD exists
+# only in the maintenance service and never runs beside the game process.
+x-cs2-build: &cs2-build
+  CS2_BASE_IMAGE: ${CS2_BASE_IMAGE:-joedwards32/cs2@sha256:41b826d6280d1aa9e41c866a6d88cc7f523e027f16c47a313b20c2d7a17f2680}
+
+services:
+  cs2-game:
+    build:
+      context: ./server/runtime
+      args: *cs2-build
+    image: cs2-manager-runtime:pinned
+    container_name: cs2-game
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    environment:
+      SRCDS_TOKEN: ${SRCDS_TOKEN:-}
+      CS2_SERVERNAME: ${CS2_SERVERNAME:-CS2 Server}
+      CS2_PORT: ${CS2_PORT:-27015}
+      CS2_RCONPW: ${CS2_RCON_PASSWORD}
+      CS2_MAPGROUP: mg_active
+      CS2_CHEATS: "0"
+      CS2_LAN: "0"
+      CS2_SERVER_HIBERNATE: "0"
+      CS2_LOG: "on"
+      TV_ENABLE: ${CS2_TV_ENABLE:-0}
+      TV_PORT: ${CS2_TV_PORT:-27020}
+      MODE_STATE_PATH: /state/runtime/active-mode.json
+      MODE_VERSIONS_PATH: /frameworks/versions.json
+    ports:
+      - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
+      - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/udp"
+    volumes:
+      - ${CS2_DATA_PATH}:/home/steam/cs2-dedicated
+      - ${PROJECT_PATH}/modes:/modes:ro
+      - ${PROJECT_PATH}/server/state:/state
+      - ${PROJECT_PATH}/server/config:/server-config:ro
+      - ${PROJECT_PATH}/server/frameworks:/frameworks:ro
+
+  cs2-updater:
+    build:
+      context: ./server/updater
+      args: *cs2-build
+    image: cs2-manager-updater:pinned
+    pull_policy: never
+    container_name: cs2-updater
+    restart: "no"
+    profiles: [maintenance]
+    environment:
+      CS2_UPDATER_MODE: ${CS2_UPDATER_MODE:-update}
+      CS2_UPDATER_CONFIRM: ${CS2_UPDATER_CONFIRM:-}
+    volumes:
+      - ${CS2_DATA_PATH}:/home/steam/cs2-dedicated
+
+  cs2-modinstaller:
+    build:
+      context: ./server/runtime
+      args: *cs2-build
+    image: cs2-manager-runtime:pinned
+    container_name: cs2-modinstaller
+    restart: "no"
+    profiles: [maintenance]
+    user: root
+    entrypoint: [bash, /frameworks/install-linux.sh]
+    environment:
+      CS2_DATA_DIR: /home/steam/cs2-dedicated
+    volumes:
+      - ${CS2_DATA_PATH}:/home/steam/cs2-dedicated
+      - ${PROJECT_PATH}/server/frameworks:/frameworks:ro
+
+  panel:
+    build: ./panel
+    image: cs2-manager-panel:local
+    container_name: cs2-panel
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
+    environment:
+      PANEL_USERNAME: ${PANEL_USERNAME:-admin}
+      PANEL_PASSWORD: ${PANEL_PASSWORD}
+      CS2_RCON_PASSWORD: ${CS2_RCON_PASSWORD}
+      CS2_PASSWORD: ${CS2_PASSWORD:-}
+      CS2_SERVERNAME: ${CS2_SERVERNAME:-CS2 Server}
+      CS2_PORT: ${CS2_PORT:-27015}
+      GAME_CONTAINER: cs2-game
+      PANEL_DATA_DIR: /data
+      PANEL_MODES_DIR: /modes
+      PANEL_PROJECT_DIR: /project
+      PANEL_SERVER_DIR: /server
+      RCON_APPLY_TIMEOUT: "90"
+      LOG_TAIL_DEFAULT: "300"
+      CS2_DATA_PATH: ${CS2_DATA_PATH}
+      PROJECT_PATH: ${PROJECT_PATH}
+      UPDATER_IMAGE: cs2-manager-updater:pinned
+      COMPOSE_PROJECT: cs2-server
+      CS2_ALLOWED_MAPS: ${CS2_ALLOWED_MAPS:-de_ancient,de_anubis,de_dust2,de_inferno,de_mirage,de_nuke,de_overpass,de_train,de_vertigo}
+    ports:
+      - "${PANEL_BIND:-127.0.0.1}:${PANEL_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${PROJECT_PATH}/server/state:/data
+      - ${PROJECT_PATH}/modes:/modes:ro
+      - ${PROJECT_PATH}:/project:ro
+      - ${CS2_DATA_PATH}:/server:ro

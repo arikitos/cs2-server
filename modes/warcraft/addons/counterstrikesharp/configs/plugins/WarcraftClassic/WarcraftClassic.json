@@ -1,0 +1,165 @@
+{
+  "ConfigVersion": 1,
+  "SaveXp": true,
+  "ShareShortTermXpAcrossRaces": true,
+  "DefaultRace": "undead",
+  "DefaultLanguage": "en",
+  "Leveling": {
+    "MaxLevel": 10,
+    "MaxNormalSkillLevel": 3,
+    "UltimateUnlockLevel": 6,
+    "SavedXpThresholds": [
+      0,
+      100,
+      200,
+      400,
+      800,
+      1600,
+      3200,
+      6400,
+      12800,
+      25600,
+      51200
+    ],
+    "ShortTermXpThresholds": [
+      0,
+      150,
+      300,
+      600,
+      1000,
+      1500,
+      2100,
+      2800,
+      3400,
+      4500,
+      5500
+    ],
+    "SavedKillXpByVictimLevel": [
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      24,
+      28,
+      32
+    ],
+    "ShortTermKillXpByVictimLevel": [
+      10,
+      15,
+      25,
+      35,
+      40,
+      50,
+      60,
+      70,
+      80,
+      90,
+      95
+    ],
+    "HeadshotBonusXp": 10,
+    "RoundWinXp": 20,
+    "PlantBombXp": 20,
+    "DefuseBombXp": 20,
+    "XpMultiplier": 1.0
+  },
+  "Ultimate": {
+    "InitialDelaySeconds": 15.0,
+    "CooldownSeconds": 35.0
+  },
+  "Undead": {
+    "VampiricPercent": [
+      0.0,
+      0.1,
+      0.2,
+      0.3
+    ],
+    "MaxSpeed": [
+      0.0,
+      265.0,
+      285.0,
+      300.0
+    ],
+    "GravityMultiplier": [
+      1.0,
+      0.8,
+      0.6,
+      0.4
+    ],
+    "SuicideRange": 300.0,
+    "SuicideMaxDamage": 50
+  },
+  "Human": {
+    "InvisibilityAlpha": [
+      255,
+      200,
+      175,
+      135
+    ],
+    "KnifeAlphaDivisor": 2,
+    "DevotionBonusHealth": [
+      0,
+      15,
+      30,
+      45
+    ],
+    "BashChance": [
+      0.0,
+      0.1,
+      0.2,
+      0.3
+    ],
+    "BashDurationSeconds": 1.0,
+    "TeleportBackoffUnits": 50.0
+  },
+  "Orc": {
+    "CriticalStrikeChance": 0.15,
+    "CriticalStrikeBonusPercent": [
+      0.0,
+      0.25,
+      0.5,
+      0.75
+    ],
+    "CriticalGrenadeBonusPercent": [
+      0.0,
+      2.0,
+      3.0,
+      4.0
+    ],
+    "EquipmentReincarnationChance": [
+      0.0,
+      0.333,
+      0.666,
+      1.0
+    ],
+    "ChainLightningInitialDamage": 50,
+    "ChainLightningRange": 500.0,
+    "ChainLightningJumpMultiplier": 0.6666667,
+    "ChainLightningMaxTargets": 4
+  },
+  "NightElf": {
+    "EvasionChance": [
+      0.0,
+      0.1,
+      0.175,
+      0.25
+    ],
+    "ThornsReflectPercent": [
+      0.0,
+      0.05,
+      0.1,
+      0.15
+    ],
+    "TrueshotBonusPercent": [
+      0.0,
+      0.1,
+      0.2,
+      0.35
+    ],
+    "EntangleDurationSeconds": 10.0,
+    "EntangleRange": 800.0
+  }
+}

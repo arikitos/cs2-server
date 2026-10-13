@@ -1,10 +1,19 @@
-__pycache__/
-*.pyc
 .env
-.local-state/
-.local-config/
+
+# Steam installation and operator-owned state.
+server/cs2/
+server/state/*
+!server/state/.gitkeep
+
+# Local build and test output.
 **/bin/
 **/obj/
-node_modules/
-browser-screenshots/
-.cs2-test-*/
+**/__pycache__/
+*.py[cod]
+*.tmp
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Download and extraction scratch.
+downloads/
