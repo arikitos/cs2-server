@@ -782,6 +782,7 @@ function navigate() {
     if (active) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
+  window.scrollTo({ top: 0, behavior: "instant" });
   $("pageLabel").textContent = names[page];
   document.title = names[page] + " | CS2 Control";
   document.body.classList.remove("sidebar-open");

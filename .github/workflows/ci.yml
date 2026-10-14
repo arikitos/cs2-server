@@ -112,6 +112,9 @@ jobs:
           await page.goto('http://127.0.0.1:8080/#dashboard');
           await page.screenshot({ path: process.env.RUNNER_TEMP + '/panel-preview/desktop.png', fullPage: true });
           await page.setViewportSize({ width: 390, height: 844 });
+          await page.waitForTimeout(300);
+          const sidebar = await page.locator('.sidebar').boundingBox();
+          if (sidebar.x + sidebar.width > 1) throw new Error('Closed mobile navigation is visible');
           await page.screenshot({ path: process.env.RUNNER_TEMP + '/panel-preview/mobile.png', fullPage: true });
           if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
             throw new Error('Horizontal overflow on mobile');
