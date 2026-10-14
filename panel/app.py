@@ -2147,6 +2147,18 @@ def ensure_data_files() -> None:
     # inventory/transaction parent to the runtime user before the next launch.
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         os.chown(RUNTIME_DIR, 1000, 1000)
+    # Preserve in-game match administrators from an existing installation.
+    # New deployments start from an empty, operator-owned admin list.
+    legacy_admins = SERVER_DIR / "game/csgo/cfg/MatchZy/admins.json"
+    saved_admins = DATA_DIR / "configs/faceit/cfg/MatchZy/admins.json"
+    if legacy_admins.is_file() and not legacy_admins.is_symlink() and not saved_admins.exists():
+        try:
+            admins = json.loads(legacy_admins.read_text(encoding="utf-8-sig"))
+            if isinstance(admins, dict):
+                saved_admins.parent.mkdir(parents=True, exist_ok=True)
+                saved_admins.write_bytes(legacy_admins.read_bytes())
+        except (OSError, ValueError) as exc:
+            app.logger.warning("Existing MatchZy admins could not be preserved: %s", exc)
     legacy = MODES_DIR / "matchzy.json"
     current = MODES_DIR / "faceit.json"
     if legacy.is_file() and not current.exists():

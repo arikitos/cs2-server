@@ -92,6 +92,8 @@ One Steam installation, one game process, one active preset. The runtime deploys
 
 Existing `matchzy` panel settings are migrated to `faceit` with a 5v5 format. The removed presets are no longer offered. Their previously deployed files are removed through the existing managed inventory on the next start.
 
+In-game administrator lists start empty on new installations. To grant yourself CSS admin rights, add your Steam ID and flags to `server/frameworks/counterstrikesharp/configs/admins.json` and run the framework installer. It merges the configured entries with the existing admin list. Existing MatchZy administrator entries are preserved under `server/state/configs/faceit/cfg/MatchZy/admins.json` when upgrading; that saved file can be edited for match-specific administrators.
+
 ## Operations
 
 ```bash

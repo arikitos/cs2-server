@@ -91,7 +91,14 @@ unzip -tq "${TMP}/css.zip" >/dev/null
 mkdir -p "${TMP}/staged" "${CSGO}"
 tar -xzf "${TMP}/metamod.tar.gz" -C "${TMP}/staged"
 unzip -oq "${TMP}/css.zip" -d "${TMP}/staged"
+CSS_ADMINS="${CSGO}/addons/counterstrikesharp/configs/admins.json"
+if [[ -f "${CSS_ADMINS}" ]]; then
+  cp -a "${CSS_ADMINS}" "${TMP}/admins.saved.json"
+fi
 cp -a "${TMP}/staged/." "${CSGO}/"
+if [[ -f "${TMP}/admins.saved.json" ]]; then
+  cp -a "${TMP}/admins.saved.json" "${CSS_ADMINS}"
+fi
 
 #
 # Install repository-managed CounterStrikeSharp configuration.
@@ -109,7 +116,30 @@ if [[ -d "${CUSTOM_CSS_CONFIGS}" ]]; then
   echo "Installing managed CounterStrikeSharp configuration ..."
 
   mkdir -p "${CSS_CONFIGS}"
-  cp -a "${CUSTOM_CSS_CONFIGS}/." "${CSS_CONFIGS}/"
+  python3 - "${CUSTOM_CSS_CONFIGS}" "${CSS_CONFIGS}" <<'ADMIN_CONFIG'
+import json
+import shutil
+import sys
+from pathlib import Path
+
+source, destination = map(Path, sys.argv[1:])
+for path in source.rglob("*"):
+    if not path.is_file():
+        continue
+    target = destination / path.relative_to(source)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if path.name == "admins.json":
+        existing = json.loads(target.read_text(encoding="utf-8-sig")) if target.exists() else {}
+        configured = json.loads(path.read_text(encoding="utf-8-sig"))
+        if not isinstance(existing, dict) or not isinstance(configured, dict):
+            raise SystemExit("CounterStrikeSharp admins must be JSON objects")
+        existing.update(configured)
+        temp = target.with_suffix(".tmp")
+        temp.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+        temp.replace(target)
+    else:
+        shutil.copy2(path, target)
+ADMIN_CONFIG
 fi
 
 cat > "${CSGO}/addons/.cs2-manager-versions.json" <<JSON

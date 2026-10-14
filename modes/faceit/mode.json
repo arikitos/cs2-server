@@ -127,6 +127,10 @@
       "name": "MatchZy config.cfg",
       "target": "cfg/MatchZy/config.cfg",
       "editable": false
+    },
+    {
+      "name": "MatchZy admins.json",
+      "target": "cfg/MatchZy/admins.json"
     }
   ],
   "actions": [
