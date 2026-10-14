@@ -90,6 +90,8 @@ The pinned frameworks are **Metamod 2.0.0-git1476** and **CounterStrikeSharp 1.0
 
 One Steam installation, one game process, one active preset. The runtime deploys only the chosen preset and removes only files recorded in its previous managed-file inventory. Mode changes are transactional; unmanaged installation files are preserved. SteamCMD runs separately after the game is stopped. Keep the entire `server/state` directory when upgrading: it contains the inventory needed to safely remove old mode files.
 
+Live SQLite databases are excluded from deployment ownership, including databases recorded by older inventories, so mode changes preserve existing match statistics.
+
 Existing `matchzy` panel settings are migrated to `faceit` with a 5v5 format. The removed presets are no longer offered. Their previously deployed files are removed through the existing managed inventory on the next start.
 
 In-game administrator lists start empty on new installations. To grant yourself CSS admin rights, add your Steam ID and flags to `server/frameworks/counterstrikesharp/configs/admins.json` and run the framework installer. It merges the configured entries with the existing admin list. Existing MatchZy administrator entries are preserved under `server/state/configs/faceit/cfg/MatchZy/admins.json` when upgrading; that saved file can be edited for match-specific administrators.

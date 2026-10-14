@@ -126,6 +126,13 @@ def _check_requirements(
             )
 
 
+def _runtime_database(relative: str) -> bool:
+    return relative.lower().endswith((
+        ".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite-wal", ".sqlite-shm",
+        ".sqlite3", ".sqlite3-wal", ".sqlite3-shm",
+    ))
+
+
 def _payload(mode_root: Path) -> dict[str, Path]:
     files: dict[str, Path] = {}
     for root_name in PAYLOAD_ROOTS:
@@ -141,6 +148,8 @@ def _payload(mode_root: Path) -> dict[str, Path]:
                 continue
             relative = source.relative_to(mode_root).as_posix()
             _relative(relative, "payload path")
+            if _runtime_database(relative):
+                continue
             files[relative] = source
     if not files:
         raise ModeError(f"mode payload is empty: {mode_root}")
@@ -219,7 +228,11 @@ def _inventory_files(inventory_path: Path, csgo_root: Path) -> tuple[set[str], b
         for row in rows:
             if not isinstance(row, dict) or not isinstance(row.get("path"), str):
                 raise ModeError("invalid managed inventory row")
-            result.add(_relative(row["path"], "inventory path").as_posix())
+            relative = _relative(row["path"], "inventory path").as_posix()
+            # Older releases bundled a MatchZy database. Adopt it as runtime
+            # data rather than removing live match statistics during upgrade.
+            if not _runtime_database(relative):
+                result.add(relative)
         return result, False
 
     # Version 1 recorded directory roots.  Expand only paths below game/csgo.
@@ -240,7 +253,7 @@ def _inventory_files(inventory_path: Path, csgo_root: Path) -> tuple[set[str], b
             for path in existing.rglob("*"):
                 if path.is_file() and not path.is_symlink():
                     result.add(path.relative_to(csgo_root).as_posix())
-    return result, True
+    return {path for path in result if not _runtime_database(path)}, True
 
 
 def _remove_empty_parents(path: Path, stop: Path) -> None:
