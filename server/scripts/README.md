@@ -1,9 +1,10 @@
-# Operational scripts
+# Server commands
 
-`start.sh` creates the stopped game container and starts the panel for an already configured installation.
+Run these commands from the repository root:
 
-`stop.sh` stops the game and panel without deleting containers or persistent data.
+- Linux or Intel macOS: `bash server/scripts/setup.sh`.
+- Windows: `server\scripts\run-setup.cmd` or `powershell -File server/scripts/setup.ps1`.
+- Start the panel and create a stopped game container: `bash server/scripts/start.sh`.
+- Stop the game and panel: `bash server/scripts/stop.sh`.
 
-`smoke-test.sh` verifies the live panel, mode switching, file isolation and the absence of SteamCMD activity in the game container.
-
-Use `run-setup.cmd` at the repository root for first installation and framework setup.
+Setup creates `.env` with random passwords when it is absent, stops the game before maintenance, prepares bind-mount permissions, installs Steam files and pinned frameworks, and starts the panel. It leaves the game stopped until a mode is selected. CS2 requires Linux containers on an x86-64 Docker engine.

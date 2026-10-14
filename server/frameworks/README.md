@@ -1,18 +1,16 @@
-# Shared frameworks
+# Pinned frameworks
 
-Metamod and CounterStrikeSharp are server-wide runtime foundations. Their pinned versions are declared in `versions.json` and installed into the persistent CS2 directory by `install-linux.sh`.
+`versions.json` records exact release versions, download URLs and archive SHA-256 hashes for Metamod, CounterStrikeSharp, MatchZy and Retakes. MatchZy and Retakes are vendored in their mode directories; the installer installs the two shared frameworks.
 
-They are deliberately separate from plugin release fetching. Updating to the newest framework without checking plugin API compatibility can prevent one or more modes from loading.
+The installer downloads and verifies both archives in a temporary directory before copying them into the persistent game installation. CounterStrikeSharp includes its .NET 10 Linux runtime. Existing plugin payloads remain owned by the transactional mode manager.
 
-Current contract.
-
-```text
-Metamod 2.0.0-git1410
-CounterStrikeSharp 1.0.371
-```
-
-Install or repair the pinned pair with.
+Run only while the game is stopped:
 
 ```bash
+docker compose stop cs2-game
 docker compose --profile maintenance run --rm cs2-modinstaller
+docker compose --profile maintenance run --rm \
+  -e CS2_UPDATER_MODE=repair-metamod -e 'CS2_UPDATER_CONFIRM=UPDATE CS2' cs2-updater
 ```
+
+The panel refuses to deploy a preset when its required framework versions differ from the installed version marker. Update the requirements in both mode manifests when changing shared framework versions.

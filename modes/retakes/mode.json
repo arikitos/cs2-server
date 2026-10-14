@@ -5,8 +5,8 @@
   "order": 20,
   "server_config": false,
   "requires": {
-    "metamod": "2.0.0-git1410",
-    "counterstrikesharp": "1.0.371"
+    "metamod": "2.0.0-git1476",
+    "counterstrikesharp": "1.0.376"
   },
   "startup": {
     "game_alias": "competitive",
@@ -66,7 +66,7 @@
         "de_vertigo",
         "de_train"
       ],
-      "hostname": "Arikitos Retake Server",
+      "hostname": "CS2 Retakes",
       "lan": false,
       "cheats": false,
       "allow_lobby_connect_only": false,

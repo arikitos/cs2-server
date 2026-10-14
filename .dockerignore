@@ -1,0 +1,7 @@
+.git
+.env
+server/cs2
+server/state
+**/bin
+**/obj
+**/__pycache__

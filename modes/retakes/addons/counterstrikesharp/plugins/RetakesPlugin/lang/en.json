@@ -1,4 +1,4 @@
-﻿{
+{
   "retakes.prefix": "[{green}RETAKES{default}]",
   "retakes.no_permissions": "You don't have permission to use this command.",
   "retakes.enabled": "{red}disabled{default}",

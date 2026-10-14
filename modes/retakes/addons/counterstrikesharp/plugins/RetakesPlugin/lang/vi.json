@@ -1,4 +1,4 @@
-﻿{
+{
   "retakes.prefix": "[{green}RETAKES{default}]",
   "retakes.no_permissions": "Bạn không có quyền sử dụng lệnh này.",
   "retakes.enabled": "{red}đã tắt{default}",

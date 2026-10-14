@@ -73,67 +73,25 @@ MM_VERSION="$(read_version metamod version)"
 MM_URL="$(read_version metamod url)"
 
 CSS_VERSION="$(read_version counterstrikesharp version)"
-CSS_API="$(read_version counterstrikesharp release_api)"
-CSS_PATTERN="$(read_version counterstrikesharp asset_pattern)"
+CSS_URL="$(read_version counterstrikesharp url)"
+MM_SHA="$(read_version metamod sha256)"
+CSS_SHA="$(read_version counterstrikesharp sha256)"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-mkdir -p "${CSGO}"
-
-echo "Installing pinned Metamod ${MM_VERSION} ..."
-
-curl \
-  -fL \
-  --retry 3 \
-  "${MM_URL}" \
-  -o "${TMP}/metamod.tar.gz"
+# Download and validate both releases before changing the installed addons.
+echo "Downloading pinned Metamod ${MM_VERSION} and CounterStrikeSharp ${CSS_VERSION} ..."
+curl -fL --retry 3 --connect-timeout 20 "${MM_URL}" -o "${TMP}/metamod.tar.gz"
+curl -fL --retry 3 --connect-timeout 20 "${CSS_URL}" -o "${TMP}/css.zip"
+printf '%s  %s\n' "${MM_SHA}" "${TMP}/metamod.tar.gz" "${CSS_SHA}" "${TMP}/css.zip" | sha256sum --check --strict
 
 tar -tzf "${TMP}/metamod.tar.gz" >/dev/null
-tar -xzf "${TMP}/metamod.tar.gz" -C "${CSGO}"
-
-echo "Resolving pinned CounterStrikeSharp ${CSS_VERSION} asset ..."
-
-CSS_URL="$(
-  curl \
-    -fsSL \
-    --retry 3 \
-    -H "Accept: application/vnd.github+json" \
-    -H "User-Agent: cs2-server-manager" \
-    "${CSS_API}" |
-  python3 -c '
-import json
-import re
-import sys
-
-release = json.load(sys.stdin)
-pattern = re.compile(sys.argv[1], re.I)
-
-assets = [
-    asset["browser_download_url"]
-    for asset in release.get("assets", [])
-    if pattern.search(asset.get("name", ""))
-]
-
-if len(assets) != 1:
-    raise SystemExit(
-        f"expected one matching CounterStrikeSharp asset, found {len(assets)}"
-    )
-
-print(assets[0])
-' "${CSS_PATTERN}"
-)"
-
-echo "Installing pinned CounterStrikeSharp ${CSS_VERSION} ..."
-
-curl \
-  -fL \
-  --retry 3 \
-  "${CSS_URL}" \
-  -o "${TMP}/css.zip"
-
 unzip -tq "${TMP}/css.zip" >/dev/null
-unzip -oq "${TMP}/css.zip" -d "${CSGO}"
+mkdir -p "${TMP}/staged" "${CSGO}"
+tar -xzf "${TMP}/metamod.tar.gz" -C "${TMP}/staged"
+unzip -oq "${TMP}/css.zip" -d "${TMP}/staged"
+cp -a "${TMP}/staged/." "${CSGO}/"
 
 #
 # Install repository-managed CounterStrikeSharp configuration.

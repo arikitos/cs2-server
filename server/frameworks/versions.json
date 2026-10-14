@@ -1,15 +1,30 @@
 {
   "metamod": {
-    "version": "2.0.0-git1410",
-    "url": "https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1410-linux.tar.gz",
+    "version": "2.0.0-git1476",
+    "url": "https://github.com/alliedmodders/metamod-source/releases/download/2.0.0.1476/mmsource-2.0.0-git1476-linux.tar.gz",
+    "sha256": "fc8b4dce5b72ee8d3222cecba2c0efab6cd4e46bbfc381aec58f834ed9842f8e",
     "source": "https://www.sourcemm.net/downloads.php/?branch=master",
     "track": "pinned"
   },
   "counterstrikesharp": {
-    "version": "1.0.371",
-    "release_api": "https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/tags/v1.0.371",
-    "asset_pattern": "with-runtime.*linux.*\\.zip$|linux.*with-runtime.*\\.zip$",
-    "source": "https://github.com/roflmuffin/CounterStrikeSharp",
+    "version": "1.0.376",
+    "url": "https://github.com/roflmuffin/CounterStrikeSharp/releases/download/v1.0.376/counterstrikesharp-with-runtime-linux-1.0.376.zip",
+    "sha256": "8d50a25a467fe9c7ebbbc7032028d402cd428e118308f1c4d627a0a5ddf36783",
+    "source": "https://github.com/roflmuffin/CounterStrikeSharp/releases/tag/v1.0.376",
     "track": "pinned"
+  },
+  "matchzy": {
+    "version": "0.9.1",
+    "url": "https://github.com/shobhit-pathak/MatchZy/releases/download/0.9.1/MatchZy-0.9.1.zip",
+    "sha256": "28be429324134e91239e5c2f81a4e96e5ba86b7f35b2b34ba5273ee011792403",
+    "source": "https://github.com/shobhit-pathak/MatchZy/releases/tag/0.9.1",
+    "track": "vendored"
+  },
+  "retakes": {
+    "version": "3.1.1",
+    "url": "https://github.com/B3none/cs2-retakes/releases/download/3.1.1/RetakesPlugin-3.1.1.zip",
+    "sha256": "ccb5dade7a5d445d0a172e68f19cb262de0c2a75639be18f3d892db10be93dff",
+    "source": "https://github.com/B3none/cs2-retakes/releases/tag/3.1.1",
+    "track": "vendored"
   }
 }

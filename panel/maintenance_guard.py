@@ -21,12 +21,13 @@ MAINTENANCE_LOCK = threading.Lock()
 
 
 @contextmanager
-def maintenance_operation():
+def maintenance_operation(panel):
     """Allow only one updater or repair workflow to mutate server data."""
     if not MAINTENANCE_LOCK.acquire(blocking=False):
         raise RuntimeError("Another maintenance operation is already running")
     try:
-        yield
+        with panel.OPERATION_LOCK:
+            yield
     finally:
         MAINTENANCE_LOCK.release()
 
@@ -47,9 +48,6 @@ def ensure_updater_image(panel, job):
     This prevents ContainerCollection.run from treating a missing local tag as a
     registry image that should be pulled.
     """
-    if not panel.CS2_DATA_PATH_HOST:
-        raise RuntimeError("CS2_DATA_PATH is not configured for the panel")
-
     try:
         return panel.client.images.get(panel.UPDATER_IMAGE)
     except panel.NotFound:
@@ -113,12 +111,7 @@ def run_updater_container(panel, job, updater_mode: str) -> int:
             "CS2_UPDATER_MODE": updater_mode,
             "CS2_UPDATER_CONFIRM": panel.UPDATER_CONFIRM_PHRASE,
         },
-        volumes={
-            panel.CS2_DATA_PATH_HOST: {
-                "bind": "/home/steam/cs2-dedicated",
-                "mode": "rw",
-            }
-        },
+        volumes=panel.game_data_mounts(),
     )
     try:
         for chunk in container.logs(stream=True, follow=True):
@@ -185,10 +178,12 @@ def _steamcmd_workflow(panel, kind: str, updater_mode: str):
             }
         ), 403
 
-    restore = panel._mode_to_restore()
+    active = panel.active_container()
+    restore = active["mode"] if active else None
 
     def worker(job):
-        with maintenance_operation():
+        with maintenance_operation(panel):
+            panel.cancel_pending_rcon()
             ensure_updater_image(panel, job)
             job.emit(
                 "Creating a manager configuration backup. "
@@ -210,10 +205,12 @@ def _steamcmd_workflow(panel, kind: str, updater_mode: str):
 
 
 def _repair_metamod_handler(panel):
-    restore = panel._mode_to_restore()
+    active = panel.active_container()
+    restore = active["mode"] if active else None
 
     def worker(job):
-        with maintenance_operation():
+        with maintenance_operation(panel):
+            panel.cancel_pending_rcon()
             ensure_updater_image(panel, job)
             job.emit(
                 "Creating a manager configuration backup. "

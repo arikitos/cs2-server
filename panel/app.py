@@ -14,6 +14,7 @@ import struct
 import threading
 import time
 import uuid
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
@@ -192,7 +193,7 @@ SHARED_COMMAND_GROUPS = [
     },
 ]
 MODE_COMMAND_REPLACEMENTS = {
-    "matchzy": {"pause", "unpause"},
+    "faceit": {"pause", "unpause"},
     "retakes": {"scramble_teams"},
 }
 
@@ -247,7 +248,7 @@ DEFAULT_SERVER = {
     "password_policy": "global",
 }
 
-OPERATION_LOCK = threading.Lock()
+OPERATION_LOCK = threading.RLock()
 FILE_LOCK = threading.Lock()
 RCON_JOB_LOCK = threading.Lock()
 RCON_JOB_GENERATION = 0
@@ -286,8 +287,8 @@ def authorized() -> bool:
     auth = request.authorization
     return bool(
         auth
-        and hmac.compare_digest(auth.username or "", USERNAME)
-        and hmac.compare_digest(auth.password or "", PASSWORD)
+        and hmac.compare_digest((auth.username or "").encode(), USERNAME.encode())
+        and hmac.compare_digest((auth.password or "").encode(), PASSWORD.encode())
     )
 
 
@@ -887,7 +888,9 @@ def container_stats(name: str) -> dict:
         cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
         system_delta = stats["cpu_stats"].get("system_cpu_usage", 0) - stats["precpu_stats"].get("system_cpu_usage", 0)
         cpus = stats["cpu_stats"].get("online_cpus") or 1
-        used = stats["memory_stats"].get("usage", 0)
+        memory = stats["memory_stats"]
+        cache = memory.get("stats", {}).get("inactive_file", memory.get("stats", {}).get("total_inactive_file", 0))
+        used = max(0, memory.get("usage", 0) - cache)
         limit = stats["memory_stats"].get("limit", 0)
         return {
             "cpu_percent": round((cpu_delta / system_delta) * cpus * 100, 1) if system_delta else 0,
@@ -902,6 +905,8 @@ def container_stats(name: str) -> dict:
 def operational_state(active: dict | None) -> str:
     if active is None:
         return "Stopped"
+    if active.get("mode") not in MODES:
+        return "UnknownMode"
     return "Ready" if rcon_reachable(active["name"]) else "StartingGame"
 
 
@@ -1094,7 +1099,7 @@ class Job:
         with self._lock:
             self.log.append(f"{datetime.now(timezone.utc).strftime('%H:%M:%S')}  {redact(text)}")
             self.log = self.log[-2000:]
-        app.logger.info("[job %s] %s", self.id, text)
+        app.logger.info("[job %s] %s", self.id, redact(text))
 
     def set(self, *, step=None, percent=None, status=None) -> None:
         with self._lock:
@@ -1151,7 +1156,7 @@ def start_job(kind: str, worker) -> Job:
 
 
 def timestamp_slug() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
 
 
 def make_backup(job: Job, scope: str = "config") -> Path:
@@ -1177,30 +1182,20 @@ def make_backup(job: Job, scope: str = "config") -> Path:
     return destination
 
 
+def game_data_mounts() -> dict:
+    container = client.containers.get(GAME_CONTAINER)
+    container.reload()
+    for mount in container.attrs.get("Mounts", []):
+        if mount.get("Destination") == "/home/steam/cs2-dedicated":
+            source = mount.get("Name") if mount.get("Type") == "volume" else mount.get("Source")
+            if source:
+                return {source: {"bind": "/home/steam/cs2-dedicated", "mode": "rw"}}
+    raise RuntimeError("The game container's CS2 data mount is missing")
+
+
 def run_updater_container(job: Job, updater_mode: str) -> int:
-    if not CS2_DATA_PATH_HOST:
-        raise RuntimeError("CS2_DATA_PATH is not configured for the panel")
-    name = f"cs2-updater-job-{job.id}"
-    try:
-        client.containers.get(name).remove(force=True)
-    except NotFound:
-        pass
-    container = client.containers.run(
-        UPDATER_IMAGE,
-        detach=True,
-        name=name,
-        environment={"CS2_UPDATER_MODE": updater_mode, "CS2_UPDATER_CONFIRM": UPDATER_CONFIRM_PHRASE},
-        volumes={CS2_DATA_PATH_HOST: {"bind": "/home/steam/cs2-dedicated", "mode": "rw"}},
-    )
-    try:
-        for chunk in container.logs(stream=True, follow=True):
-            job.emit(chunk.decode("utf-8", errors="replace").rstrip())
-        return container.wait().get("StatusCode", -1)
-    finally:
-        try:
-            container.remove(force=True)
-        except DockerException:
-            pass
+    from maintenance_guard import run_updater_container as guarded_updater
+    return guarded_updater(__import__(__name__), job, updater_mode)
 
 
 def restart_previous_mode(job: Job, mode: str) -> bool:
@@ -1230,7 +1225,7 @@ def _mode_to_restore() -> str | None:
 @app.get("/")
 @require_auth
 def index():
-    return render_template("index.html")
+    return render_template("index.html", username=USERNAME)
 
 
 @app.get("/api/v3/status")
@@ -1280,7 +1275,9 @@ def api_status():
             "allowed_maps": ALLOWED_MAPS,
             "rcon_available": bool(RCON_PASSWORD),
             "timestamps": STATE_TIMESTAMPS,
-            "endpoint": {"ip": "127.0.0.1", "port": RCON_PORT},
+            "endpoint": {"ip": os.environ.get("CS2_PUBLIC_ADDRESS") or urlsplit("//" + request.host).hostname or "127.0.0.1", "port": RCON_PORT},
+            "versions": manager_versions(),
+            "maintenance_active": __import__("maintenance_guard").MAINTENANCE_LOCK.locked(),
         })
     except DockerException as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
@@ -1310,7 +1307,7 @@ def api_health():
                 checks["metamod"] = not command_unknown(meta) and bool(re.search(r"listing\s+\d+\s+plugin|CounterStrikeSharp", meta, re.I))
                 checks["counterstrikesharp"] = not command_unknown(css) and bool(re.search(r"\[#\d+:|plugins?\s+loaded|loaded by CounterStrikeSharp", css, re.I))
                 combined = (meta + "\n" + css).lower()
-                for plugin in MODE_DEFS[active["mode"]]["required_plugins"]:
+                for plugin in MODE_DEFS.get(active["mode"], {}).get("required_plugins", []):
                     checks["required_plugins"][plugin] = any(alias in combined for alias in MODE_DEFS[active["mode"]]["plugin_aliases"][plugin])
                 status = rcon_command(GAME_CONTAINER, "status", 4)
                 checks["map"] = parse_current_map(status)
@@ -1324,7 +1321,13 @@ def api_health():
 @require_auth
 def api_metrics():
     active = active_container()
-    return jsonify({"ok": True, "stats": container_stats(GAME_CONTAINER) if active else {}})
+    stats = container_stats(GAME_CONTAINER) if active else {}
+    try:
+        disk = shutil.disk_usage(SERVER_DIR)
+        stats.update(disk_used_gb=round(disk.used / 1073741824, 2), disk_total_gb=round(disk.total / 1073741824, 2), disk_percent=round(disk.used / disk.total * 100, 1))
+    except OSError:
+        pass
+    return jsonify({"ok": True, "stats": stats})
 
 
 @app.post("/api/v3/server/start")
@@ -1362,16 +1365,16 @@ def api_server_stop():
 @require_auth
 def api_server_restart():
     active = active_container()
-    if not active:
-        return jsonify({"ok": False, "error": "No game mode is running"}), 409
+    if not active or active["mode"] not in MODES:
+        return jsonify({"ok": False, "error": "Select FaceIt or Retakes before restarting"}), 409
     try:
-        with OPERATION_LOCK:
-            client.containers.get(GAME_CONTAINER).restart(timeout=20)
-        queue_runtime_ready(active["mode"])
+        _start_mode(active["mode"], restart_if_running=True)
         audit("server.restart", "ok", target=active["mode"])
         return jsonify({"ok": True, "mode": active["mode"]})
     except DockerException as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @app.post("/api/v3/server/refresh")
@@ -1583,8 +1586,6 @@ def api_mode_action(mode):
     if not active or active["mode"] != mode:
         return jsonify({"ok": False, "error": f"{MODES[mode]['label']} is not the active mode"}), 409
     try:
-        if mode == "heroshift" and key == "reload_skills":
-            sync_live_config("heroshift", "heroshift.json")
         output = rcon_command(GAME_CONTAINER, action["cmd"], 6)
         audit("mode.action", "ok", f"{mode}:{key}", target=mode)
         return jsonify({"ok": True, "action": key, "command": action["cmd"], "output": redact(output)})
@@ -1610,11 +1611,8 @@ def api_mode_preview(mode):
 
 
 # ---------------------------------------------------------------------------
-# HeroShift config
+# Mode configuration
 # ---------------------------------------------------------------------------
-HEROSHIFT_BUILT_IN_SKILL_COUNT = 146
-
-
 def mode_config_path(mode: str, name: str) -> Path:
     definition = MODE_DEFS.get(mode)
     entry = next((item for item in definition["configs"] if item["name"] == name), None) if definition else None
@@ -1630,31 +1628,6 @@ def mode_config_path(mode: str, name: str) -> Path:
     return target
 
 
-def read_hs_config() -> dict:
-    return json.loads(
-        mode_config_path("heroshift", "heroshift.json").read_text(encoding="utf-8")
-    )
-
-
-def _backup_and_write(path: Path, value) -> str | None:
-    backup_name = None
-    if path.exists():
-        try:
-            relative = path.resolve().relative_to((DATA_DIR / "configs").resolve())
-            mode_id = relative.parts[0]
-        except (OSError, ValueError, IndexError):
-            mode_id = "unknown"
-        backup_dir = BACKUPS_DIR / "config" / mode_id
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        backup = backup_dir / f"{path.name}.bak-{timestamp_slug()}"
-        shutil.copy2(path, backup)
-        backup_name = backup.name
-        for stale in sorted(backup_dir.glob(f"{path.name}.bak-*"))[:-10]:
-            stale.unlink(missing_ok=True)
-    write_json(path, value)
-    return backup_name
-
-
 def sync_live_config(mode: str, name: str) -> None:
     container = client.containers.get(GAME_CONTAINER)
     result = container.exec_run([
@@ -1666,37 +1639,6 @@ def sync_live_config(mode: str, name: str) -> None:
     ])
     if result.exit_code != 0:
         raise RuntimeError(result.output.decode("utf-8", errors="replace"))
-
-
-@app.get("/api/v3/modes/heroshift/diag")
-@require_auth
-def api_hero_diag():
-    active = active_container()
-    try:
-        config = read_hs_config()
-        overrides = config.get("skills") or {}
-        if not isinstance(overrides, dict):
-            raise ValueError("HeroShift skills overrides must be an object")
-        disabled = sum(
-            1
-            for value in overrides.values()
-            if isinstance(value, dict) and value.get("enabled") is False
-        )
-        counts = {
-            "active_count": HEROSHIFT_BUILT_IN_SKILL_COUNT - disabled,
-            "total": HEROSHIFT_BUILT_IN_SKILL_COUNT,
-            "configured_overrides": len(overrides),
-        }
-    except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError):
-        counts = {"active_count": None, "total": None, "configured_overrides": None}
-    if not active or active["mode"] != "heroshift":
-        return jsonify({"ok": True, "loaded": False, "active": False, "diag": counts, "note": "HeroShift is not active"})
-    try:
-        combined = (rcon_command(GAME_CONTAINER, "css_plugins list", 5) + "\n" + rcon_command(GAME_CONTAINER, "meta list", 5)).lower()
-        counts["raytrace"] = "raytrace" in combined
-        return jsonify({"ok": True, "loaded": "heroshift" in combined, "active": True, "diag": counts})
-    except (OSError, RuntimeError, ValueError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 502
 
 
 # ---------------------------------------------------------------------------
@@ -1819,9 +1761,9 @@ def _player_rcon(action: str, ident: str, command: str):
 @require_auth
 def api_player_kick(ident):
     userid = (request.get_json(silent=True) or {}).get("userid")
-    if userid is None:
-        return jsonify({"ok": False, "error": "userid is required"}), 400
-    return _player_rcon("kick", ident, f"kickid {int(userid)}")
+    if isinstance(userid, bool) or not isinstance(userid, int) or not 0 <= userid <= 2147483647:
+        return jsonify({"ok": False, "error": "A valid numeric userid is required"}), 400
+    return _player_rcon("kick", ident, f"kickid {userid}")
 
 
 @app.post("/api/v3/players/<ident>/ban")
@@ -1829,14 +1771,19 @@ def api_player_kick(ident):
 def api_player_ban(ident):
     body = request.get_json(silent=True) or {}
     userid = body.get("userid")
-    if userid is None:
-        return jsonify({"ok": False, "error": "userid is required"}), 400
-    minutes = max(0, int(body.get("minutes", 0)))
+    minutes = body.get("minutes", 0)
+    if isinstance(userid, bool) or not isinstance(userid, int) or not 0 <= userid <= 2147483647:
+        return jsonify({"ok": False, "error": "A valid numeric userid is required"}), 400
+    if isinstance(minutes, bool) or not isinstance(minutes, int) or not 0 <= minutes <= 525600:
+        return jsonify({"ok": False, "error": "Ban minutes must be between 0 and 525600"}), 400
+    if not active_container():
+        return jsonify({"ok": False, "error": "No game mode is running"}), 409
     try:
         output = rcon_command(GAME_CONTAINER, f"banid {minutes} {int(userid)}")
         if minutes == 0:
             output += "\n" + rcon_command(GAME_CONTAINER, "writeid")
         rcon_command(GAME_CONTAINER, f"kickid {int(userid)}")
+        audit("player.ban", "ok", f"userid={userid} minutes={minutes}", target=ident)
         return jsonify({"ok": True, "output": redact(output)})
     except (OSError, RuntimeError, ValueError, PermissionError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 502
@@ -2020,14 +1967,14 @@ def api_logs():
                 since = int(datetime.fromisoformat(str(raw_since).replace("Z", "+00:00")).timestamp())
             except (TypeError, ValueError):
                 since = int(time.time())
-            raw_logs = container.logs(since=since, timestamps=True)
+            raw_logs = container.logs(since=since, tail=tail, timestamps=True)
         else:
             raw_logs = container.logs(tail=tail, timestamps=True)
         output = redact(raw_logs.decode("utf-8", errors="replace"))
         if source == "plugin":
             keep = (
                 "MatchZy", "Metamod", "CounterStrikeSharp", "AutoReady", "Retakes",
-                "Instadefuse", "HeroShift", "RayTrace", "Warcraft", "PanelBridge",
+                "Instadefuse", "PanelBridge",
                 "ClutchAnnounce", "[CS2 Manager]",
             )
             output = "\n".join(line for line in output.splitlines() if any(token in line for token in keep))
@@ -2062,11 +2009,23 @@ def api_verify_mounts():
     return jsonify({"ok": True, "all_present": all(value is True for value in checks.values() if isinstance(value, bool)), "checks": checks})
 
 
+@app.get("/api/v3/maintenance/backups")
+@require_auth
+def api_backups():
+    items = []
+    if BACKUPS_DIR.is_dir():
+        for path in BACKUPS_DIR.iterdir():
+            if path.is_dir() and not path.is_symlink() and (path / "state").is_dir():
+                items.append({"name": path.name, "created": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()})
+    return jsonify(ok=True, backups=sorted(items, key=lambda item: item["created"], reverse=True)[:100])
+
+
 @app.post("/api/v3/maintenance/backup")
 @require_auth
 def api_backup():
     def worker(job):
-        job.result = {"path": make_backup(job, "manual").name}
+        with OPERATION_LOCK:
+            job.result = {"path": make_backup(job, "manual").name}
     return jsonify({"ok": True, "job": start_job("backup", worker).to_dict()}), 202
 
 
@@ -2131,18 +2090,25 @@ def api_restore():
         return jsonify({"ok": False, "error": "Unknown backup folder"}), 400
 
     def worker(job):
-        with OPERATION_LOCK:
+        from maintenance_guard import maintenance_operation
+        with maintenance_operation(__import__(__name__)):
+            make_backup(job, "pre-restore")
+            cancel_pending_rcon()
             stop_game()
-        state = target / "state"
-        for relative in ("server.json", "secrets.json", "console_history.json"):
-            source = state / relative
-            if source.is_file():
-                shutil.copy2(source, DATA_DIR / relative)
-        for relative in ("modes", "configs", "runtime"):
-            source = state / relative
-            if source.is_dir():
-                shutil.copytree(source, DATA_DIR / relative, dirs_exist_ok=True)
-        job.result = {"restored_from": name}
+            state = target / "state"
+            for relative in ("server.json", "secrets.json", "console_history.json"):
+                source = state / relative
+                if source.is_file():
+                    shutil.copy2(source, DATA_DIR / relative)
+            for relative in ("modes", "configs", "runtime"):
+                source = state / relative
+                if source.is_dir():
+                    destination = DATA_DIR / relative
+                    if destination.is_dir():
+                        shutil.rmtree(destination)
+                    shutil.copytree(source, destination)
+            ensure_data_files()
+            job.result = {"restored_from": name}
 
     return jsonify({"ok": True, "job": start_job("restore", worker).to_dict()}), 202
 
@@ -2160,50 +2126,6 @@ def api_panel_restart():
     return jsonify({"ok": True, "note": "Panel restarting"})
 
 
-@app.post("/api/v3/panel/rebuild")
-@require_auth
-def api_panel_rebuild():
-    def worker(job):
-        source = PROJECT_DIR / "panel"
-        _, errors = mode_defs.load_definitions(MODES_ROOT)
-        if errors:
-            raise RuntimeError("Mode definitions are invalid: " + "; ".join(errors))
-        candidate = "cs2-server-panel:candidate"
-        _, logs = client.images.build(path=str(source), tag=candidate, rm=True, pull=False)
-        for row in logs:
-            if isinstance(row, dict) and row.get("stream"):
-                job.emit(row["stream"].rstrip())
-        test_name = f"panel-healthcheck-{job.id}"
-        test = client.containers.run(candidate, command=["python", "-c", "import app; print('IMPORT_OK')"], detach=True, name=test_name, network_mode="none", environment={"PANEL_DATA_DIR": "/tmp/d", "PANEL_MODES_DIR": "/tmp/m"})
-        output = test.logs(stream=False).decode("utf-8", errors="replace")
-        code = test.wait().get("StatusCode", -1)
-        test.remove(force=True)
-        if code != 0 or "IMPORT_OK" not in output:
-            raise RuntimeError("Candidate panel image failed health check")
-        client.images.get(candidate).tag("cs2-server-panel", "latest")
-        job.result = {"applied": _launch_panel_applier(job)}
-
-    return jsonify({"ok": True, "job": start_job("panel-rebuild", worker).to_dict()}), 202
-
-
-def _launch_panel_applier(job: Job) -> bool:
-    if not PROJECT_PATH_HOST:
-        return False
-    try:
-        client.containers.run(
-            "docker:cli",
-            command=["sh", "-c", f"sleep 2 && docker compose -p {COMPOSE_PROJECT} -f /work/compose.yml up -d panel"],
-            detach=True,
-            remove=True,
-            name=f"panel-applier-{job.id}",
-            working_dir="/work",
-            volumes={"/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"}, PROJECT_PATH_HOST: {"bind": "/work", "mode": "ro"}},
-        )
-        return True
-    except DockerException:
-        return False
-
-
 @app.get("/api/v3/audit")
 @require_auth
 def api_audit():
@@ -2219,6 +2141,26 @@ def api_audit():
 
 
 def ensure_data_files() -> None:
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    # The Docker socket requires a root panel; deployment runs as the steam
+    # user. Restoring a backup recreates this directory as root, so return the
+    # inventory/transaction parent to the runtime user before the next launch.
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        os.chown(RUNTIME_DIR, 1000, 1000)
+    legacy = MODES_DIR / "matchzy.json"
+    current = MODES_DIR / "faceit.json"
+    if legacy.is_file() and not current.exists():
+        settings = read_json(legacy, {})
+        settings["format"] = "5v5"
+        write_json(current, settings)
+    server = load_server()
+    if server.get("last_mode") == "matchzy":
+        server["last_mode"] = "faceit"
+        save_server(server)
+    active = read_json(ACTIVE_MODE_JSON, {})
+    if active.get("mode") == "matchzy":
+        active["mode"] = "faceit"
+        write_json(ACTIVE_MODE_JSON, active)
     if not SERVER_JSON.exists():
         save_server(DEFAULT_SERVER)
     for mode in MODES:

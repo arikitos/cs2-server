@@ -12,6 +12,10 @@ services:
       args: *cs2-build
     image: cs2-manager-runtime:pinned
     container_name: cs2-game
+    platform: linux/amd64
+    init: true
+    stop_grace_period: 40s
+    security_opt: [no-new-privileges:true]
     restart: unless-stopped
     stdin_open: true
     tty: true
@@ -22,9 +26,11 @@ services:
         max-file: "3"
     environment:
       SRCDS_TOKEN: ${SRCDS_TOKEN:-}
+      CS2_PUBLIC_ADDRESS: ${CS2_PUBLIC_ADDRESS:-}
       CS2_SERVERNAME: ${CS2_SERVERNAME:-CS2 Server}
       CS2_PORT: ${CS2_PORT:-27015}
-      CS2_RCONPW: ${CS2_RCON_PASSWORD}
+      CS2_PW: ${CS2_PASSWORD:-}
+      CS2_RCONPW: ${CS2_RCON_PASSWORD:?Set CS2_RCON_PASSWORD in .env}
       CS2_MAPGROUP: mg_active
       CS2_CHEATS: "0"
       CS2_LAN: "0"
@@ -38,17 +44,18 @@ services:
       - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
       - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/udp"
     volumes:
-      - ${CS2_DATA_PATH}:/home/steam/cs2-dedicated
-      - ${PROJECT_PATH}/modes:/modes:ro
-      - ${PROJECT_PATH}/server/state:/state
-      - ${PROJECT_PATH}/server/config:/server-config:ro
-      - ${PROJECT_PATH}/server/frameworks:/frameworks:ro
+      - ${CS2_DATA_PATH:-./server/cs2}:/home/steam/cs2-dedicated
+      - ${PROJECT_PATH:-.}/modes:/modes:ro
+      - ${PROJECT_PATH:-.}/server/state:/state
+      - ${PROJECT_PATH:-.}/server/config:/server-config:ro
+      - ${PROJECT_PATH:-.}/server/frameworks:/frameworks:ro
 
   cs2-updater:
     build:
       context: ./server/updater
       args: *cs2-build
     image: cs2-manager-updater:pinned
+    platform: linux/amd64
     pull_policy: never
     container_name: cs2-updater
     restart: "no"
@@ -57,13 +64,14 @@ services:
       CS2_UPDATER_MODE: ${CS2_UPDATER_MODE:-update}
       CS2_UPDATER_CONFIRM: ${CS2_UPDATER_CONFIRM:-}
     volumes:
-      - ${CS2_DATA_PATH}:/home/steam/cs2-dedicated
+      - ${CS2_DATA_PATH:-./server/cs2}:/home/steam/cs2-dedicated
 
   cs2-modinstaller:
     build:
       context: ./server/runtime
       args: *cs2-build
     image: cs2-manager-runtime:pinned
+    platform: linux/amd64
     container_name: cs2-modinstaller
     restart: "no"
     profiles: [maintenance]
@@ -72,12 +80,27 @@ services:
     environment:
       CS2_DATA_DIR: /home/steam/cs2-dedicated
     volumes:
-      - ${CS2_DATA_PATH}:/home/steam/cs2-dedicated
-      - ${PROJECT_PATH}/server/frameworks:/frameworks:ro
+      - ${CS2_DATA_PATH:-./server/cs2}:/home/steam/cs2-dedicated
+      - ${PROJECT_PATH:-.}/server/frameworks:/frameworks:ro
+
+  cs2-init:
+    image: cs2-manager-runtime:pinned
+    platform: linux/amd64
+    profiles: [maintenance]
+    user: root
+    restart: "no"
+    entrypoint: [bash, -c]
+    command: ["mkdir -p /state/runtime /state/configs /state/backups && chown -R 1000:1000 /home/steam/cs2-dedicated /state && chmod 700 /state"]
+    volumes:
+      - ${CS2_DATA_PATH:-./server/cs2}:/home/steam/cs2-dedicated
+      - ${PROJECT_PATH:-.}/server/state:/state
 
   panel:
     build: ./panel
     image: cs2-manager-panel:local
+    init: true
+    stop_grace_period: 30s
+    security_opt: [no-new-privileges:true]
     container_name: cs2-panel
     restart: unless-stopped
     logging:
@@ -87,9 +110,10 @@ services:
         max-file: "2"
     environment:
       PANEL_USERNAME: ${PANEL_USERNAME:-admin}
-      PANEL_PASSWORD: ${PANEL_PASSWORD}
-      CS2_RCON_PASSWORD: ${CS2_RCON_PASSWORD}
+      PANEL_PASSWORD: ${PANEL_PASSWORD:?Set PANEL_PASSWORD in .env}
+      CS2_RCON_PASSWORD: ${CS2_RCON_PASSWORD:?Set CS2_RCON_PASSWORD in .env}
       CS2_PASSWORD: ${CS2_PASSWORD:-}
+      CS2_PUBLIC_ADDRESS: ${CS2_PUBLIC_ADDRESS:-}
       CS2_SERVERNAME: ${CS2_SERVERNAME:-CS2 Server}
       CS2_PORT: ${CS2_PORT:-27015}
       GAME_CONTAINER: cs2-game
@@ -99,8 +123,9 @@ services:
       PANEL_SERVER_DIR: /server
       RCON_APPLY_TIMEOUT: "90"
       LOG_TAIL_DEFAULT: "300"
-      CS2_DATA_PATH: ${CS2_DATA_PATH}
-      PROJECT_PATH: ${PROJECT_PATH}
+      CS2_DATA_PATH: ${CS2_DATA_PATH:-./server/cs2}
+      PROJECT_PATH: ${PROJECT_PATH:-.}
+      CS2_BASE_IMAGE: ${CS2_BASE_IMAGE:-joedwards32/cs2@sha256:41b826d6280d1aa9e41c866a6d88cc7f523e027f16c47a313b20c2d7a17f2680}
       UPDATER_IMAGE: cs2-manager-updater:pinned
       COMPOSE_PROJECT: cs2-server
       CS2_ALLOWED_MAPS: ${CS2_ALLOWED_MAPS:-de_ancient,de_anubis,de_dust2,de_inferno,de_mirage,de_nuke,de_overpass,de_train,de_vertigo}
@@ -108,7 +133,7 @@ services:
       - "${PANEL_BIND:-127.0.0.1}:${PANEL_PORT:-8080}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${PROJECT_PATH}/server/state:/data
-      - ${PROJECT_PATH}/modes:/modes:ro
-      - ${PROJECT_PATH}:/project:ro
-      - ${CS2_DATA_PATH}:/server:ro
+      - ${PROJECT_PATH:-.}/server/state:/data
+      - ${PROJECT_PATH:-.}/modes:/modes:ro
+      - ${PROJECT_PATH:-.}:/project:ro
+      - ${CS2_DATA_PATH:-./server/cs2}:/server:ro

@@ -1,30 +1,131 @@
-name: CI
+name: Build and validate
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  verify:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare Compose environment
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Docker Compose
+        env:
+          PANEL_PASSWORD: validation-only-panel-password
+          CS2_RCON_PASSWORD: validation-only-rcon-password
+        run: docker compose --profile maintenance config --quiet
+      - name: Validate source syntax
         run: |
-          cp .env.example .env
-          sed -i "s|^CS2_DATA_PATH=.*|CS2_DATA_PATH=${PWD}/server/cs2|" .env
-          sed -i "s|^PROJECT_PATH=.*|PROJECT_PATH=${PWD}|" .env
-          sed -i "s|^PANEL_PASSWORD=.*|PANEL_PASSWORD=ci-panel-password|" .env
-          sed -i "s|^CS2_RCON_PASSWORD=.*|CS2_RCON_PASSWORD=ci-rcon-password|" .env
-      - name: Validate Compose
-        run: docker compose config --quiet
-      - name: Run unit and repository tests
-        run: python3 -m unittest discover -s server/tests -v
-      - name: Check source syntax
-        run: |
-          python3 -m py_compile panel/*.py server/runtime/mode_manager.py
+          python -m py_compile panel/*.py server/runtime/mode_manager.py
+          node --check panel/static/app.js
           bash -n server/runtime/runtime-launcher.sh server/frameworks/install-linux.sh server/updater/updater.sh server/scripts/*.sh
+      - name: Validate both mode payloads
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'panel')
+          import mode_defs
+          definitions, errors = mode_defs.load_definitions(Path('modes'))
+          if errors or set(definitions) != {'faceit', 'retakes'}:
+              raise SystemExit(errors or 'Expected FaceIt and Retakes')
+          for mode, definition in definitions.items():
+              root = Path('modes') / mode
+              for plugin in definition['plugins']:
+                  if not (root / plugin['path']).is_dir():
+                      raise SystemExit(f"Missing plugin: {mode}/{plugin['path']}")
+          PY
+      - name: Build panel image
+        run: docker build --tag cs2-manager-panel:validation panel
+      - name: Verify panel image startup
+        run: |
+          docker run --rm --network none \
+            -e PANEL_DATA_DIR=/tmp/state -e PANEL_MODES_DIR=/modes \
+            -e PANEL_PASSWORD=validation-only-password \
+            -v "$PWD/modes:/modes:ro" \
+            cs2-manager-panel:validation \
+            python -c 'from wsgi import app; from pathlib import Path; assert app.test_client().get("/healthz").status_code == 200; assert Path("/tmp/state/runtime").stat().st_uid == 1000'
+      - name: Build game runtime and updater images
+        env:
+          PANEL_PASSWORD: validation-only-panel-password
+          CS2_RCON_PASSWORD: validation-only-rcon-password
+        run: docker compose --profile maintenance build cs2-game cs2-updater
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify panel in desktop and mobile Chromium
+        env:
+          PANEL_PASSWORD: validation-only-panel-password
+        run: |
+          docker run -d --name panel-preview -p 127.0.0.1:8080:8080 \
+            -e PANEL_PASSWORD="$PANEL_PASSWORD" -e PANEL_DATA_DIR=/tmp/state \
+            -e GAME_CONTAINER=cs2-validation-stopped \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/modes:/modes:ro" -v "$PWD:/project:ro" \
+            cs2-manager-panel:validation
+          npm install --prefix "$RUNNER_TEMP/browser" --no-audit --no-fund \
+            playwright-core@1.62.1 @sparticuz/chromium@153.0.0
+          mkdir -p "$RUNNER_TEMP/panel-preview"
+          cat > "$RUNNER_TEMP/browser/preview.mjs" <<'JS'
+          import { chromium as playwright } from 'playwright-core';
+          import Chromium from '@sparticuz/chromium';
+          const browser = await playwright.launch({
+            executablePath: await Chromium.executablePath(),
+            args: Chromium.args.filter(arg => !arg.startsWith('--disable-web-security')),
+            headless: true,
+          });
+          const context = await browser.newContext({
+            viewport: { width: 1512, height: 1100 },
+            httpCredentials: { username: 'admin', password: process.env.PANEL_PASSWORD },
+          });
+          const page = await context.newPage();
+          const errors = [];
+          page.on('pageerror', error => errors.push(error.message));
+          await page.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+          await page.waitForFunction(() => document.querySelector('#stateBadge').textContent === 'Stopped');
+          for (const screen of ['dashboard', 'modes', 'console', 'players', 'settings', 'maintenance', 'activity']) {
+            await page.goto('http://127.0.0.1:8080/#' + screen);
+            await page.waitForSelector('#page-' + screen + ':visible');
+            await page.waitForTimeout(300);
+            if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
+              throw new Error('Horizontal overflow: ' + screen);
+            }
+          }
+          await page.goto('http://127.0.0.1:8080/#modes');
+          await page.locator('[data-action="select-mode"][data-mode="retakes"]').click();
+          await page.locator('[data-format="5v4"]').click();
+          await page.locator('#hostnameInput').fill('CI Retakes');
+          await page.locator('#saveModeButton').click();
+          await page.waitForFunction(() => document.querySelector('#message').textContent.includes('Settings saved'));
+          const saved = await page.evaluate(async () => (await fetch('/api/v3/modes/retakes')).json());
+          if (saved.settings.hostname !== 'CI Retakes' || saved.settings.format !== '5v4') {
+            throw new Error('Mode settings were not persisted');
+          }
+          await page.goto('http://127.0.0.1:8080/#dashboard');
+          await page.screenshot({ path: process.env.RUNNER_TEMP + '/panel-preview/desktop.png', fullPage: true });
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page.screenshot({ path: process.env.RUNNER_TEMP + '/panel-preview/mobile.png', fullPage: true });
+          if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
+            throw new Error('Horizontal overflow on mobile');
+          }
+          await page.locator('[data-action="menu"]').click();
+          await page.locator('.nav-link[href="#players"]').click();
+          await page.waitForSelector('#page-players:visible');
+          if (errors.length) throw new Error(errors.join('\n'));
+          await browser.close();
+          JS
+          node "$RUNNER_TEMP/browser/preview.mjs"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panel-preview
+          path: ${{ runner.temp }}/panel-preview
+          if-no-files-found: ignore

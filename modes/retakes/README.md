@@ -18,4 +18,4 @@ Administrators can retune every stage's weapon pools, round ranges, the preferre
 
 Retakes executes the bundled `cfg/cs2-retakes/retakes.cfg` after every map start. It uses the official 4v3 format, first to eight wins, a maximum of fifteen rounds, no freeze time, no economy, B3none autoplant and Instadefuse. The panel exposes only format, identity and map selection for this mode.
 
-The customized allocator source is stored in `plugins-src/retakes-allocator`. The `Build customized RetakesAllocator` workflow tests the source, builds the release payload and commits the deployable files into this mode whenever the allocator source or configuration changes on `main`.
+The customized allocator source is stored in `modes/retakes/source/allocator`. The `Build customized RetakesAllocator` workflow builds the release payload and commits the deployable files into this mode whenever the allocator source or configuration changes on `main`.

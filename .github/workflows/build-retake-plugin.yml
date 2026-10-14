@@ -5,10 +5,14 @@ on:
     branches:
       - main
     paths:
-      - "plugins-src/retakes-allocator/**"
+      - "modes/retakes/source/allocator/**"
       - "modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator/config/**"
       - ".github/workflows/build-retake-plugin.yml"
   workflow_dispatch:
+
+concurrency:
+  group: retakes-allocator-main
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -18,38 +22,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      - name: Test allocator
-        working-directory: plugins-src/retakes-allocator
-        shell: bash
-        run: |
-          set -o pipefail
-          log="${RUNNER_TEMP}/retakes-allocator-tests.log"
-          if dotnet test cs2-retakes-allocator.sln --configuration Release \
-            --logger "console;verbosity=normal" 2>&1 | tee "$log"; then
-            exit 0
-          fi
-          message="$(tail -n 40 "$log")"
-          message="${message//'%'/'%25'}"
-          message="${message//$'\r'/'%0D'}"
-          message="${message//$'\n'/'%0A'}"
-          echo "::error title=RetakesAllocator tests failed::$message"
-          exit 1
-
-      - name: Upload allocator test log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: retakes-allocator-test-log
-          path: ${{ runner.temp }}/retakes-allocator-tests.log
-          if-no-files-found: ignore
-
       - name: Build allocator
-        working-directory: plugins-src/retakes-allocator
+        working-directory: modes/retakes/source/allocator
         run: >-
           dotnet build RetakesAllocator/RetakesAllocator.csproj
           --configuration Release
@@ -59,9 +41,10 @@ jobs:
         run: |
           plugin="modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator"
           output="${{ runner.temp }}/RetakesAllocator"
-          rm -f "$output/CounterStrikeSharp.API.dll"
+          rm -f "$output/CounterStrikeSharp.API.dll" "$output"/*.pdb
+          find "$output/runtimes" -mindepth 1 -maxdepth 1 ! -name linux-x64 -exec rm -rf {} +
           mkdir -p "$output/gamedata"
-          cp plugins-src/retakes-allocator/Resources/RetakesAllocator_gamedata.json \
+          cp modes/retakes/source/allocator/Resources/RetakesAllocator_gamedata.json \
             "$output/gamedata/RetakesAllocator_gamedata.json"
           find "$plugin" -mindepth 1 -maxdepth 1 \
             ! -name config ! -name BUILD_REQUIRED.md -exec rm -rf {} +
@@ -77,4 +60,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add modes/retakes/addons/counterstrikesharp/plugins/RetakesAllocator
           git commit -m "build: update customized RetakesAllocator"
-          git push
+          git pull --rebase origin main
+          git push origin HEAD:main

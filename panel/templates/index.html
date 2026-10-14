@@ -1,748 +1,898 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CS2 Manager Panel</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-<main>
-  <header class="topbar">
-    <div>
-      <p class="eyebrow">LOCAL SERVER CONTROL · 127.0.0.1</p>
-      <h1>CS2 Manager</h1>
-    </div>
-    <div id="stateBadge" class="state-badge">—</div>
-  </header>
-
-  <!-- ============================ 1 · STATUS ============================ -->
-  <section class="panel-card">
-    <div class="section-heading compact">
-      <p class="eyebrow">STATUS</p>
-      <div class="control-row">
-        <button class="btn small ghost" onclick="refresh(); loadLogs(true)">Refresh</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>CS2 Control | Server panel</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <svg
+      class="icon-library"
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <symbol id="i-grid" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="2" />
+        <rect x="14" y="3" width="7" height="7" rx="2" />
+        <rect x="3" y="14" width="7" height="7" rx="2" />
+        <rect x="14" y="14" width="7" height="7" rx="2" />
+      </symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="16" rx="3" />
+        <path d="m7 9 3 3-3 3m6 0h4" />
+      </symbol>
+      <symbol id="i-players" viewBox="0 0 24 24">
+        <circle cx="9" cy="8" r="3" />
+        <path
+          d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-3-5"
+        />
+      </symbol>
+      <symbol id="i-modes" viewBox="0 0 24 24">
+        <path d="M14 3 4 14h7l-1 7L20 10h-7z" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path d="M4 6h16M4 12h16M4 18h16" />
+        <circle cx="9" cy="6" r="2" />
+        <circle cx="16" cy="12" r="2" />
+        <circle cx="8" cy="18" r="2" />
+      </symbol>
+      <symbol id="i-tools" viewBox="0 0 24 24">
+        <path d="m15 5 4 4 2-2a6 6 0 0 1-7 8L7 22l-4-4 7-7a6 6 0 0 1 8-7z" />
+      </symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24">
+        <path d="M3 12h4l3-8 4 16 3-8h4" />
+      </symbol>
+      <symbol id="i-server" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="7" rx="2" />
+        <rect x="3" y="14" width="18" height="7" rx="2" />
+        <path d="M7 6.5h.01M7 17.5h.01m4-11h6m-6 11h6" />
+      </symbol>
+      <symbol id="i-cpu" viewBox="0 0 24 24">
+        <rect x="5" y="5" width="14" height="14" rx="2" />
+        <rect x="9" y="9" width="6" height="6" rx="1" />
+        <path d="M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3" />
+      </symbol>
+      <symbol id="i-memory" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="12" rx="2" />
+        <path d="M6 21v-4m4 4v-4m4 4v-4m4 4v-4M7 9v4m5-4v4m5-4v4" />
+      </symbol>
+      <symbol id="i-disk" viewBox="0 0 24 24">
+        <path
+          d="m5 3-2 12v5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-5L19 3zM3 15h18m-5 3h.01"
+        />
+      </symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <ellipse cx="12" cy="12" rx="4" ry="9" />
+        <path d="M3 12h18" />
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24">
+        <path d="m8 5 11 7-11 7z" />
+      </symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24">
+        <rect x="6" y="6" width="12" height="12" rx="2" />
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path
+          d="M20 7v5h-5M4 17v-5h5M6.1 6a8 8 0 0 1 13.5 4M4.4 14a8 8 0 0 0 13.5 4"
+        />
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="m9 5 7 7-7 7" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect x="8" y="8" width="12" height="12" rx="2" />
+        <path d="M16 8V4H4v12h4" />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6" />
+      </symbol>
+      <symbol id="i-map" viewBox="0 0 24 24">
+        <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zm6-3v15m6-12v15" />
+      </symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24">
+        <path d="M4 6h16M4 12h16M4 18h16" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4L19 6" />
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </symbol>
+    </svg>
+    <button
+      class="sidebar-shade"
+      data-action="close-menu"
+      aria-label="Close navigation"
+    ></button>
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#dashboard" aria-label="CS2 Control dashboard">
+        <span class="brand-icon"
+          ><svg class="icon"><use href="#i-server" /></svg
+        ></span>
+        <span>CS2 <b>CONTROL</b><small>YOUR SERVER. YOUR RULES.</small></span>
+      </a>
+      <div class="server-tag">
+        <span class="status-dot" id="sideDot"></span
+        ><span id="sideServer">Dedicated server</span
+        ><span class="tiny-tag">01</span>
       </div>
-    </div>
-    <div class="info-grid" id="infoGrid"><!-- filled by JS --></div>
-    <div class="health-row">
-      <p class="mini-label">HEALTH</p>
-      <div id="pluginHealth" class="health-chips"><span class="muted">Server stopped.</span></div>
-    </div>
-    <p id="message" class="message" aria-live="polite"></p>
-  </section>
-
-  <!-- ========================== 2 · LOBBY SETUP ========================= -->
-  <section class="panel-card">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">LOBBY SETUP</p>
-        <h2 id="setupTitle">—</h2>
+      <nav aria-label="Main navigation">
+        <p class="nav-label">OVERVIEW</p>
+        <a class="nav-link active" href="#dashboard"
+          ><svg class="icon"><use href="#i-grid" /></svg>Dashboard</a
+        >
+        <a class="nav-link" href="#console"
+          ><svg class="icon"><use href="#i-terminal" /></svg>Console<span
+            class="nav-mini"
+            >RCON</span
+          ></a
+        >
+        <a class="nav-link" href="#players"
+          ><svg class="icon"><use href="#i-players" /></svg>Players<span
+            class="nav-count"
+            id="navPlayers"
+            >-</span
+          ></a
+        >
+        <p class="nav-label">CONFIGURATION</p>
+        <a class="nav-link" href="#modes"
+          ><svg class="icon"><use href="#i-modes" /></svg>Game modes</a
+        >
+        <a class="nav-link" href="#settings"
+          ><svg class="icon"><use href="#i-settings" /></svg>Server settings</a
+        >
+        <p class="nav-label">MANAGEMENT</p>
+        <a class="nav-link" href="#maintenance"
+          ><svg class="icon"><use href="#i-tools" /></svg>Maintenance</a
+        >
+        <a class="nav-link" href="#activity"
+          ><svg class="icon"><use href="#i-activity" /></svg>Activity log</a
+        >
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="owner-avatar">{{ username[:1] | upper }}</div>
+        <div><strong>{{ username }}</strong><small>Server owner</small></div>
+        <svg class="icon"><use href="#i-shield" /></svg>
       </div>
-      <span id="unsavedFlag" class="chip" hidden>Unsaved changes</span>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <button
+            class="icon-button mobile-menu"
+            data-action="menu"
+            aria-label="Open navigation"
+          >
+            <svg class="icon"><use href="#i-menu" /></svg></button
+          ><span>My server</span><svg class="icon"><use href="#i-arrow" /></svg
+          ><strong id="pageLabel">Dashboard</strong>
+        </div>
+        <div class="topbar-right">
+          <span class="sync-state" id="syncState">Connecting...</span
+          ><button
+            class="icon-button"
+            data-action="refresh"
+            title="Refresh"
+            aria-label="Refresh panel"
+          >
+            <svg class="icon"><use href="#i-refresh" /></svg></button
+          ><span class="owner-pill"
+            ><svg class="icon"><use href="#i-shield" /></svg>Owner</span
+          >
+        </div>
+      </header>
+      <main>
+        <section class="server-banner" aria-label="Server status">
+          <div class="server-identity">
+            <span class="server-emblem"
+              ><svg class="icon"><use href="#i-server" /></svg
+            ></span>
+            <div>
+              <div class="title-line">
+                <h1 id="serverName">CS2 Dedicated Server</h1>
+                <span class="badge neutral" id="stateBadge">Connecting</span>
+              </div>
+              <div class="server-subtitle">
+                <span
+                  ><svg class="icon"><use href="#i-globe" /></svg
+                  ><span id="endpoint">-</span></span
+                ><span
+                  ><svg class="icon"><use href="#i-modes" /></svg
+                  ><span id="activeMode">No active mode</span></span
+                ><span
+                  ><svg class="icon"><use href="#i-map" /></svg
+                  ><span id="activeMap">-</span></span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="server-actions">
+            <button
+              class="button success"
+              id="startButton"
+              data-action="start"
+              disabled
+            >
+              <svg class="icon"><use href="#i-play" /></svg>Start</button
+            ><button
+              class="button"
+              id="restartButton"
+              data-action="restart"
+              disabled
+            >
+              <svg class="icon"><use href="#i-refresh" /></svg>Restart</button
+            ><button
+              class="button danger"
+              id="stopButton"
+              data-action="stop"
+              disabled
+            >
+              <svg class="icon"><use href="#i-stop" /></svg>Stop
+            </button>
+          </div>
+        </section>
+        <div
+          class="message"
+          id="message"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></div>
+
+        <section
+          class="page"
+          id="page-dashboard"
+          aria-labelledby="dashboardTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">CONTROL ROOM</p>
+              <h2 id="dashboardTitle">Server overview</h2>
+              <p>Everything you need to keep the game running.</p>
+            </div>
+            <span class="live-label"
+              ><span class="status-dot online"></span>Live monitoring</span
+            >
+          </div>
+          <div class="metric-grid">
+            <article class="card metric">
+              <div>
+                <p>CPU usage</p>
+                <strong id="cpuValue">-</strong
+                ><small id="cpuNote">Waiting for the server</small>
+              </div>
+              <span class="metric-icon"
+                ><svg class="icon"><use href="#i-cpu" /></svg></span
+              ><svg
+                class="sparkline"
+                viewBox="0 0 200 32"
+                preserveAspectRatio="none"
+                aria-label="Recent CPU usage"
+              >
+                <polyline id="cpuLine" points="" />
+              </svg>
+            </article>
+            <article class="card metric">
+              <div>
+                <p>Memory usage</p>
+                <strong id="memoryValue">-</strong
+                ><small id="memoryNote">Waiting for the server</small>
+              </div>
+              <span class="metric-icon"
+                ><svg class="icon"><use href="#i-memory" /></svg></span
+              ><progress
+                id="memoryBar"
+                max="100"
+                value="0"
+                aria-label="Memory usage"
+              ></progress>
+            </article>
+            <article class="card metric">
+              <div>
+                <p>Game disk</p>
+                <strong id="diskValue">-</strong
+                ><small id="diskNote">Filesystem containing the game</small>
+              </div>
+              <span class="metric-icon"
+                ><svg class="icon"><use href="#i-disk" /></svg></span
+              ><progress
+                id="diskBar"
+                max="100"
+                value="0"
+                aria-label="Filesystem usage"
+              ></progress>
+            </article>
+          </div>
+          <div class="dashboard-grid">
+            <article class="card">
+              <div class="card-heading">
+                <h3>Server information</h3>
+                <svg class="icon muted"><use href="#i-server" /></svg>
+              </div>
+              <dl class="info-list">
+                <div>
+                  <dt>Status</dt>
+                  <dd id="infoStatus">-</dd>
+                </div>
+                <div>
+                  <dt>Uptime</dt>
+                  <dd id="uptime">-</dd>
+                </div>
+                <div>
+                  <dt>Connection address</dt>
+                  <dd>
+                    <button
+                      class="text-button mono"
+                      id="copyEndpoint"
+                      data-action="copy-endpoint"
+                    >
+                      -
+                    </button>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Players</dt>
+                  <dd id="infoPlayers">-</dd>
+                </div>
+                <div>
+                  <dt>Lobby access</dt>
+                  <dd id="infoAccess">-</dd>
+                </div>
+                <div>
+                  <dt>Game container</dt>
+                  <dd class="mono" id="infoContainer">-</dd>
+                </div>
+              </dl>
+            </article>
+            <article class="card mode-overview">
+              <div class="card-heading">
+                <h3>Game mode</h3>
+                <a class="text-link" href="#modes"
+                  >Configure<svg class="icon"><use href="#i-arrow" /></svg
+                ></a>
+              </div>
+              <div class="mode-visual">
+                <span class="visual-lines"></span
+                ><span class="mode-monogram" id="modeMonogram"
+                  >CS<span>2</span></span
+                ><span class="mode-visual-tag" id="modeVisualTag"
+                  >YOUR DEDICATED SERVER</span
+                >
+              </div>
+              <div class="mode-overview-bottom">
+                <div>
+                  <h3 id="overviewMode">Choose your game</h3>
+                  <p id="overviewModeDetail">
+                    FaceIt competitive or Retakes practice.
+                  </p>
+                </div>
+                <span class="badge violet" id="formatBadge">2 modes</span>
+              </div>
+              <div class="mode-pills" id="dashboardModePills"></div>
+            </article>
+            <article class="card">
+              <div class="card-heading">
+                <h3>Plugin health</h3>
+                <span class="badge neutral" id="healthSummary">Waiting</span>
+              </div>
+              <div id="pluginHealth" class="plugin-list">
+                <p class="empty">Start the server to check its plugins.</p>
+              </div>
+              <p class="card-footnote">
+                Checks use the running server, including its RCON connection.
+              </p>
+            </article>
+            <article class="card">
+              <div class="card-heading">
+                <h3>Quick controls</h3>
+                <svg class="icon muted"><use href="#i-modes" /></svg>
+              </div>
+              <div class="quick-grid" id="quickActions">
+                <p class="empty">Start a game mode to see its controls.</p>
+              </div>
+              <div class="connect-box">
+                <span class="mini-label">CONNECT FROM CS2</span>
+                <div>
+                  <code id="connectCommand">connect -</code
+                  ><button
+                    class="icon-button"
+                    data-action="copy-connect"
+                    aria-label="Copy connect command"
+                  >
+                    <svg class="icon"><use href="#i-copy" /></svg>
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+          <article class="card activity-preview">
+            <div class="card-heading">
+              <h3>Recent activity</h3>
+              <a class="text-link" href="#activity"
+                >View all<svg class="icon"><use href="#i-arrow" /></svg
+              ></a>
+            </div>
+            <div id="recentActivity"><p class="empty">No activity yet.</p></div>
+          </article>
+        </section>
+
+        <section
+          class="page"
+          id="page-console"
+          hidden
+          aria-labelledby="consoleTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">LIVE SERVER</p>
+              <h2 id="consoleTitle">Console</h2>
+              <p>Game output and approved commands for the active mode.</p>
+            </div>
+            <span class="badge violet" id="consoleTarget">No active mode</span>
+          </div>
+          <article class="card console-card">
+            <div class="card-heading">
+              <h3><span class="terminal-dot"></span>Server output</h3>
+              <div class="inline-controls">
+                <select id="logSource" aria-label="Log source">
+                  <option value="game">Game logs</option>
+                  <option value="plugin">Plugin logs</option>
+                  <option value="panel">Panel logs</option>
+                  <option value="audit">Activity logs</option></select
+                ><label class="check-label"
+                  ><input
+                    type="checkbox"
+                    id="followLogs"
+                    checked
+                  />Follow</label
+                ><label class="check-label"
+                  ><input type="checkbox" id="pauseLogs" />Pause</label
+                >
+              </div>
+            </div>
+            <pre class="terminal" id="logs" tabindex="0">
+Waiting for server output...</pre
+            >
+            <pre
+              class="command-output"
+              id="commandOutput"
+              aria-live="polite"
+              hidden
+            ></pre>
+            <form class="console-form" id="consoleForm">
+              <span class="prompt-mark">&gt;</span
+              ><input
+                id="consoleInput"
+                maxlength="256"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="RCON command"
+                placeholder="Choose a command below, or type status"
+              /><button
+                class="button primary"
+                id="consoleSend"
+                type="submit"
+                disabled
+              >
+                Send<svg class="icon"><use href="#i-arrow" /></svg>
+              </button>
+            </form>
+          </article>
+          <article class="card">
+            <div class="card-heading">
+              <h3>Command library</h3>
+              <span class="mini-label">ACTIVE MODE</span>
+            </div>
+            <div id="commandGroups" class="command-groups">
+              <p class="empty">Start the server to use commands.</p>
+            </div>
+            <div class="map-switch" id="mapSwitch"></div>
+          </article>
+        </section>
+
+        <section
+          class="page"
+          id="page-players"
+          hidden
+          aria-labelledby="playersTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">LIVE SERVER</p>
+              <h2 id="playersTitle">
+                Players <span class="heading-count" id="playerCount">0</span>
+              </h2>
+              <p>Connected players, teams and latency.</p>
+            </div>
+            <button class="button" data-action="refresh-players">
+              <svg class="icon"><use href="#i-refresh" /></svg>Refresh
+            </button>
+          </div>
+          <article class="card">
+            <div class="table-toolbar">
+              <h3>Connected players</h3>
+              <input
+                type="search"
+                id="playerSearch"
+                placeholder="Search player names"
+                aria-label="Search players"
+              />
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Team</th>
+                    <th>Ping</th>
+                    <th>Steam ID</th>
+                    <th class="align-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="playersBody">
+                  <tr>
+                    <td colspan="5" class="empty">No connected players.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p id="playersNote" class="card-footnote">
+              Player information is refreshed while this page is open.
+            </p>
+          </article>
+        </section>
+
+        <section
+          class="page"
+          id="page-modes"
+          hidden
+          aria-labelledby="modesTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">CONFIGURATION</p>
+              <h2 id="modesTitle">Game modes</h2>
+              <p>One server. Choose the game you want to play.</p>
+            </div>
+            <span class="badge violet">2 available</span>
+          </div>
+          <div class="mode-selector" id="modeSelector"></div>
+          <article class="card mode-editor">
+            <div class="card-heading">
+              <div>
+                <h3 id="setupTitle">Mode configuration</h3>
+                <p id="modePolicy" class="hint"></p>
+              </div>
+              <span class="badge amber" id="unsavedFlag" hidden
+                >Unsaved changes</span
+              >
+            </div>
+            <form id="modeForm">
+              <div id="commonForm" class="form-grid"></div>
+              <div class="form-block" id="formatBlock">
+                <div class="block-heading">
+                  <h4>Match format</h4>
+                  <span class="hint">Applies on restart</span>
+                </div>
+                <div class="format-options" id="formatRow"></div>
+              </div>
+              <div class="form-block">
+                <div class="block-heading">
+                  <h4>Map pool</h4>
+                  <span class="badge neutral" id="poolCount">0 maps</span>
+                </div>
+                <div class="map-grid" id="mapGrid"></div>
+                <p class="hint">
+                  Select the maps you want to play. Use the flag to choose the
+                  starting map.
+                </p>
+              </div>
+              <p class="validation" id="validationMsg" role="status"></p>
+              <div class="editor-footer">
+                <span class="hint" id="saveHint"
+                  >Settings are saved separately for each mode.</span
+                >
+                <div>
+                  <button
+                    class="button"
+                    data-action="reset-draft"
+                    type="button"
+                  >
+                    Discard changes</button
+                  ><button
+                    class="button primary"
+                    type="submit"
+                    id="saveModeButton"
+                  >
+                    Save settings</button
+                  ><button
+                    class="button success"
+                    data-action="start-mode"
+                    id="startModeButton"
+                    type="button"
+                  >
+                    <svg class="icon"><use href="#i-play" /></svg>Save &amp;
+                    start
+                  </button>
+                </div>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <section
+          class="page"
+          id="page-settings"
+          hidden
+          aria-labelledby="settingsTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">CONFIGURATION</p>
+              <h2 id="settingsTitle">Server settings</h2>
+              <p>Control who can join your lobby.</p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <article class="card">
+              <div class="card-heading">
+                <h3>Lobby access</h3>
+                <svg class="icon muted"><use href="#i-shield" /></svg>
+              </div>
+              <form id="accessForm">
+                <p class="hint">
+                  A private lobby requires a password to connect.
+                </p>
+                <div class="access-options">
+                  <label
+                    ><input
+                      type="radio"
+                      name="visibility"
+                      value="public"
+                      checked
+                    /><span
+                      ><strong>Public</strong
+                      ><small>Anyone can connect</small></span
+                    ></label
+                  ><label
+                    ><input
+                      type="radio"
+                      name="visibility"
+                      value="private"
+                    /><span
+                      ><strong>Private</strong
+                      ><small>Password protected</small></span
+                    ></label
+                  >
+                </div>
+                <label class="field-label" for="lobbyPassword"
+                  >Lobby password</label
+                ><input
+                  type="password"
+                  id="lobbyPassword"
+                  autocomplete="new-password"
+                  maxlength="64"
+                  placeholder="Enter a new password"
+                />
+                <p class="hint" id="passwordHint">
+                  Passwords are never displayed in the panel.
+                </p>
+                <div class="form-actions">
+                  <button type="submit" class="button primary">
+                    Save access settings
+                  </button>
+                </div>
+              </form>
+            </article>
+            <article class="card">
+              <div class="card-heading">
+                <h3>Server details</h3>
+                <svg class="icon muted"><use href="#i-globe" /></svg>
+              </div>
+              <dl class="info-list">
+                <div>
+                  <dt>Connection address</dt>
+                  <dd id="settingsEndpoint">-</dd>
+                </div>
+                <div>
+                  <dt>Server port</dt>
+                  <dd id="settingsPort">-</dd>
+                </div>
+                <div>
+                  <dt>Active preset</dt>
+                  <dd id="settingsMode">-</dd>
+                </div>
+                <div>
+                  <dt>Management</dt>
+                  <dd>Docker Compose</dd>
+                </div>
+              </dl>
+              <div class="info-callout">
+                <svg class="icon"><use href="#i-settings" /></svg>
+                <p>
+                  Change the server name and map pool in
+                  <a href="#modes">Game modes</a>. Network ports, Steam token
+                  and owner credentials are configured in <code>.env</code>.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          class="page"
+          id="page-maintenance"
+          hidden
+          aria-labelledby="maintenanceTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">MANAGEMENT</p>
+              <h2 id="maintenanceTitle">Maintenance</h2>
+              <p>Keep your game, plugins and configuration ready to play.</p>
+            </div>
+            <span class="badge neutral" id="maintenanceBadge">Idle</span>
+          </div>
+          <article class="card">
+            <div class="card-heading">
+              <h3>Installed packages</h3>
+              <button class="button small" data-action="verify">
+                <svg class="icon"><use href="#i-check" /></svg>Verify
+                installation
+              </button>
+            </div>
+            <div class="version-grid" id="versionGrid"></div>
+            <div id="verification" class="verification" hidden></div>
+          </article>
+          <div class="maintenance-grid">
+            <article class="card maintenance-action">
+              <span class="action-icon"
+                ><svg class="icon"><use href="#i-refresh" /></svg
+              ></span>
+              <h3>Update CS2</h3>
+              <p>
+                Stop the game, back up panel settings, download game updates,
+                then resume the previously running mode.
+              </p>
+              <button
+                class="button primary"
+                data-action="maintenance"
+                data-kind="update"
+              >
+                Check for game updates
+              </button>
+            </article>
+            <article class="card maintenance-action">
+              <span class="action-icon"
+                ><svg class="icon"><use href="#i-shield" /></svg
+              ></span>
+              <h3>Validate game files</h3>
+              <p>
+                Check the Steam installation and repair missing or damaged game
+                files. The game stops during validation.
+              </p>
+              <button
+                class="button"
+                data-action="maintenance"
+                data-kind="validate"
+              >
+                Validate files
+              </button>
+            </article>
+            <article class="card maintenance-action">
+              <span class="action-icon"
+                ><svg class="icon"><use href="#i-tools" /></svg
+              ></span>
+              <h3>Repair Metamod</h3>
+              <p>
+                Restore the Metamod entry in gameinfo.gi and verify it before
+                bringing the game back online.
+              </p>
+              <button
+                class="button"
+                data-action="maintenance"
+                data-kind="repair-metamod"
+              >
+                Repair Metamod
+              </button>
+            </article>
+          </div>
+          <article class="card">
+            <div class="card-heading">
+              <div>
+                <h3>Configuration backups</h3>
+                <p class="hint">
+                  Panel settings and plugin configuration. Game files and demos
+                  are excluded.
+                </p>
+              </div>
+              <button class="button primary" data-action="backup">
+                <svg class="icon"><use href="#i-disk" /></svg>Create backup
+              </button>
+            </div>
+            <div id="backupsList"><p class="empty">Loading backups...</p></div>
+          </article>
+          <article class="card">
+            <div class="card-heading">
+              <h3>Maintenance jobs</h3>
+              <button class="text-button" data-action="refresh-jobs">
+                Refresh
+              </button>
+            </div>
+            <div id="jobsList"><p class="empty">No jobs yet.</p></div>
+            <pre class="job-output" id="jobOutput" hidden tabindex="0"></pre>
+          </article>
+        </section>
+
+        <section
+          class="page"
+          id="page-activity"
+          hidden
+          aria-labelledby="activityTitle"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">MANAGEMENT</p>
+              <h2 id="activityTitle">Activity log</h2>
+              <p>
+                Today's server actions, configuration changes and maintenance.
+              </p>
+            </div>
+            <button class="button" data-action="refresh-activity">
+              <svg class="icon"><use href="#i-refresh" /></svg>Refresh
+            </button>
+          </div>
+          <article class="card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Result</th>
+                    <th>Owner</th>
+                  </tr>
+                </thead>
+                <tbody id="auditBody">
+                  <tr>
+                    <td colspan="5" class="empty">
+                      No actions recorded today.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+        <footer class="footer">
+          <span
+            >CS2 CONTROL<span class="footer-divider">/</span>Single server
+            management</span
+          ><span>Powered by Docker</span>
+        </footer>
+      </main>
     </div>
-
-    <div class="setup-block">
-      <p class="block-label">GAME MODE</p>
-      <div class="seg seg-lg" id="modeRow"></div>
-    </div>
-
-    <div id="modePolicy" class="mode-policy"></div>
-
-    <div class="setup-block" id="formatBlock">
-      <p class="block-label">MATCH FORMAT <span id="formatHint" class="block-note"></span></p>
-      <div class="seg seg-lg" id="formatRow"></div>
-    </div>
-
-    <div class="setup-block" id="commonBlock">
-      <p class="block-label">SERVER CONFIGURATION <span class="block-note">Open only the category you need</span></p>
-      <div id="commonForm" class="config-sections"></div>
-      <p id="configNote" class="hint" hidden></p>
-      <p id="validationMsg" class="validation" aria-live="polite"></p>
-    </div>
-
-    <details class="setup-block config-group" id="friendlyFireBlock">
-      <summary>Friendly fire</summary>
-      <div class="seg" id="friendlyFireRow"></div>
-    </details>
-
-    <div class="setup-block" id="mapPoolBlock">
-      <div class="block-heading">
-        <p class="block-label">MAP POOL</p>
-        <span id="poolCount" class="pool-count">0 selected</span>
-      </div>
-      <div class="map-grid" id="mapGrid"></div>
-      <p class="hint">The map marked <strong>START</strong> is the one the server launches on. Use “Set start” to promote another pooled map.</p>
-    </div>
-
-    <div id="changePreview" class="change-preview" hidden>
-      <p class="eyebrow">PENDING CHANGES</p>
-      <table class="preview-table"><tbody id="previewBody"></tbody></table>
-    </div>
-
-    <div class="lifecycle-row">
-      <button class="btn big primary" id="startServerBtn" data-action onclick="startSelectedServer()">Start Server</button>
-      <button class="btn big danger" id="stopServerBtn" data-action onclick="stopGameServer()">Stop Server</button>
-      <button class="btn big ghost" id="resetStopBtn" data-action onclick="resetAndStop()">Reset &amp; Stop</button>
-    </div>
-    <p class="hint" id="lifecycleHint"></p>
-  </section>
-
-  <!-- ======================= 3 · SERVER CONSOLE ========================= -->
-  <section class="panel-card" id="consoleSection">
-    <div class="section-heading compact">
-      <div>
-        <p class="eyebrow">SERVER CONSOLE</p>
-        <h2>Send commands over RCON</h2>
-      </div>
-      <span id="consoleTarget" class="chip">—</span>
-    </div>
-    <p class="section-help">Commands without a value run immediately when selected. Commands with a
-      <code>&lt;placeholder&gt;</code> are loaded into the input for you to complete and send.</p>
-
-    <div class="console-input-row">
-      <input id="consoleInput" class="console-input" type="text" autocomplete="off" spellcheck="false"
-             placeholder="status / changelevel de_mirage / css_pause">
-      <button class="btn primary" id="consoleSend" onclick="sendConsole()">Send</button>
-    </div>
-    <pre id="consoleHistory" class="console-history"></pre>
-
-    <div class="setup-block" id="mapSwitchBlock" hidden>
-      <p class="block-label">SWITCH MAP · ACTIVE POOL</p>
-      <div class="map-switch" id="mapSwitch"></div>
-    </div>
-
-    <div class="setup-block">
-      <p class="block-label">AVAILABLE COMMANDS <span class="block-note">plugin and server commands for the running mode</span></p>
-      <div id="commandGroups" class="cmd-groups"><span class="muted">Loading…</span></div>
-    </div>
-
-    <div class="cl-players">
-      <div class="section-heading compact">
-        <p class="mini-label">PLAYERS</p>
-        <span id="playerCount" class="chip">0</span>
-      </div>
-      <table class="players-table">
-        <thead><tr><th>Name</th><th>Team</th><th>Ping</th><th></th></tr></thead>
-        <tbody id="playersBody"><tr><td colspan="4" class="muted">No active server.</td></tr></tbody>
-      </table>
-    </div>
-    <div class="logs-block">
-      <div class="log-toolbar">
-        <p class="mini-label" style="margin:0">CS2 GAME LOGS</p>
-        <label class="switch-label"><input type="checkbox" id="pauseLogs"><span>Pause</span></label>
-        <label class="switch-label"><input type="checkbox" id="followLogs" checked><span>Auto-scroll</span></label>
-        <button class="btn small" onclick="loadLogs(true)">Refresh</button>
-      </div>
-      <pre id="logs" class="logs">Loading…</pre>
-    </div>
-  </section>
-</main>
-
-<script>
-let STATE = null;
-let selectedMode = null;
-let pending = {};          // edited (unsaved) config for selectedMode
-let busy = false;
-let serverPasswordDraft = '';
-
-// Mode list, match formats and defaults all come from the mode manifests
-// (modes/<id>/mode.json) via /api/v3/status, so a new mode or a new
-// match format needs no change here.
-function modeOrder(data) { return (data && data.mode_order) || Object.keys((data && data.modes) || {}); }
-const CONFIG_FIELDS = [
-  'format', 'map_pool', 'hostname', 'lan', 'cheats', 'allow_lobby_connect_only',
-  'limit_teams', 'auto_team_balance', 'spectators_max', 'max_rounds', 'freezetime',
-  'warmup_time', 'round_time', 'buy_time', 'c4_timer', 'start_money', 'max_money',
-  'bot_quota', 'bot_quota_mode', 'bot_difficulty', 'bot_chatter',
-  'bot_join_after_player', 'friendly_fire', 'ff_bullet_reduction',
-  'ff_grenade_reduction', 'ff_other_reduction', 'tk_punish', 'overtime',
-  'overtime_max_rounds'
-];
-const FIELD_LABELS = {
-  format: 'Match format', map_pool: 'Map pool', max_rounds: 'Max rounds',
-  freezetime: 'Freeze time', warmup_time: 'Warmup time', round_time: 'Round time',
-  bot_quota: 'Bots', friendly_fire: 'Friendly fire', overtime: 'Overtime',
-  overtime_max_rounds: 'Overtime rounds', hostname: 'Hostname', lan: 'LAN mode',
-  cheats: 'Cheats', allow_lobby_connect_only: 'Lobby-only connections',
-  limit_teams: 'Team difference limit', auto_team_balance: 'Auto team balance',
-  spectators_max: 'Spectators', buy_time: 'Buy time', c4_timer: 'C4 timer',
-  start_money: 'Start money', max_money: 'Max money', bot_quota_mode: 'Bot quota mode',
-  bot_difficulty: 'Bot difficulty', bot_chatter: 'Bot chatter',
-  bot_join_after_player: 'Bots wait for a player', ff_bullet_reduction: 'Bullet reduction',
-  ff_grenade_reduction: 'Grenade reduction', ff_other_reduction: 'Other reduction',
-  tk_punish: 'Team-kill punishment',
-};
-const FRIENDLY_FIRE_OPTIONS = [
-  { value: 'regular', label: 'On', detail: 'All team damage' },
-  { value: 'nades', label: 'Nades Only', detail: 'Only grenade damage' },
-  { value: 'off', label: 'Off', detail: 'No team damage' },
-];
-
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    cache: 'no-store', ...options,
-    headers: { ...(options.body ? {'Content-Type': 'application/json'} : {}), ...(options.headers || {}) }
-  });
-  const body = await res.json();
-  if (!res.ok || body.ok === false) throw new Error(body.error || 'Request failed');
-  return body;
-}
-
-function setBusy(b) {
-  busy = b;
-  document.querySelectorAll('[data-action]').forEach(el => el.disabled = b);
-  if (!b && STATE && selectedMode) renderLifecycle();
-}
-function show(text, type = 'info') { const e = document.getElementById('message'); e.textContent = text; e.dataset.type = type; }
-function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString() : '—'; }
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function copyText(t) { navigator.clipboard?.writeText(t).then(() => show('Copied ' + t, 'success')).catch(() => {}); }
-function confirmImpact(title, scope, effect) { return window.confirm(`${title}\n\nScope: ${scope}\nEffect: ${effect}\n\nContinue?`); }
-function modeMeta(mode) { return (STATE && STATE.mode_meta && STATE.mode_meta[mode]) || {}; }
-function panelControls(mode = selectedMode) { return ((modeMeta(mode).panel || {}).controls || []); }
-function hasControl(name, mode = selectedMode) { return panelControls(mode).includes(name); }
-function formatsFor(mode) { return modeMeta(mode).formats || []; }
-function currentFormat() {
-  return formatsFor(selectedMode).find(f => f.key === pending.format) || formatsFor(selectedMode)[0] || {};
-}
-function prettyMap(name) { return String(name || '').replace(/^de_/, '').replace(/^cs_/, ''); }
-
-// Shared segmented-control renderer used by mode / format / visibility / friendly fire.
-function segmented(options, current, handler) {
-  return options.map(o => `
-    <button class="seg-option ${o.value === current ? 'on' : ''} ${o.tone ? 'tone-' + o.tone : ''}"
-            onclick="${handler}('${o.value}')" ${o.disabled ? 'disabled' : ''}>
-      <span class="seg-title">${escapeHtml(o.label)}${o.badge ? ` <span class="chip mini active-chip">${escapeHtml(o.badge)}</span>` : ''}</span>
-      ${o.detail ? `<small class="seg-detail">${escapeHtml(o.detail)}</small>` : ''}
-    </button>`).join('');
-}
-
-// ------------------------------------------------------------ 1 · Status
-function renderStatus(data) {
-  const active = data.active;
-  const badge = document.getElementById('stateBadge');
-  const st = data.operational_state || 'Stopped';
-  badge.textContent = st;
-  badge.className = 'state-badge ' + (st === 'Ready' ? 'ok' : st === 'Stopped' ? 'off' : 'warn');
-
-  const modeLabel = active ? modeMeta(active.mode).label : '—';
-  const saved = (data.modes && data.modes[active ? active.mode : selectedMode]) || {};
-  const formatLabel = active
-    ? (hasControl('format', active.mode) ? (saved.format || '—') : 'plugin managed')
-    : '—';
-  const ep = data.endpoint || {};
-  const rows = [
-    ['State', st],
-    ['Active mode', modeLabel],
-    ['Match format', formatLabel],
-    ['Endpoint', `${ep.ip}:${ep.port}`],
-    ['Visibility', data.visibility === 'private' ? 'private (password)' : 'public'],
-    ['Last start', fmt(data.timestamps.last_successful_start)],
-  ];
-  document.getElementById('infoGrid').innerHTML = rows.map(([k, v]) =>
-    `<div class="info-cell"><span>${k}</span><strong>${escapeHtml(v)}</strong></div>`).join('');
-
-}
-
-// ------------------------------------------------------- 2 · Game mode
-function renderModes(data) {
-  const active = data.active ? data.active.mode : null;
-  document.getElementById('modeRow').innerHTML = segmented(
-    modeOrder(data).map(m => ({
-      value: m,
-      label: modeMeta(m).label,
-      detail: modeMeta(m).implementation,
-      badge: active === m ? 'ACTIVE' : '',
-    })), selectedMode, 'selectMode');
-}
-
-function selectMode(m) {
-  if (m === selectedMode) return;
-  selectedMode = m;
-  loadSelectedMode();
-  renderModes(STATE);
-}
-
-// ----------------------------------------------------- 3 · Match format
-function renderFormats() {
-  const formats = formatsFor(selectedMode);
-  document.getElementById('formatRow').innerHTML = segmented(
-    formats.map(f => ({
-      value: f.key,
-      label: f.label,
-      detail: f.detail || `${f.capacity} players`,
-    })), pending.format, 'pickFormat');
-  const f = currentFormat();
-  document.getElementById('formatHint').textContent = f.key
-    ? `${f.capacity} slots · ${f.game_alias} game mode · applies on start / restart`
-    : '';
-}
-function pickFormat(key) { editField('format', key); renderFormats(); renderCommon(); }
-
-// ------------------------------------------------- 4 · Common configuration
-function fieldNum(key, label, min, max, step, hint) {
-  return `<label class="field"><span>${label}</span>
-    <input type="number" min="${min}" max="${max}" step="${step}" value="${pending[key] ?? ''}"
-      oninput="editField('${key}', this.valueAsNumber)">
-    ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
-}
-
-function fieldText(key, label, hint) {
-  return `<label class="field"><span>${label}</span>
-    <input type="text" maxlength="100" value="${escapeHtml(pending[key] ?? '')}"
-      oninput="editField('${key}', this.value)">
-    ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
-}
-
-function serverPasswordField() {
-  const enabled = !!(STATE && STATE.password && STATE.password.enabled);
-  const status = enabled
-    ? 'A server password is active. Enter a replacement, or apply an empty value to make the server public.'
-    : 'No server password is active. Leave empty to keep the server public.';
-  return `<div class="field password-field"><span>Server password</span>
-    <div class="password-control">
-      <input type="password" id="serverPassword" maxlength="64" value="${escapeHtml(serverPasswordDraft)}"
-        placeholder="Empty means public" autocomplete="new-password"
-        oninput="serverPasswordDraft = this.value">
-      <button class="btn small" data-action onclick="applyServerPassword()">Apply password</button>
-    </div>
-    <small class="field-hint" id="serverPasswordHint">${status}</small></div>`;
-}
-
-function fieldCheck(key, label, hint) {
-  return `<label class="field switch-label"><input type="checkbox" ${pending[key] ? 'checked' : ''}
-    onchange="editField('${key}', this.checked)"><span>${label}</span>
-    ${hint ? `<small class="field-hint">${hint}</small>` : ''}</label>`;
-}
-
-function renderCommon() {
-  const category = (title, body, open = false, className = '') => `<details class="config-group ${className}" ${open ? 'open' : ''}>
-    <summary>${title}</summary><div class="settings-grid">${body}</div></details>`;
-  const groups = [];
-  if (hasControl('identity')) groups.push(
-    category('Identity, security and connection',
-        fieldText('hostname', 'Server hostname', 'The name shown in the server browser')
-      + serverPasswordField(), true, 'identity-group'));
-  if (hasControl('gameplay')) groups.push(
-    category('Timing and economy',
-        fieldNum('freezetime', 'Freeze time (s)', 0, 60, 1)
-      + fieldNum('warmup_time', 'Warmup time (s)', 0, 600, 1)
-      + fieldNum('max_rounds', 'Max rounds', 1, 120, 1)
-      + fieldNum('round_time', 'Round time (min)', 0.5, 60, 0.01, '1.92 is approximately 1 min 55 s')
-      + fieldNum('buy_time', 'Buy time (s)', 0, 600, 1)
-      + fieldNum('c4_timer', 'C4 timer (s)', 10, 90, 1)
-      + fieldNum('start_money', 'Start money', 0, 65535, 50)
-      + fieldNum('max_money', 'Maximum money', 0, 65535, 50)
-      + fieldCheck('overtime', 'Overtime enabled')
-      + fieldNum('overtime_max_rounds', 'Overtime rounds', 2, 30, 1)));
-  document.getElementById('commonForm').innerHTML = groups.join('');
-
-  const note = document.getElementById('configNote');
-  note.hidden = true;
-}
-
-// ------------------------------------------------------ 5 · Server password
-async function applyServerPassword() {
-  const password = serverPasswordDraft;
-  const body = password ? { visibility: 'private', password } : { visibility: 'public' };
-  setBusy(true);
-  try {
-    await api('/api/v3/server/visibility', { method: 'PUT', body: JSON.stringify(body) });
-    serverPasswordDraft = '';
-    show(password ? 'Server password applied.' : 'Server is public.', 'success');
-    await refresh();
-    renderCommon();
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-
-// ------------------------------------------------------- 6 · Friendly fire
-function renderFriendlyFire() {
-  document.getElementById('friendlyFireRow').innerHTML =
-    segmented(FRIENDLY_FIRE_OPTIONS, pending.friendly_fire, 'pickFriendlyFire');
-}
-function pickFriendlyFire(value) { editField('friendly_fire', value); renderFriendlyFire(); }
-
-// ---------------------------------------------------------- 7 · Map pool
-function renderMapPool() {
-  const pool = pending.map_pool || [];
-  const maps = STATE.allowed_maps || [];
-  document.getElementById('poolCount').textContent = `${pool.length} selected`;
-  document.getElementById('mapGrid').innerHTML = maps.map(m => {
-    const index = pool.indexOf(m);
-    const isStart = index === 0;
-    return `<div class="map-card ${index >= 0 ? 'on' : ''}">
-      <button class="map-toggle" onclick="toggleMap('${m}')">
-        <span class="map-name">${escapeHtml(prettyMap(m))}</span>
-        <small class="map-id">${escapeHtml(m)}</small>
-      </button>
-      ${isStart ? '<span class="chip mini active-chip">START</span>'
-        : index > 0 ? `<button class="btn tiny ghost" onclick="setStartMap('${m}')">Set start</button>` : ''}
-    </div>`;
-  }).join('');
-}
-function toggleMap(name) {
-  const pool = (pending.map_pool || []).slice();
-  const index = pool.indexOf(name);
-  if (index >= 0) {
-    if (pool.length === 1) { show('Keep at least one map in the pool.', 'error'); return; }
-    pool.splice(index, 1);
-  } else { pool.push(name); }
-  editField('map_pool', pool);
-  renderMapPool();
-}
-function setStartMap(name) {
-  const pool = (pending.map_pool || []).filter(m => m !== name);
-  editField('map_pool', [name, ...pool]);
-  renderMapPool();
-}
-
-// ------------------------------------------------------- Form plumbing
-function loadSelectedMode() {
-  if (!selectedMode || !STATE) return;
-  const saved = STATE.modes[selectedMode] || {};
-  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = clone(saved[k]));
-  renderSetup();
-  markUnsaved(false);
-}
-function clone(v) { return Array.isArray(v) ? v.slice() : v; }
-
-function renderSetup() {
-  const meta = modeMeta(selectedMode);
-  const controls = panelControls();
-  document.getElementById('setupTitle').textContent = meta.label
-    ? `${meta.label} — ${meta.implementation}` : '—';
-  document.getElementById('formatBlock').hidden = !controls.includes('format');
-  document.getElementById('commonBlock').hidden = !controls.includes('identity') && !controls.includes('gameplay');
-  document.getElementById('friendlyFireBlock').hidden = !controls.includes('friendly_fire');
-  document.getElementById('mapPoolBlock').hidden = !controls.includes('map_pool');
-  const policy = meta.panel || {};
-  document.getElementById('modePolicy').innerHTML = policy.note
-    ? `<span class="chip mini">MODE POLICY</span><p>${escapeHtml(policy.note)}</p>` : '';
-  renderFormats();
-  renderCommon();
-  renderFriendlyFire();
-  renderMapPool();
-  renderPreview();
-  renderLifecycle();
-}
-
-function editField(key, value) { pending[key] = value; markUnsaved(true); validateLive(); renderPreview(); }
-function markUnsaved(u) { document.getElementById('unsavedFlag').hidden = !u; }
-
-function validateLive() {
-  const msg = document.getElementById('validationMsg');
-  let err = '';
-  if (hasControl('map_pool') && !(pending.map_pool || []).length) err = 'Select at least one map.';
-  else if (hasControl('format') && !currentFormat().key) err = 'Select a match format.';
-  else if (hasControl('gameplay') && !(pending.max_rounds >= 1 && pending.max_rounds <= 120)) err = 'Max rounds must be 1–120.';
-  else if (hasControl('gameplay') && !(pending.freezetime >= 0 && pending.freezetime <= 60)) err = 'Freeze time must be 0–60s.';
-  else if (hasControl('gameplay') && !(pending.warmup_time >= 0 && pending.warmup_time <= 600)) err = 'Warmup time must be 0–600s.';
-  else if (hasControl('gameplay') && !(pending.round_time >= 0.5 && pending.round_time <= 60)) err = 'Round time must be 0.5–60 min.';
-  else if (hasControl('identity') && !String(pending.hostname || '').trim()) err = 'Server hostname is required.';
-  else if (hasControl('gameplay') && !(pending.buy_time >= 0 && pending.buy_time <= 600)) err = 'Buy time must be 0–600s.';
-  else if (hasControl('gameplay') && !(pending.c4_timer >= 10 && pending.c4_timer <= 90)) err = 'C4 timer must be 10–90s.';
-  else if (hasControl('gameplay') && !(pending.max_money >= pending.start_money)) err = 'Maximum money cannot be lower than start money.';
-  else if (hasControl('friendly_fire') && ![pending.ff_bullet_reduction, pending.ff_grenade_reduction, pending.ff_other_reduction]
-      .every(value => value >= 0 && value <= 1)) err = 'Friendly-fire reductions must be between 0 and 1.';
-  else if (hasControl('gameplay') && !(pending.overtime_max_rounds >= 2 && pending.overtime_max_rounds <= 30)) err = 'Overtime rounds must be 2–30.';
-  msg.textContent = err; msg.dataset.type = err ? 'error' : 'info';
-  return !err;
-}
-
-const APPLY_LABELS = { hot: 'Live (no restart)', map_reload: 'Map reload', game_restart: 'Next start' };
-function renderPreview() {
-  const block = document.getElementById('changePreview');
-  const body = document.getElementById('previewBody');
-  const saved = (STATE.modes && STATE.modes[selectedMode]) || {};
-  const levels = STATE.apply_levels || {};
-  const asText = v => Array.isArray(v) ? v.map(prettyMap).join(', ') : (v === true ? 'on' : v === false ? 'off' : (v ?? '—'));
-  const rows = [];
-  CONFIG_FIELDS.forEach(k => {
-    const visible = (k === 'format' && hasControl('format'))
-      || (k === 'map_pool' && hasControl('map_pool'))
-      || (k === 'hostname' && hasControl('identity'))
-      || (['max_rounds', 'freezetime', 'warmup_time', 'round_time', 'buy_time', 'c4_timer',
-           'start_money', 'max_money', 'overtime', 'overtime_max_rounds'].includes(k) && hasControl('gameplay'))
-      || (['friendly_fire', 'ff_bullet_reduction', 'ff_grenade_reduction', 'ff_other_reduction', 'tk_punish'].includes(k)
-          && hasControl('friendly_fire'));
-    if (!visible) return;
-    if (JSON.stringify(pending[k]) === JSON.stringify(saved[k])) return;
-    const level = levels[k] || 'hot';
-    rows.push(`<tr>
-      <td class="pf">${escapeHtml(FIELD_LABELS[k] || k)}</td>
-      <td class="po">${escapeHtml(asText(saved[k]))}</td>
-      <td class="pa">→ ${escapeHtml(asText(pending[k]))}</td>
-      <td class="pl level-${level}">${APPLY_LABELS[level]}</td></tr>`);
-  });
-  if (!rows.length) { block.hidden = true; body.innerHTML = ''; return; }
-  block.hidden = false; body.innerHTML = rows.join('');
-}
-
-async function saveSettings() {
-  const result = await api(`/api/v3/modes/${selectedMode}/settings`, { method: 'PUT', body: JSON.stringify(pending) });
-  pending = result.settings;
-  return result;
-}
-// ---------------------------------------------------------- Server lifecycle
-function renderLifecycle() {
-  const active = STATE && STATE.active;
-  const startBtn = document.getElementById('startServerBtn');
-  const stopBtn = document.getElementById('stopServerBtn');
-  const resetBtn = document.getElementById('resetStopBtn');
-  const hint = document.getElementById('lifecycleHint');
-  const label = modeMeta(selectedMode).label || 'the selected mode';
-  const hasSettings = panelControls().length > 0;
-  startBtn.textContent = `Start ${label}`;
-  stopBtn.disabled = busy || !active;
-  resetBtn.hidden = !hasSettings;
-  hint.textContent = hasSettings
-    ? (active
-      ? `${modeMeta(active.mode).label} is running. Start applies the selected ${label} configuration and restarts the game container.`
-      : `Start launches the CS2 container with ${label} and the settings above.`)
-    : (active
-      ? `${modeMeta(active.mode).label} is running. Start launches ${label} from its upstream configuration and restarts the game container.`
-      : `Start launches ${label} from its upstream configuration without panel gameplay overrides.`);
-}
-
-async function startSelectedServer() {
-  if (!selectedMode) { show('Select a game mode first.', 'error'); return; }
-  if (!validateLive()) { show('Fix validation errors first.', 'error'); return; }
-  const active = STATE && STATE.active;
-  if (active && !confirmImpact('Start the selected server configuration?', 'CS2 game runtime',
-      'The running game container restarts and connected players are disconnected.')) return;
-  setBusy(true);
-  try {
-    if (active && active.mode !== selectedMode) clearTransientLogs();
-    const result = await api(`/api/v3/modes/${selectedMode}/start`, {
-      method: 'POST', body: JSON.stringify(pending)
-    });
-    pending = result.settings;
-    markUnsaved(false);
-    show(`${modeMeta(selectedMode).label} is starting.`, 'success'); setTimeout(refresh, 800);
-    setTimeout(() => loadLogs(true), 1200);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-async function stopGameServer() {
-  if (!STATE || !STATE.active) { show('No game server is running.', 'error'); return; }
-  if (!confirmImpact('Stop the game server?', `${STATE.active.name} (entire CS2 container)`,
-      'All connected players are disconnected. The panel stays online.')) return;
-  setBusy(true);
-  try {
-    await api('/api/v3/server/stop', { method: 'POST' });
-    show('Game container stopped. The panel is still running.', 'warn');
-    setTimeout(refresh, 500); setTimeout(() => loadLogs(true), 800);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-
-async function resetAndStop() {
-  if (!selectedMode || !STATE) return;
-  if (!confirmImpact('Reset settings and stop the server?', 'Selected mode and CS2 game runtime',
-      'Restores the selected mode defaults, makes the server public, and disconnects all players.')) return;
-  const defaults = (STATE.mode_defaults || {})[selectedMode] || {};
-  pending = {}; CONFIG_FIELDS.forEach(k => pending[k] = clone(defaults[k]));
-  setBusy(true);
-  try {
-    await saveSettings();
-    await api('/api/v3/server/visibility', {
-      method: 'PUT', body: JSON.stringify({ visibility: 'public' })
-    });
-    if (STATE.active) await api('/api/v3/server/stop', { method: 'POST' });
-    serverPasswordDraft = '';
-    markUnsaved(false);
-    show('Defaults restored and game server stopped.', 'success');
-    await refresh();
-    renderCommon();
-    loadLogs(true);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-// ---------------------------------------------------------------- Players
-async function loadPlayers() {
-  if (!STATE || !STATE.active) return;
-  try {
-    const d = await api('/api/v3/players');
-    const body = document.getElementById('playersBody');
-    document.getElementById('playerCount').textContent = d.players.length;
-    if (!d.active) { body.innerHTML = '<tr><td colspan="4" class="muted">No active server.</td></tr>'; return; }
-    if (!d.players.length) {
-      const note = d.note ? ` (${d.note})` : '';
-      body.innerHTML = `<tr><td colspan="4" class="muted">No players connected${note}.</td></tr>`; return;
-    }
-    body.innerHTML = d.players.map(p => {
-      const s64 = p.steamid64 || null;
-      const ident = encodeURIComponent(s64 || String(p.userid));
-      const nameCell = `${escapeHtml(p.name || '(unnamed)')}${p.bot ? ' <span class="chip mini">BOT</span>' : ''}`
-        + (s64 ? `<br><span class="mono copyable" title="Copy SteamID64" onclick="copyText('${s64}')">${s64}</span>` : '');
-      return `<tr>
-        <td>${nameCell}</td>
-        <td>${p.team_label || '—'}</td>
-        <td>${p.ping ?? '—'}</td>
-        <td class="actions-cell">
-          <button class="btn small danger" title="Disconnect now; may reconnect." onclick="kickPlayer('${ident}', ${p.userid})">Kick</button>
-          <button class="btn small danger" title="Ban and disconnect." onclick="banPlayer('${ident}', ${p.userid})">Ban</button>
-        </td></tr>`;
-    }).join('');
-  } catch (e) { /* keep last render */ }
-}
-async function kickPlayer(ident, userid) {
-  if (!confirmImpact(`Kick userid ${userid}?`, 'One connected player',
-      'Disconnects the player now. They can reconnect (no ban).')) return;
-  try { await api(`/api/v3/players/${ident}/kick`, { method: 'POST', body: JSON.stringify({ userid }) });
-    show('Player kicked.', 'success'); setTimeout(loadPlayers, 600); }
-  catch (e) { show(e.message, 'error'); }
-}
-async function banPlayer(ident, userid) {
-  const input = prompt(`Ban and disconnect userid ${userid}.\n0 = permanent.\n\nDuration in minutes:`, '0');
-  if (input === null) return;
-  const minutes = Number(input);
-  if (!Number.isFinite(minutes) || minutes < 0) { show('Invalid duration.', 'error'); return; }
-  try { await api(`/api/v3/players/${ident}/ban`, { method: 'POST', body: JSON.stringify({ userid, minutes }) });
-    show(minutes === 0 ? 'Player permanently banned.' : `Player banned for ${minutes} min.`, 'success');
-    setTimeout(loadPlayers, 600); }
-  catch (e) { show(e.message, 'error'); }
-}
-
-// ------------------------------------------------- Console + command list
-let commandsLoadedFor = null;
-
-async function loadCommands(force = false) {
-  const active = STATE && STATE.active;
-  if (!active) { commandsLoadedFor = null; return; }
-  if (!force && commandsLoadedFor === active.mode) return;
-  const box = document.getElementById('commandGroups');
-  try {
-    const d = await api('/api/v3/commands');
-    commandsLoadedFor = active.mode;
-    box.innerHTML = (d.groups || []).map(g => `
-      <details class="cmd-group" ${g.source === 'plugin' ? 'open' : ''}>
-        <summary><span class="cmd-group-label">${escapeHtml(g.label)}</span>
-          <span class="chip mini">${g.commands.length}</span></summary>
-        <div class="cmd-list">${g.commands.map(c => `
-          <button class="cmd-btn ${c.confirm ? 'warn' : ''}" title="${escapeHtml(c.description)} — ${escapeHtml(c.impact)}"
-                  onclick="injectCommand('${escapeHtml(c.cmd)}', '${escapeHtml(c.arg_hint || '')}', ${c.confirm ? 'true' : 'false'}, '${escapeHtml(c.label)}')">
-            <span class="cmd-label">${escapeHtml(c.label)}</span>
-            <code>${escapeHtml(c.cmd)}${c.arg_hint ? ' ' + escapeHtml(c.arg_hint) : ''}</code>
-          </button>`).join('')}</div>
-      </details>`).join('') || '<span class="muted">No commands for this mode.</span>';
-  } catch (e) { box.innerHTML = `<span class="muted">${escapeHtml(e.message)}</span>`; }
-}
-
-function renderMapSwitch(data) {
-  const block = document.getElementById('mapSwitchBlock');
-  const active = data.active;
-  if (!active || !hasControl('map_pool', active.mode)) { block.hidden = true; return; }
-  const pool = ((data.modes || {})[active.mode] || {}).map_pool || [];
-  block.hidden = !pool.length;
-  document.getElementById('mapSwitch').innerHTML = pool.map(m =>
-    `<button class="btn small" data-action onclick="switchMap('${m}')">${escapeHtml(prettyMap(m))}</button>`).join('');
-}
-async function switchMap(name) {
-  if (!confirmImpact(`Change level to ${name}?`, 'Running server',
-      'The current round is interrupted while the map loads. Players stay connected.')) return;
-  setBusy(true);
-  try {
-    await api('/api/v3/server/map', { method: 'POST', body: JSON.stringify({ map: name }) });
-    show(`Changing level to ${name}.`, 'success'); setTimeout(refresh, 1500);
-  } catch (e) { show(e.message, 'error'); } finally { setBusy(false); }
-}
-
-const PLACEHOLDER_RE = /<[^>]{1,24}>/;
-
-function injectCommand(cmd, argHint, needsConfirm, label) {
-  const input = document.getElementById('consoleInput');
-  input.value = argHint ? `${cmd} ${argHint}` : cmd;
-  input.focus();
-  if (argHint) {
-    input.setSelectionRange(cmd.length + 1, input.value.length);
-    show(`Replace ${argHint} with a value, then Send.`, 'info');
-  } else {
-    if (needsConfirm && !window.confirm(`${label}\n\nRun ${cmd} now?`)) return;
-    sendConsole();
-  }
-}
-
-async function sendConsole() {
-  const input = document.getElementById('consoleInput');
-  const cmd = input.value.trim();
-  if (!cmd) return;
-  if (PLACEHOLDER_RE.test(cmd)) { show('Replace the <placeholder> before sending.', 'error'); return; }
-  appendConsole('> ' + cmd, 'cmd');
-  try {
-    const d = await api('/api/v3/console/command', { method: 'POST', body: JSON.stringify({ command: cmd }) });
-    if (d.output) appendConsole(d.output, 'out');
-    input.value = '';
-  } catch (e) { appendConsole(e.message, 'err'); }
-}
-function appendConsole(text, cls) {
-  const h = document.getElementById('consoleHistory');
-  const line = document.createElement('div');
-  line.className = 'cline ' + cls; line.textContent = text;
-  h.appendChild(line); h.scrollTop = h.scrollHeight;
-}
-document.getElementById('consoleInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendConsole(); } });
-
-// ------------------------------------------------------------------- Logs
-async function loadLogs(force = false) {
-  if (document.getElementById('pauseLogs').checked && !force) return;
-  try {
-    const d = await api('/api/v3/logs/stream?source=container%3Acs2-game&tail=400');
-    const el = document.getElementById('logs');
-    el.textContent = d.logs || '(empty)';
-    if (document.getElementById('followLogs').checked) el.scrollTop = el.scrollHeight;
-  } catch (e) { document.getElementById('logs').textContent = e.message; }
-}
-
-function clearTransientLogs() {
-  document.getElementById('consoleHistory').replaceChildren();
-  document.getElementById('logs').textContent = 'Mode changed. Loading fresh cs2-game logs…';
-}
-
-// ----------------------------------------------------------- Plugin health
-async function loadHealth() {
-  const box = document.getElementById('pluginHealth');
-  if (!STATE || !STATE.active) { box.innerHTML = '<span class="muted">Server stopped.</span>'; return; }
-  try {
-    const h = await api('/api/v3/health');
-    const c = h.checks || {};
-    const chip = (label, ok) => `<span class="hchip ${ok ? 'ok' : (ok === false ? 'bad' : 'unk')}">${label}</span>`;
-    const chips = [chip('Metamod', c.metamod), chip('CounterStrikeSharp', c.counterstrikesharp)];
-    Object.entries(c.required_plugins || {}).forEach(([k, v]) => chips.push(chip(k, v)));
-    chips.push(chip('RCON', c.rcon));
-    if (c.map) chips.push(`<span class="hchip info">map: ${escapeHtml(c.map)}</span>`);
-    box.innerHTML = chips.join('');
-  } catch (e) { box.innerHTML = `<span class="muted">${escapeHtml(e.message)}</span>`; }
-}
-
-// ------------------------------------------------------------------ Refresh
-async function refresh() {
-  try {
-    const data = await api('/api/v3/status');
-    STATE = data;
-    if (!selectedMode) selectedMode = (data.active && data.active.mode) || data.server.last_mode || modeOrder(data)[0];
-    renderStatus(data);
-    renderModes(data);
-    if (!Object.keys(pending).length) loadSelectedMode();
-    else { renderLifecycle(); renderPreview(); }
-
-    const active = data.active;
-    document.getElementById('consoleTarget').textContent = active ? modeMeta(active.mode).label : 'no active server';
-    document.getElementById('consoleInput').disabled = !active;
-    document.getElementById('consoleSend').disabled = !active;
-    renderMapSwitch(data);
-    loadCommands();
-  } catch (e) { show(e.message, 'error'); }
-}
-
-(async function init() {
-  await refresh();
-  loadLogs(true);
-  loadPlayers();
-  loadHealth();
-  setInterval(refresh, 4000);
-  setInterval(() => loadLogs(false), 3000);
-  setInterval(loadPlayers, 5000);
-  setInterval(loadHealth, 6000);
-})();
-</script>
-</body>
+    <dialog id="confirmDialog" aria-labelledby="confirmTitle">
+      <form method="dialog">
+        <span class="dialog-symbol"
+          ><svg class="icon"><use href="#i-shield" /></svg
+        ></span>
+        <h2 id="confirmTitle">Confirm action</h2>
+        <p id="confirmDetail"></p>
+        <div class="dialog-actions">
+          <button class="button" value="cancel">Cancel</button
+          ><button class="button primary" id="confirmAccept" value="confirm">
+            Continue
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </body>
 </html>
