@@ -19,10 +19,72 @@ jobs:
         run: |
           $tokens = $null
           $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD 'server/scripts/setup.ps1'), [ref]$tokens, [ref]$errors
-          ) | Out-Null
-          if ($errors.Count) { $errors | Format-List; exit 1 }
+          foreach ($path in @('setup.ps1', 'server/scripts/setup.ps1', 'server/scripts/prepare-panel-certificates.ps1')) {
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $path), [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count) { $errors | Format-List; exit 1 }
+          }
+      - name: Verify automatic Windows HTTPS trust preparation
+        shell: powershell
+        run: |
+          . ./server/scripts/prepare-panel-certificates.ps1
+          $count = Prepare-PanelCertificates -ProjectRoot $PWD
+          if ($count -lt 1) { throw 'No verified CA certificates were prepared' }
+          $files = @(Get-ChildItem panel/certificates/windows-pypi-*.crt)
+          if ($files.Count -ne $count) { throw 'CA output count does not match' }
+          foreach ($file in $files) {
+            $text = Get-Content -Raw $file.FullName
+            if ($text -notmatch 'BEGIN CERTIFICATE' -or $text -match 'PRIVATE KEY') { throw 'Invalid public certificate output' }
+          }
+          # The exporter must reject every TLS validation failure, even with a chain.
+          $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+          foreach ($errorFlag in @(1, 2, 4)) {
+            $rejected = $false
+            try {
+              [Cs2Panel.WindowsTrust]::CertificateAuthorities($chain, [Net.Security.SslPolicyErrors]$errorFlag) | Out-Null
+            } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Untrusted TLS chain was accepted' }
+          }
+          $chain.Dispose()
+          # Refresh generated trust while preserving operator-supplied certificates.
+          Set-Content panel/certificates/operator.crt 'operator-owned marker'
+          Prepare-PanelCertificates -ProjectRoot $PWD | Out-Null
+          if ((Get-Content panel/certificates/operator.crt) -ne 'operator-owned marker') { throw 'Operator certificate was replaced' }
+      - name: Verify root Windows setup without game downloads
+        shell: powershell
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'CS2 root setup validation'
+          New-Item -ItemType Directory -Force "$fixture/server/scripts", "$fixture/panel/certificates" | Out-Null
+          Copy-Item setup.ps1, .env.example $fixture
+          Copy-Item server/scripts/setup.ps1, server/scripts/prepare-panel-certificates.ps1 "$fixture/server/scripts"
+          $global:SetupDockerCalls = New-Object 'System.Collections.Generic.List[string]'
+          $global:SetupBrowserCalls = 0
+          function global:docker {
+            $global:LASTEXITCODE = 0
+            $command = $args -join ' '
+            $global:SetupDockerCalls.Add($command)
+            switch ($command) {
+              'info' { return }
+              'info --format {{.OSType}}' { return 'linux' }
+              'info --format {{.Architecture}}' { return 'amd64' }
+              'compose version' { return }
+              'compose config --quiet' { return }
+              'compose --profile game --profile maintenance config --format json' { return '{"services":{}}' }
+              'compose up -d --build --no-deps panel' { return }
+              default { throw "Unexpected Docker operation: $command" }
+            }
+          }
+          function global:Invoke-WebRequest { return [PSCustomObject]@{ StatusCode = 200 } }
+          function global:Start-Process { $global:SetupBrowserCalls++ }
+          & "$fixture/setup.ps1"
+          $original = Get-Content -Raw "$fixture/.env"
+          if ($original -match '(?m)^PANEL_PASSWORD=\r?$') { throw 'Panel password was not generated' }
+          if (-not (Test-Path "$fixture/server/state/runtime/compose-runtime.json")) { throw 'Installation configuration missing' }
+          & "$fixture/setup.ps1"
+          if ((Get-Content -Raw "$fixture/.env") -ne $original) { throw 'Setup changed existing credentials' }
+          $panelStarts = @($global:SetupDockerCalls | Where-Object { $_ -eq 'compose up -d --build --no-deps panel' })
+          if ($panelStarts.Count -ne 2 -or $global:SetupBrowserCalls -ne 2) { throw 'Panel bootstrap did not complete twice' }
   validate:
     runs-on: ubuntu-latest
     steps:

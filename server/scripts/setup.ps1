@@ -159,6 +159,10 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to resolve server configuration" }
 Write-Utf8File "server/state/runtime/compose-runtime.json.tmp" ($runtimeConfig -join "`n")
 Move-Item -Force "server/state/runtime/compose-runtime.json.tmp" "server/state/runtime/compose-runtime.json"
 
+Write-Step "Preparing Python downloads using existing Windows HTTPS trust"
+. (Join-Path $PSScriptRoot "prepare-panel-certificates.ps1")
+Prepare-PanelCertificates -ProjectRoot $projectRoot | Out-Null
+
 Write-Step "Building and starting only the panel (no game downloads)"
 & docker compose up -d --build --no-deps panel
 if ($LASTEXITCODE -ne 0) { throw "Failed to start the panel" }

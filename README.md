@@ -22,13 +22,13 @@ On Linux or Intel macOS:
 bash server/scripts/setup.sh
 ```
 
-On Windows, run `server\scripts\run-setup.cmd`, or use PowerShell:
+On Windows, double-click `run-setup.cmd` in the repository root, or use PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File server/scripts/setup.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-Setup generates `.env` with random panel and RCON passwords if the file is absent, prepares local storage, saves the resolved Compose configuration and builds and starts **only the panel**. On Windows it waits for panel readiness and opens the dashboard. It does not pull a game image, run SteamCMD, install frameworks or stop an existing game server. Docker Desktop must be installed; the Windows installer starts it if necessary.
+Setup generates `.env` with random panel and RCON passwords if the file is absent, prepares local storage, saves the resolved Compose configuration and builds and starts **only the panel**. On Windows it automatically prepares the CA chains Windows already trusts for Python downloads, waits for panel readiness and opens the dashboard. No manual certificate export is needed when Windows already trusts those connections. It does not pull a game image, run SteamCMD, install frameworks or stop an existing game server. Docker Desktop must be installed; the Windows installer starts it if necessary. The root setup files delegate to the implementation under `server/scripts`.
 
 1. Open [http://127.0.0.1:8080](http://127.0.0.1:8080).
 2. Log in using `PANEL_USERNAME` and `PANEL_PASSWORD` from `.env`.
@@ -39,7 +39,7 @@ Setup generates `.env` with random panel and RCON passwords if the file is absen
 
 The game service uses the `game` Compose profile, so `docker compose up -d --build` starts only the panel by default. Use the setup script at least once before installing through the panel: it records the resolved service definitions under `server/state/runtime/compose-runtime.json`. Re-run setup after changing `.env`, `compose.yml` or Compose overrides so deferred installation uses the current configuration. This local configuration contains secrets and must not be committed or shared.
 
-Panel setup still needs access to the Python image registry and PyPI. Separating game installation does not bypass network restrictions or certificate verification. If `pip install` reports `CERTIFICATE_VERIFY_FAILED` on a network with HTTPS inspection, place the organization's approved PEM/Base-64 CA certificate in `panel/certificates/company-root.crt`, then re-run setup. These local certificates are ignored by Git and added to the panel image's trust store without disabling TLS verification. See [corporate certificate setup](panel/certificates/README.md) for Windows export instructions and supported formats.
+Panel setup still needs access to the Python image registry and PyPI. On Windows, use `run-setup.cmd` or `setup.ps1` rather than building directly with Compose: the installer connects to PyPI and its download host using Windows certificate validation and prepares only their verified CA chains for the Linux panel image. It does not copy private keys, export the entire Windows trust store, disable HTTPS verification or change Windows trust settings. Generated certificates stay local and are ignored by Git. Explicit network blocks still apply. See [certificate preparation](panel/certificates/README.md) for details and optional manual configuration on other hosts.
 
 To set the Steam token before installation, copy `.env.example` to `.env` and fill `SRCDS_TOKEN`, `PANEL_PASSWORD` and `CS2_RCON_PASSWORD`. Compose refuses to start with missing management passwords. The Windows setup script can fill blank passwords; the Bash script preserves an existing `.env` unchanged.
 

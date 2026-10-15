@@ -3,11 +3,11 @@
 Run these commands from the repository root:
 
 - Linux or Intel macOS: `bash server/scripts/setup.sh`.
-- Windows: `server\scripts\run-setup.cmd` or `powershell -File server/scripts/setup.ps1`.
+- Windows: double-click `run-setup.cmd` at the repository root or run `powershell -File .\setup.ps1`. The original paths under `server/scripts` still work.
 - Start only the panel and refresh its installation configuration: `bash server/scripts/start.sh`.
 - Stop the game and panel: `bash server/scripts/stop.sh`.
 
-Setup creates `.env` with random passwords when it is absent, prepares local directories, records the resolved Compose model in the ignored state directory and builds and starts only the panel. Windows setup starts Docker Desktop if needed, waits for panel health and opens the browser. It never downloads game files, builds game images, or stops a running game.
+Setup creates `.env` with random passwords when it is absent, prepares local directories, records the resolved Compose model in the ignored state directory and builds and starts only the panel. Windows setup starts Docker Desktop if needed, prepares verified Python-download CA chains using existing Windows HTTPS trust, waits for panel health and opens the browser. It never downloads game files, builds game images, or stops a running game.
 
 After logging in, select **Maintenance > Install server**. This separate background job installs Steam files and pinned frameworks and prepares the stopped game container. Follow progress in the panel, retry failed downloads there, then choose FaceIt or Retakes and start the game.
 
