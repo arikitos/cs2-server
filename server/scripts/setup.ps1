@@ -44,7 +44,13 @@ function Get-DotEnvValue {
 function Write-Utf8File {
     param([string]$Path, [string]$Text)
     $encoding = New-Object System.Text.UTF8Encoding($false)
-    [IO.File]::WriteAllText([IO.Path]::GetFullPath($Path), $Text, $encoding)
+    # Set-Location does not update .NET's process working directory. Resolve
+    # every write against the repository, including when launched by the CMD file.
+    $destination = $Path
+    if (-not [IO.Path]::IsPathRooted($destination)) {
+        $destination = Join-Path $projectRoot $destination
+    }
+    [IO.File]::WriteAllText([IO.Path]::GetFullPath($destination), $Text, $encoding)
 }
 
 function Test-DockerEngine {
