@@ -2,7 +2,17 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY certificates/ /tmp/panel-certificates/
+# Optional operator-supplied corporate CAs; HTTPS verification stays enabled.
+RUN set -eu; \
+    for certificate in /tmp/panel-certificates/*.crt; do \
+        [ -f "$certificate" ] || continue; \
+        openssl x509 -inform PEM -in "$certificate" \
+            -out "/usr/local/share/ca-certificates/cs2-panel-$(basename "$certificate")"; \
+    done; \
+    update-ca-certificates; \
+    PIP_CERT=/etc/ssl/certs/ca-certificates.crt pip install --no-cache-dir -r requirements.txt; \
+    rm -rf /tmp/panel-certificates
 COPY app.py .
 COPY mode_defs.py .
 COPY maintenance_guard.py .

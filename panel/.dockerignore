@@ -1,3 +1,9 @@
 __pycache__
 *.pyc
 .venv
+.env
+
+# Only public CA certificates belong in the build context, never private keys.
+certificates/*
+!certificates/README.md
+!certificates/*.crt

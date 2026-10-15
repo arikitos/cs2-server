@@ -58,6 +58,22 @@ jobs:
           PY
       - name: Build panel image
         run: docker build --tag cs2-manager-panel:validation panel
+      - name: Verify optional corporate CA support
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj '/CN=CS2 CI certificate validation' \
+            -keyout "$RUNNER_TEMP/panel-ca.key" -out panel/certificates/ci-validation.crt
+          docker build --tag cs2-manager-panel:validation-ca panel
+          docker run --rm --network none cs2-manager-panel:validation-ca \
+            openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
+            /usr/local/share/ca-certificates/cs2-panel-ci-validation.crt
+          docker run --rm --network none cs2-manager-panel:validation-ca \
+            python -c 'import ssl; context = ssl.create_default_context(); assert context.verify_mode == ssl.CERT_REQUIRED; assert context.check_hostname'
+          printf 'invalid certificate\n' > panel/certificates/ci-validation.crt
+          if docker build --tag cs2-manager-panel:invalid-ca panel >"$RUNNER_TEMP/invalid-ca.log" 2>&1; then
+            echo 'Invalid CA certificate was accepted'; exit 1
+          fi
+          rm panel/certificates/ci-validation.crt
       - name: Verify panel image startup
         run: |
           docker run --rm --network none \

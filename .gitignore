@@ -17,3 +17,7 @@ htmlcov/
 
 # Download and extraction scratch.
 downloads/
+
+# Operator-specific corporate CA certificates stay local to each machine.
+panel/certificates/*
+!panel/certificates/README.md
