@@ -175,6 +175,39 @@ verify_install() {
     return ${ok}
 }
 
+STEAM_ROOT="${STEAM_ROOT:-/home/steam/Steam}"
+CONTENT_LOG="${STEAM_ROOT}/logs/content_log.txt"
+APP_MANIFEST="${STEAMAPPDIR}/steamapps/appmanifest_${STEAMAPPID}.acf"
+
+# SteamCMD needs the manifests of the installed build to compute a delta
+# update. They live in the Steam root, which is discarded with this container,
+# and anonymous logins cannot re-download superseded manifests. Keep the cache
+# on the persistent game data mount instead.
+persist_depotcache() {
+    local cache="${STEAMAPPDIR}/.steam-depotcache"
+    mkdir -p "${cache}" || { warn "Cannot create ${cache}; delta updates may fail."; return 0; }
+    rm -rf "${STEAM_ROOT}/depotcache"
+    ln -sfn "${cache}" "${STEAM_ROOT}/depotcache" || warn "Cannot link the Steam depot cache to ${cache}."
+}
+
+content_log_lines() {
+    if [[ -f "${CONTENT_LOG}" ]]; then wc -l < "${CONTENT_LOG}"; else echo 0; fi
+}
+
+# When the installed build's manifests are unreachable, set the app manifest
+# aside so the next attempt verifies existing files against the latest build
+# and downloads only what differs.
+recover_unreachable_manifests() {
+    local offset="$1"
+    [[ -f "${CONTENT_LOG}" && -f "${APP_MANIFEST}" ]] || return 0
+    if tail -n "+$((offset + 1))" "${CONTENT_LOG}" | grep -q "Failed to get manifest request code"; then
+        local stale="${APP_MANIFEST}.stale-$(date +%s)"
+        warn "Steam refused the installed build's manifests. Moving ${APP_MANIFEST##*/} aside to ${stale##*/};"
+        warn "the next attempt verifies existing files against the latest build (this can take a while)."
+        mv "${APP_MANIFEST}" "${stale}"
+    fi
+}
+
 case "${MODE}" in
     repair-metamod)
         repair_metamod || fail "Metamod repair failed."
@@ -197,14 +230,20 @@ case "${MODE}" in
         fi
         steamcmd_args+=(+quit)
 
+        persist_depotcache
+
         log "Running SteamCMD app_update ${STEAMAPPID} in ${MODE} mode for platform ${STEAM_PLATFORM} ..."
         steamcmd_rc=1
         attempt=0
         while [[ ${steamcmd_rc} != 0 ]] && [[ ${attempt} -lt 3 ]]; do
             ((attempt+=1))
             [[ ${attempt} -gt 1 ]] && log "Retrying SteamCMD, attempt ${attempt} ..."
+            log_offset=$(content_log_lines)
             bash "${STEAMCMDDIR}/steamcmd.sh" "${steamcmd_args[@]}"
             steamcmd_rc=$?
+            if [[ ${steamcmd_rc} != 0 ]]; then
+                recover_unreachable_manifests "${log_offset}"
+            fi
         done
 
         [[ ${steamcmd_rc} == 0 ]] || fail "SteamCMD failed with code ${steamcmd_rc}."
