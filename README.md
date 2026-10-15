@@ -48,7 +48,7 @@ To set the Steam token before installation, copy `.env.example` to `.env` and fi
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CS2_PORT` | `27015` | Published game TCP/UDP port |
-| `CS2_PUBLIC_ADDRESS` | Auto-detect on copy | Public IP or DNS name used in the connection command; explicit configuration takes priority |
+| `CS2_PUBLIC_ADDRESS` | Auto-detect | Public IP or DNS name used in the connection command; explicit configuration takes priority |
 | `PANEL_BIND` | `127.0.0.1` | Host interface accepting panel connections |
 | `PANEL_PORT` | `8080` | Panel HTTP port |
 | `CS2_DATA_PATH` | `./server/cs2` | Persistent Steam installation on the host |
@@ -72,9 +72,10 @@ responses and the visible preview do not include it. Disabled passwords are
 omitted even when a saved password exists. RCON and panel credentials are never
 included in the command.
 
-When `CS2_PUBLIC_ADDRESS` is empty, Copy resolves the server's outbound public
-IPv4 through `https://api.ipify.org` and caches it for ten minutes. There are no
-IP discovery requests during startup or status polling. If detection fails, Copy
+When `CS2_PUBLIC_ADDRESS` is empty, the panel resolves the server's outbound public
+IPv4 through `https://api.ipify.org` (the same address whatismyip shows) and
+caches it for ten minutes, so the Connect preview displays the real address.
+Failed lookups are retried at most once per minute. If detection fails, Copy
 reports an error instead of sharing localhost; configure `CS2_PUBLIC_ADDRESS`
 explicitly for hosts with a VPN, multiple network interfaces, or restricted access.
 

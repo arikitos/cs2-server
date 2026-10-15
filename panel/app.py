@@ -81,6 +81,7 @@ UPDATER_CONTAINER = "cs2-updater"
 PANEL_CONTAINER = "cs2-panel"
 PUBLIC_ADDRESS_CACHE: tuple[str | None, float] = (None, 0.0)
 PUBLIC_ADDRESS_LOCK = threading.Lock()
+PUBLIC_ADDRESS_RETRY_AFTER = 0.0
 
 ALLOWED_MAPS = [
     item.strip().lower()
@@ -1251,7 +1252,7 @@ def validate_connection_address(value: str) -> str:
 
 
 def public_connection_address(*, discover: bool = False) -> str | None:
-    global PUBLIC_ADDRESS_CACHE
+    global PUBLIC_ADDRESS_CACHE, PUBLIC_ADDRESS_RETRY_AFTER
     configured = os.environ.get("CS2_PUBLIC_ADDRESS", "").strip()
     if configured:
         return validate_connection_address(configured)
@@ -1265,12 +1266,13 @@ def public_connection_address(*, discover: bool = False) -> str | None:
         if cached and time.monotonic() < expires:
             return cached
         try:
-            # Resolve the server's outbound public IPv4 only on explicit copy.
+            # Resolve the server's outbound public IPv4 (what whatismyip reports).
             with urllib.request.urlopen("https://api.ipify.org", timeout=3) as response:
                 address = ipaddress.ip_address(response.read(128).decode("ascii").strip())
             if address.version != 4 or not address.is_global:
                 raise ValueError("The lookup did not return a public IPv4 address")
         except (OSError, ValueError, UnicodeError) as exc:
+            PUBLIC_ADDRESS_RETRY_AFTER = time.monotonic() + 60
             raise RuntimeError(
                 "Could not determine the public IP. Set CS2_PUBLIC_ADDRESS in .env "
                 "and recreate the panel, then copy again."
@@ -1286,6 +1288,14 @@ def connection_endpoint(*, discover: bool = False) -> dict:
         "port": RCON_PORT,
         "resolved": bool(address),
     }
+
+
+def status_connection_endpoint() -> dict:
+    # Show the real public IP in the panel; back off briefly after a failed lookup.
+    try:
+        return connection_endpoint(discover=time.monotonic() >= PUBLIC_ADDRESS_RETRY_AFTER)
+    except (RuntimeError, ValueError):
+        return {"ip": urlsplit("//" + request.host).hostname or "127.0.0.1", "port": RCON_PORT, "resolved": False}
 
 
 @app.post("/api/v3/server/connection")
@@ -1363,7 +1373,7 @@ def api_status():
             "allowed_maps": ALLOWED_MAPS,
             "rcon_available": bool(RCON_PASSWORD),
             "timestamps": STATE_TIMESTAMPS,
-            "endpoint": connection_endpoint(),
+            "endpoint": status_connection_endpoint(),
             "versions": manager_versions(),
             "installation": installation_status(__import__(__name__)),
             "maintenance_active": __import__("maintenance_guard").MAINTENANCE_LOCK.locked(),
