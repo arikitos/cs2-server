@@ -10,6 +10,19 @@ permissions:
   contents: read
 
 jobs:
+  windows-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Windows PowerShell installer syntax
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'server/scripts/setup.ps1'), [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count) { $errors | Format-List; exit 1 }
   validate:
     runs-on: ubuntu-latest
     steps:
@@ -21,7 +34,7 @@ jobs:
         env:
           PANEL_PASSWORD: validation-only-panel-password
           CS2_RCON_PASSWORD: validation-only-rcon-password
-        run: docker compose --profile maintenance config --quiet
+        run: docker compose --profile game --profile maintenance config --quiet
       - name: Validate source syntax
         run: |
           python -m py_compile panel/*.py server/runtime/mode_manager.py
@@ -53,11 +66,86 @@ jobs:
             -v "$PWD/modes:/modes:ro" \
             cs2-manager-panel:validation \
             python -c 'from wsgi import app; from pathlib import Path; assert app.test_client().get("/healthz").status_code == 200; assert Path("/tmp/state/runtime").stat().st_uid == 1000'
+      - name: Verify panel-only bootstrap without game images
+        run: |
+          bash server/scripts/setup.sh
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/healthz >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:8080/healthz >/dev/null
+          if docker image inspect cs2-manager-runtime:pinned >/dev/null 2>&1; then
+            echo 'Panel setup unexpectedly built a game image'; exit 1
+          fi
+          if docker inspect cs2-game >/dev/null 2>&1; then
+            echo 'Panel setup unexpectedly created the game container'; exit 1
+          fi
+          docker exec -i cs2-panel python - <<'PY'
+          from wsgi import app
+          import app as panel
+          import time
+          from unittest.mock import patch
+          from installation import _configuration, _mount_sources, _container_options
+          config = _configuration(panel)
+          sources = _mount_sources(panel, config)
+          options = _container_options(panel, config, 'cs2-game', sources)
+          assert options['host_config']['Init'] is True
+          assert options['stop_timeout'] == 40
+          assert options['host_config']['PortBindings']['27015/udp']
+          assert not panel.client.images.list(name='cs2-manager-updater:pinned')
+          with app.test_client() as client:
+              auth = (panel.USERNAME, panel.PASSWORD)
+              headers = {'X-CS2-Panel': '1'}
+              response = client.get('/api/v3/status', auth=(panel.USERNAME, panel.PASSWORD))
+              assert response.status_code == 200
+              assert response.json['installation']['ready'] is False
+              assert response.json['containers'][0]['status'] == 'not-created'
+              assert client.post('/api/v3/maintenance/install', json={}, auth=auth, headers=headers).status_code == 403
+              # A blocked image download must fail only the job, never the panel.
+              with patch('installation._ensure_image', side_effect=RuntimeError('Simulated blocked image download')):
+                  response = client.post('/api/v3/maintenance/install', json={'confirm': 'UPDATE CS2'}, auth=auth, headers=headers)
+                  assert response.status_code == 202
+                  job_id = response.json['job']['id']
+                  for _ in range(100):
+                      job = client.get('/api/v3/maintenance/jobs/' + job_id, auth=auth).json['job']
+                      if job['end']:
+                          break
+                      time.sleep(0.1)
+                  assert job['status'] == 'Failed', job
+                  assert 'Simulated blocked image download' in job['error']
+              assert client.get('/healthz').status_code == 200
+              assert client.get('/api/v3/status', auth=auth).status_code == 200
+          PY
+          docker compose stop panel
       - name: Build game runtime and updater images
         env:
           PANEL_PASSWORD: validation-only-panel-password
           CS2_RCON_PASSWORD: validation-only-rcon-password
         run: docker compose --profile maintenance build cs2-game cs2-updater
+      - name: Verify deferred container creation without Steam downloads
+        run: |
+          docker start cs2-panel
+          docker exec -i cs2-panel python - <<'PY'
+          import app as panel
+          from installation import _configuration, _mount_sources, _container_options, _run_service
+          config = _configuration(panel)
+          sources = _mount_sources(panel, config)
+          runtime = panel.client.images.get(config['services']['cs2-game']['image'])
+          _run_service(panel, panel.Job('ci-init', 'ci'), config, 'cs2-init', runtime, sources)
+          options = _container_options(panel, config, 'cs2-game', sources)
+          created = panel.client.api.create_container(runtime.id, name=panel.GAME_CONTAINER, **options)
+          container = panel.client.containers.get(created['Id'])
+          try:
+              assert container.status == 'created'
+              assert container.attrs['Config']['StopTimeout'] == 40
+              assert container.attrs['HostConfig']['Init'] is True
+              assert container.attrs['HostConfig']['PortBindings']['27015/udp']
+              targets = {mount['Destination'] for mount in container.attrs['Mounts']}
+              assert {'/home/steam/cs2-dedicated', '/modes', '/state', '/server-config', '/frameworks'} <= targets
+          finally:
+              container.remove()
+          PY
+          docker compose stop panel
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

@@ -1,8 +1,5 @@
 [CmdletBinding()]
-param(
-    [switch]$SkipGameInstall,
-    [switch]$SkipFrameworkInstall
-)
+param()
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
@@ -156,45 +153,37 @@ Write-Step "Validating Docker Compose configuration"
 & docker compose config --quiet
 if ($LASTEXITCODE -ne 0) { throw "compose.yml or .env is invalid" }
 
-Write-Step "Stopping the game before maintenance"
-& docker compose stop cs2-game
-if ($LASTEXITCODE -ne 0) { throw "Failed to stop cs2-game" }
+Write-Step "Saving server configuration for installation from the panel"
+$runtimeConfig = & docker compose --profile game --profile maintenance config --format json
+if ($LASTEXITCODE -ne 0) { throw "Failed to resolve server configuration" }
+Write-Utf8File "server/state/runtime/compose-runtime.json.tmp" ($runtimeConfig -join "`n")
+Move-Item -Force "server/state/runtime/compose-runtime.json.tmp" "server/state/runtime/compose-runtime.json"
 
-Write-Step "Building maintenance images"
-& docker compose --profile maintenance build cs2-updater cs2-modinstaller
-if ($LASTEXITCODE -ne 0) { throw "Failed to build maintenance images" }
-
-Write-Step "Preparing data permissions"
-& docker compose --profile maintenance run --rm cs2-init
-if ($LASTEXITCODE -ne 0) { throw "Failed to prepare data directories" }
-
-$gameBinary = Join-Path $dataPath "game/bin/linuxsteamrt64/cs2"
-if (-not $SkipGameInstall -and -not (Test-Path -LiteralPath $gameBinary)) {
-    Write-Step "Installing the CS2 dedicated server with SteamCMD"
-    & docker compose --profile maintenance run --rm -e CS2_UPDATER_MODE=update -e "CS2_UPDATER_CONFIRM=UPDATE CS2" cs2-updater
-    if ($LASTEXITCODE -ne 0) { throw "SteamCMD installation failed" }
-}
-if (-not (Test-Path -LiteralPath $gameBinary)) {
-    throw "CS2 is not installed at $dataPath. Run setup.ps1 without -SkipGameInstall."
-}
-
-if (-not $SkipFrameworkInstall) {
-    Write-Step "Installing Metamod and CounterStrikeSharp"
-    & docker compose --profile maintenance run --rm cs2-modinstaller
-    if ($LASTEXITCODE -ne 0) { throw "Metamod or CounterStrikeSharp installation failed" }
-    & docker compose --profile maintenance run --rm -e CS2_UPDATER_MODE=repair-metamod -e "CS2_UPDATER_CONFIRM=UPDATE CS2" cs2-updater
-    if ($LASTEXITCODE -ne 0) { throw "Metamod activation failed" }
-}
-
-Write-Step "Building the game runtime and starting the panel"
-& docker compose create --build cs2-game
-if ($LASTEXITCODE -ne 0) { throw "Failed to create cs2-game" }
+Write-Step "Building and starting only the panel (no game downloads)"
 & docker compose up -d --build --no-deps panel
 if ($LASTEXITCODE -ne 0) { throw "Failed to start the panel" }
 
-& docker compose ps -a
-Write-Host ""
-Write-Host "Setup complete. The panel is running and cs2-game is stopped until a mode is selected." -ForegroundColor Green
-Write-Host "Panel: http://127.0.0.1:$(Get-DotEnvValue 'PANEL_PORT')"
+$panelPort = Get-DotEnvValue "PANEL_PORT"
+if (-not $panelPort) { $panelPort = "8080" }
+$panelBind = Get-DotEnvValue "PANEL_BIND"
+if (-not $panelBind -or $panelBind -eq "0.0.0.0") { $panelBind = "127.0.0.1" }
+$panelUrl = "http://${panelBind}:${panelPort}"
+Write-Step "Waiting for the panel"
+$deadline = [DateTime]::UtcNow.AddSeconds(60)
+$panelReady = $false
+while ([DateTime]::UtcNow -lt $deadline) {
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "$panelUrl/healthz" -TimeoutSec 2
+        if ($response.StatusCode -eq 200) { $panelReady = $true; break }
+    } catch { }
+    Start-Sleep -Seconds 2
+}
+if (-not $panelReady) {
+    throw "Panel did not become ready. Check: docker compose logs --tail 100 panel"
+}
 
+Write-Host ""
+Write-Host "Panel ready. Install the server from Maintenance > Install server when you are ready." -ForegroundColor Green
+Write-Host "Panel: $panelUrl"
 Write-Host "Login with PANEL_USERNAME and PANEL_PASSWORD from .env."
+Start-Process $panelUrl

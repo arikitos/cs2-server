@@ -94,7 +94,7 @@ def ensure_updater_image(panel, job):
     return image
 
 
-def run_updater_container(panel, job, updater_mode: str) -> int:
+def run_updater_container(panel, job, updater_mode: str, *, volumes=None) -> int:
     image = ensure_updater_image(panel, job)
     name = f"cs2-updater-job-{job.id}"
 
@@ -111,7 +111,7 @@ def run_updater_container(panel, job, updater_mode: str) -> int:
             "CS2_UPDATER_MODE": updater_mode,
             "CS2_UPDATER_CONFIRM": panel.UPDATER_CONFIRM_PHRASE,
         },
-        volumes=panel.game_data_mounts(),
+        volumes=panel.game_data_mounts() if volumes is None else volumes,
     )
     try:
         for chunk in container.logs(stream=True, follow=True):

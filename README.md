@@ -28,12 +28,18 @@ On Windows, run `server\scripts\run-setup.cmd`, or use PowerShell:
 powershell -NoProfile -ExecutionPolicy Bypass -File server/scripts/setup.ps1
 ```
 
-Setup generates `.env` with random panel and RCON passwords if the file is absent, prepares storage, builds the Docker images, installs or reuses the Steam game files, installs the pinned frameworks and starts the panel. The first Steam download can take a while. The game is left stopped until you choose a mode.
+Setup generates `.env` with random panel and RCON passwords if the file is absent, prepares local storage, saves the resolved Compose configuration and builds and starts **only the panel**. On Windows it waits for panel readiness and opens the dashboard. It does not pull a game image, run SteamCMD, install frameworks or stop an existing game server. Docker Desktop must be installed; the Windows installer starts it if necessary.
 
 1. Open [http://127.0.0.1:8080](http://127.0.0.1:8080).
 2. Log in using `PANEL_USERNAME` and `PANEL_PASSWORD` from `.env`.
-3. Open **Game modes**, choose **FaceIt** or **Retakes**, set the name and map pool, then press **Save & start**.
-4. Wait for **Online**, then use the connection command shown on the dashboard.
+3. Open **Maintenance > Install server** and confirm. The background job builds the game and updater images, prepares permissions, downloads or reuses Steam files, installs the pinned Metamod and CounterStrikeSharp versions, activates Metamod and creates a stopped game container. Watch its stages and output in the job log. The first game download can take a while.
+4. If a download fails, the panel remains available. Resolve the connection problem and press **Install server** again; existing Steam files are reused. The game stays stopped after installation or failure.
+5. Open **Game modes**, choose **FaceIt** or **Retakes**, set the name and map pool, then press **Save & start**.
+6. Wait for **Online**, then use the connection command shown on the dashboard.
+
+The game service uses the `game` Compose profile, so `docker compose up -d --build` starts only the panel by default. Use the setup script at least once before installing through the panel: it records the resolved service definitions under `server/state/runtime/compose-runtime.json`. Re-run setup after changing `.env`, `compose.yml` or Compose overrides so deferred installation uses the current configuration. This local configuration contains secrets and must not be committed or shared.
+
+Panel setup still needs access to the Python image registry and PyPI. Separating game installation does not bypass network restrictions or certificate verification. On networks with HTTPS inspection, configure the approved CA certificate in the build image; a `CERTIFICATE_VERIFY_FAILED` error during `pip install` must be resolved before the panel can build.
 
 To set the Steam token before installation, copy `.env.example` to `.env` and fill `SRCDS_TOKEN`, `PANEL_PASSWORD` and `CS2_RCON_PASSWORD`. Compose refuses to start with missing management passwords. The Windows setup script can fill blank passwords; the Bash script preserves an existing `.env` unchanged.
 
@@ -52,8 +58,10 @@ To set the Steam token before installation, copy `.env.example` to `.env` and fi
 For a home server, forward the configured game port on your router and allow it through your firewall. Set `CS2_PUBLIC_ADDRESS` to the address players use. For panel access from your LAN, set `PANEL_BIND` to the host's LAN IP. Recreate containers after changing `.env`:
 
 ```bash
+# Save the new installation configuration and recreate the panel.
+bash server/scripts/setup.sh
+# For an already installed server, recreate its stopped container as well.
 docker compose create cs2-game
-docker compose up -d --no-deps panel
 ```
 
 The panel has owner-level access to Docker through its socket. Keep the panel on localhost or a trusted LAN. For remote management, use an SSH tunnel, or an HTTPS reverse proxy with access controls. The panel uses HTTP Basic authentication, blocks cross-origin mutations, requires JSON and `X-CS2-Panel: 1` for writes, redacts secrets in logs, and sends a restrictive Content Security Policy.
@@ -99,7 +107,7 @@ In-game administrator lists start empty on new installations. To grant yourself 
 ## Operations
 
 ```bash
-# Start the panel and create a stopped game container
+# Start only the panel and refresh the deferred installation configuration
 bash server/scripts/start.sh
 
 # Stop the game and panel
@@ -113,7 +121,7 @@ docker compose logs --tail 100 -f panel
 docker compose up -d --build --no-deps panel
 ```
 
-Use **Maintenance** in the panel to update or validate Steam files, repair Metamod, verify the installation, create backups and restore configuration. Jobs stop the game and block concurrent writes. A previously running mode resumes after successful maintenance; an already stopped server stays stopped. Failed maintenance leaves the game stopped for recovery.
+Use **Maintenance** in the panel to install the server, update or validate Steam files, repair Metamod, verify the installation, create backups and restore configuration. Jobs stop the game and block concurrent writes. Update, validation and Metamod repair resume a previously running mode after success; installation and configuration restore leave it stopped. Failed maintenance leaves the game stopped for recovery. The panel runs independently of all game downloads and maintenance jobs.
 
 To install the pinned framework versions after pulling an update:
 
@@ -124,7 +132,7 @@ docker compose --profile maintenance run --rm \
   -e CS2_UPDATER_MODE=repair-metamod -e 'CS2_UPDATER_CONFIRM=UPDATE CS2' cs2-updater
 ```
 
-Then start a mode from the panel. For a full installation refresh, re-run the setup script.
+Then start a mode from the panel. For a full installation refresh, use **Maintenance > Repair installation**. Re-running the setup script refreshes the panel and its local installation configuration without running game maintenance.
 
 Configuration backups include panel settings, saved plugin configuration and runtime state. They exclude the Steam installation, demos and live plugin databases. Restore creates a safety backup and leaves the game stopped. Copy the game data separately if you need a full host backup.
 

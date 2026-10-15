@@ -237,6 +237,18 @@
             </button>
           </div>
         </section>
+        <article class="card" id="installationNotice" hidden>
+          <div class="card-heading">
+            <div>
+              <h3>Set up your server</h3>
+              <p class="hint" id="installationNoticeDetail">
+                Your panel is ready. Install the server when you are ready to
+                play.
+              </p>
+            </div>
+            <a class="button primary" href="#maintenance">Set up server</a>
+          </div>
+        </article>
         <div
           class="message"
           id="message"
@@ -739,6 +751,27 @@ Waiting for server output...</pre
             </div>
             <span class="badge neutral" id="maintenanceBadge">Idle</span>
           </div>
+          <article class="card maintenance-action">
+            <div class="card-heading">
+              <h3>Server installation</h3>
+              <span class="badge neutral" id="installationBadge"
+                >Checking...</span
+              >
+            </div>
+            <p id="installationDetail">
+              Install CS2, Metamod and CounterStrikeSharp. FaceIt and Retakes
+              are included. The panel stays available throughout the
+              installation.
+            </p>
+            <button
+              class="button primary"
+              data-action="maintenance"
+              data-kind="install"
+              id="installServerButton"
+            >
+              Install server
+            </button>
+          </article>
           <article class="card">
             <div class="card-heading">
               <h3>Installed packages</h3>

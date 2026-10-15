@@ -1025,6 +1025,9 @@ def verify_mounts() -> dict:
 # Lifecycle
 # ---------------------------------------------------------------------------
 def _start_mode(mode: str, restart_if_running: bool) -> dict:
+    from installation import installation_status
+    if not installation_status(__import__(__name__))["ready"]:
+        raise ValueError("Install the server from Maintenance > Install server before starting a mode.")
     settings = validate_mode_settings(mode, load_mode(mode))
     save_mode(mode, settings)
     write_runtime_cfg(mode, settings)
@@ -1183,7 +1186,11 @@ def make_backup(job: Job, scope: str = "config") -> Path:
 
 
 def game_data_mounts() -> dict:
-    container = client.containers.get(GAME_CONTAINER)
+    try:
+        container = client.containers.get(GAME_CONTAINER)
+    except NotFound:
+        from installation import game_data_mounts as panel_data_mounts
+        return panel_data_mounts(__import__(__name__))
     container.reload()
     for mount in container.attrs.get("Mounts", []):
         if mount.get("Destination") == "/home/steam/cs2-dedicated":
@@ -1231,6 +1238,7 @@ def index():
 @app.get("/api/v3/status")
 @require_auth
 def api_status():
+    from installation import installation_status
     try:
         states = all_game_states()
         active = states[0] if states[0]["running"] else None
@@ -1277,6 +1285,7 @@ def api_status():
             "timestamps": STATE_TIMESTAMPS,
             "endpoint": {"ip": os.environ.get("CS2_PUBLIC_ADDRESS") or urlsplit("//" + request.host).hostname or "127.0.0.1", "port": RCON_PORT},
             "versions": manager_versions(),
+            "installation": installation_status(__import__(__name__)),
             "maintenance_active": __import__("maintenance_guard").MAINTENANCE_LOCK.locked(),
         })
     except DockerException as exc:
@@ -1341,7 +1350,7 @@ def api_server_start():
         audit("server.start", "ok", f"mode={mode}", target=mode)
         return jsonify({"ok": True, "mode": mode, "settings": settings})
     except NotFound:
-        return jsonify({"ok": False, "error": "Container not created. Run the setup/start script."}), 409
+        return jsonify({"ok": False, "error": "Install the server from Maintenance > Install server."}), 409
     except (ValueError, RuntimeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     except DockerException as exc:
@@ -1539,7 +1548,7 @@ def api_mode_start(mode):
         audit("mode.start", "ok", target=mode)
         return jsonify({"ok": True, "mode": mode, "settings": settings})
     except NotFound:
-        return jsonify({"ok": False, "error": "Container not created"}), 409
+        return jsonify({"ok": False, "error": "Install the server from Maintenance > Install server."}), 409
     except (ValueError, RuntimeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     except DockerException as exc:
@@ -1558,7 +1567,7 @@ def api_mode_switch():
         audit("mode.switch", "ok", target=mode)
         return jsonify({"ok": True, "mode": mode, "settings": settings})
     except NotFound:
-        return jsonify({"ok": False, "error": "Container not created"}), 409
+        return jsonify({"ok": False, "error": "Install the server from Maintenance > Install server."}), 409
     except (ValueError, RuntimeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     except DockerException as exc:
@@ -1988,6 +1997,18 @@ def api_logs():
 # ---------------------------------------------------------------------------
 # Maintenance and panel lifecycle
 # ---------------------------------------------------------------------------
+@app.post("/api/v3/maintenance/install")
+@require_auth
+def api_install_server():
+    from installation import install_server
+    if (request.get_json(silent=True) or {}).get("confirm") != UPDATER_CONFIRM_PHRASE:
+        return jsonify({"ok": False, "error": "Owner confirmation required: UPDATE CS2"}), 403
+    return jsonify({
+        "ok": True,
+        "job": start_job("install", lambda job: install_server(__import__(__name__), job)).to_dict(),
+    }), 202
+
+
 @app.get("/api/v3/maintenance/jobs")
 @require_auth
 def api_jobs():

@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY mode_defs.py .
 COPY maintenance_guard.py .
+COPY installation.py .
 COPY config_guard.py .
 COPY security.py .
 COPY wsgi.py .

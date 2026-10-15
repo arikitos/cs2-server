@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title CS2 Server Setup
+title CS2 Control Panel Setup
 
 where powershell.exe >nul 2>&1
 if errorlevel 1 (
@@ -11,7 +11,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Starting the CS2 server installer.
+echo Starting the panel installer. Game files are installed later from the dashboard.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
 set "setup_exit_code=%ERRORLEVEL%"
 
@@ -23,7 +23,8 @@ if not "%setup_exit_code%"=="0" (
     exit /b %setup_exit_code%
 )
 
-echo Installation completed successfully.
+echo Panel installation completed successfully.
+echo Use Maintenance ^> Install server in the dashboard to install game files.
 echo The dashboard address is shown above.
 pause
 exit /b 0

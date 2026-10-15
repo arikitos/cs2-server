@@ -11,6 +11,7 @@ services:
       context: ./server/runtime
       args: *cs2-build
     image: cs2-manager-runtime:pinned
+    profiles: [game]
     container_name: cs2-game
     platform: linux/amd64
     init: true

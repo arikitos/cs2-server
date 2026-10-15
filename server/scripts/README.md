@@ -4,7 +4,11 @@ Run these commands from the repository root:
 
 - Linux or Intel macOS: `bash server/scripts/setup.sh`.
 - Windows: `server\scripts\run-setup.cmd` or `powershell -File server/scripts/setup.ps1`.
-- Start the panel and create a stopped game container: `bash server/scripts/start.sh`.
+- Start only the panel and refresh its installation configuration: `bash server/scripts/start.sh`.
 - Stop the game and panel: `bash server/scripts/stop.sh`.
 
-Setup creates `.env` with random passwords when it is absent, stops the game before maintenance, prepares bind-mount permissions, installs Steam files and pinned frameworks, and starts the panel. It leaves the game stopped until a mode is selected. CS2 requires Linux containers on an x86-64 Docker engine.
+Setup creates `.env` with random passwords when it is absent, prepares local directories, records the resolved Compose model in the ignored state directory and builds and starts only the panel. Windows setup starts Docker Desktop if needed, waits for panel health and opens the browser. It never downloads game files, builds game images, or stops a running game.
+
+After logging in, select **Maintenance > Install server**. This separate background job installs Steam files and pinned frameworks and prepares the stopped game container. Follow progress in the panel, retry failed downloads there, then choose FaceIt or Retakes and start the game.
+
+Re-run setup after changing `.env` or Compose overrides. It preserves existing credentials and server data. Panel image downloads and Python package installation still require working registry/PyPI access and valid HTTPS certificates. CS2 requires Linux containers on an x86-64 Docker engine.

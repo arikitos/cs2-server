@@ -131,6 +131,7 @@ async function confirmAction(title, detail, accept = "Continue") {
 
 function lockButtons() {
   const ready = connected && !busy && !state?.maintenance_active;
+  const installed = state?.installation?.ready === true;
   document
     .querySelectorAll(
       "button[data-action]:not(.icon-button):not(.sidebar-shade), #saveModeButton, #consoleSend, #accessForm button",
@@ -150,12 +151,19 @@ function lockButtons() {
       ].includes(button.dataset.action);
       if (!harmless) button.disabled = !ready;
       if (
+        button.dataset.action === "start-mode" ||
+        (button.dataset.action === "maintenance" &&
+          button.dataset.kind !== "install")
+      )
+        button.disabled = !ready || !installed;
+      if (
         button.dataset.action === "start-map" &&
         !draft.map_pool?.includes(button.dataset.map)
       )
         button.disabled = true;
     });
-  $("startButton").disabled = !ready || !!state?.active || !selectedMode;
+  $("startButton").disabled =
+    !ready || !installed || !!state?.active || !selectedMode;
   $("restartButton").disabled = !ready || !state?.active || !activeMode();
   $("stopButton").disabled = !ready || !state?.active;
   $("consoleSend").disabled = !ready || !state?.active;
@@ -261,6 +269,24 @@ function renderStatus() {
     : "Idle";
   $("maintenanceBadge").className =
     "badge " + (maintenance ? "amber" : "neutral");
+  const installation = state.installation || {};
+  $("installationNotice").hidden = installation.ready === true;
+  $("installationNoticeDetail").textContent = maintenance
+    ? "Setup is running. Follow its progress and download output in Maintenance."
+    : "Your panel is ready. Complete server installation in Maintenance before starting a game.";
+  $("installationBadge").textContent = installation.ready
+    ? "Installed"
+    : installation.game_files
+      ? "Setup incomplete"
+      : "Not installed";
+  $("installationBadge").className =
+    "badge " + (installation.ready ? "green" : "amber");
+  $("installationDetail").textContent = installation.ready
+    ? "Your server is installed. You can repair the installation here; existing game files are reused and the game is left stopped."
+    : "Install CS2, Metamod and CounterStrikeSharp, then choose FaceIt or Retakes. Downloads start only when you press Install server. Failed downloads can be retried here while the panel stays available.";
+  $("installServerButton").textContent = installation.ready
+    ? "Repair installation"
+    : "Install server";
   updateUptime();
   lockButtons();
 }
@@ -666,7 +692,7 @@ async function loadMaintenance() {
         ? jobs
             .map(
               (job) =>
-                `<div class="job-row">${icon("tools")}<div><strong>${esc(job.type)}</strong><small>${dateLabel(job.start)}${job.error ? " · " + esc(job.error) : ""}</small></div><span class="badge ${job.status === "Succeeded" ? "green" : job.status === "Failed" ? "red" : "amber"}">${esc(job.status)}</span><button class="text-button" data-action="view-job" data-job="${esc(job.id)}">View log</button></div>`,
+                `<div class="job-row">${icon("tools")}<div><strong>${esc(job.type)}</strong><small>${dateLabel(job.start)}${job.step ? " · " + esc(job.step) + " (" + job.percent + "%)" : ""}${job.error ? " · " + esc(job.error) : ""}</small></div><span class="badge ${job.status === "Succeeded" ? "green" : job.status === "Failed" ? "red" : "amber"}">${esc(job.status)}</span><button class="text-button" data-action="view-job" data-job="${esc(job.id)}">View log</button></div>`,
             )
             .join("")
         : '<p class="empty">No maintenance jobs yet.</p>';
@@ -680,12 +706,16 @@ async function loadJob(id) {
   selectedJob = id;
   const result = await api("maintenance/jobs/" + encodeURIComponent(id));
   $("jobOutput").textContent =
-    (result.job.log || []).join("\n") || "Job is queued...";
+    `${result.job.status} · ${result.job.step || "Queued"} (${result.job.percent}%)\n\n` +
+    ((result.job.log || []).join("\n") || "Job is queued...");
   $("jobOutput").hidden = false;
 }
 
 async function maintenance(kind) {
   const label = {
+    install: state?.installation?.ready
+      ? "Repair installation"
+      : "Install server",
     update: "Update CS2",
     validate: "Validate game files",
     "repair-metamod": "Repair Metamod",
@@ -693,8 +723,10 @@ async function maintenance(kind) {
   if (
     !(await confirmAction(
       label + "?",
-      "The game stops while this job runs. A configuration backup is created first. If verification succeeds, the previously running mode resumes.",
-      "Start maintenance",
+      kind === "install"
+        ? "Download or reuse CS2 game files, install the required frameworks and prepare FaceIt and Retakes. Existing configuration is backed up first. The game is left stopped and the panel stays available."
+        : "The game stops while this job runs. A configuration backup is created first. If verification succeeds, the previously running mode resumes.",
+      kind === "install" ? label : "Start maintenance",
     ))
   )
     return;

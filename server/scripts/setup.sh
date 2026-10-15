@@ -28,18 +28,16 @@ if [[ ! -f .env ]]; then
 fi
 
 docker compose config --quiet
-# Re-running setup must never install addons beside a running game process.
-docker compose stop cs2-game
-docker compose --profile maintenance build cs2-updater cs2-modinstaller
-docker compose --profile maintenance run --rm cs2-init
-# SteamCMD reuses installed files on repeat runs and only downloads updates.
-docker compose --profile maintenance run --rm \
-  -e CS2_UPDATER_MODE=update -e 'CS2_UPDATER_CONFIRM=UPDATE CS2' cs2-updater
-docker compose --profile maintenance run --rm cs2-modinstaller
-docker compose --profile maintenance run --rm \
-  -e CS2_UPDATER_MODE=repair-metamod -e 'CS2_UPDATER_CONFIRM=UPDATE CS2' cs2-updater
-docker compose create cs2-game
+umask 077
+mkdir -p server/cs2 server/state/runtime server/state/configs server/state/backups
+# Compose resolves .env, overrides, paths and ports without pulling any images.
+# This local file contains secrets and stays inside the ignored state directory.
+runtime_config=server/state/runtime/compose-runtime.json
+trap 'rm -f "${runtime_config}.tmp"' EXIT
+docker compose --profile game --profile maintenance config --format json > "${runtime_config}.tmp"
+mv "${runtime_config}.tmp" "$runtime_config"
+echo "Building and starting only the panel (no game downloads)."
 docker compose up -d --build --no-deps panel
 echo "Setup complete. Open the panel on the PANEL_BIND/PANEL_PORT configured in .env."
 echo "Default: http://127.0.0.1:8080. Login with PANEL_USERNAME and PANEL_PASSWORD from .env."
-echo "Choose FaceIt or Retakes and press Start."
+echo "Install the server from Maintenance > Install server, then choose FaceIt or Retakes."

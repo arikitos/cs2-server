@@ -9,7 +9,4 @@ cd "${PROJECT_ROOT}"
   exit 1
 }
 
-docker compose config --quiet
-docker compose create --build cs2-game
-docker compose up -d --build --no-deps panel
-echo "Panel started. cs2-game remains stopped until a mode is selected."
+bash server/scripts/setup.sh
