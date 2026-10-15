@@ -25,7 +25,8 @@ def install(panel):
             return jsonify(ok=False, error="Cross-site requests are not allowed"), 403
         if not request.is_json or not isinstance(request.get_json(silent=True), dict):
             return jsonify(ok=False, error="A JSON object is required"), 400
-        if maintenance_guard.MAINTENANCE_LOCK.locked():
+        # Connection copying is an authenticated read and does not change the game.
+        if maintenance_guard.MAINTENANCE_LOCK.locked() and request.endpoint != "api_connection_command":
             return jsonify(ok=False, error="Server maintenance is running. Wait for it to finish."), 409
         return None
 

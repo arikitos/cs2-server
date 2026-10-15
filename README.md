@@ -48,7 +48,7 @@ To set the Steam token before installation, copy `.env.example` to `.env` and fi
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CS2_PORT` | `27015` | Published game TCP/UDP port |
-| `CS2_PUBLIC_ADDRESS` | Panel host | IP or DNS name displayed in the connection command |
+| `CS2_PUBLIC_ADDRESS` | Auto-detect on copy | Public IP or DNS name used in the connection command; explicit configuration takes priority |
 | `PANEL_BIND` | `127.0.0.1` | Host interface accepting panel connections |
 | `PANEL_PORT` | `8080` | Panel HTTP port |
 | `CS2_DATA_PATH` | `./server/cs2` | Persistent Steam installation on the host |
@@ -63,6 +63,20 @@ bash server/scripts/setup.sh
 # For an already installed server, recreate its stopped container as well.
 docker compose create cs2-game
 ```
+
+Both connection copy buttons produce one line ready to share in Discord and paste
+into the CS2 console: `connect 198.51.100.42:27015` for a public lobby, or
+`connect 198.51.100.42:27015; password "example"` when the join password is enabled.
+The join password is retrieved only when the owner clicks Copy; regular status
+responses and the visible preview do not include it. Disabled passwords are
+omitted even when a saved password exists. RCON and panel credentials are never
+included in the command.
+
+When `CS2_PUBLIC_ADDRESS` is empty, Copy resolves the server's outbound public
+IPv4 through `https://api.ipify.org` and caches it for ten minutes. There are no
+IP discovery requests during startup or status polling. If detection fails, Copy
+reports an error instead of sharing localhost; configure `CS2_PUBLIC_ADDRESS`
+explicitly for hosts with a VPN, multiple network interfaces, or restricted access.
 
 The panel has owner-level access to Docker through its socket. Keep the panel on localhost or a trusted LAN. For remote management, use an SSH tunnel, or an HTTPS reverse proxy with access controls. The panel uses HTTP Basic authentication, blocks cross-origin mutations, requires JSON and `X-CS2-Panel: 1` for writes, redacts secrets in logs, and sends a restrictive Content Security Policy.
 

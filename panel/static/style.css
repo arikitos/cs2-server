@@ -129,6 +129,13 @@ code {
 [hidden] {
   display: none !important;
 }
+.clipboard-buffer {
+  position: fixed;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
 .sidebar {
   width: 240px;
   background: var(--sidebar);

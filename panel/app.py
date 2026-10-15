@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import math
 import os
@@ -14,6 +15,7 @@ import struct
 import threading
 import time
 import uuid
+import urllib.request
 from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from functools import wraps
@@ -77,6 +79,8 @@ COMPOSE_PROJECT = os.environ.get("COMPOSE_PROJECT", "cs2-server")
 UPDATER_CONFIRM_PHRASE = "UPDATE CS2"
 UPDATER_CONTAINER = "cs2-updater"
 PANEL_CONTAINER = "cs2-panel"
+PUBLIC_ADDRESS_CACHE: tuple[str | None, float] = (None, 0.0)
+PUBLIC_ADDRESS_LOCK = threading.Lock()
 
 ALLOWED_MAPS = [
     item.strip().lower()
@@ -1229,6 +1233,82 @@ def _mode_to_restore() -> str | None:
 # ---------------------------------------------------------------------------
 # Routes: status and lifecycle
 # ---------------------------------------------------------------------------
+def validate_connection_address(value: str) -> str:
+    value = value.strip()
+    try:
+        address = ipaddress.ip_address(value.removeprefix("[").removesuffix("]"))
+        if address.version == 6 and address.scope_id is not None:
+            raise ValueError("Scoped IPv6 addresses cannot be shared publicly")
+        return str(address)
+    except ValueError:
+        labels = value.rstrip(".").split(".")
+        if len(value) <= 253 and all(
+            re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+            for label in labels
+        ):
+            return value.rstrip(".")
+        raise ValueError("CS2_PUBLIC_ADDRESS must be an IP address or hostname without a port.")
+
+
+def public_connection_address(*, discover: bool = False) -> str | None:
+    global PUBLIC_ADDRESS_CACHE
+    configured = os.environ.get("CS2_PUBLIC_ADDRESS", "").strip()
+    if configured:
+        return validate_connection_address(configured)
+    cached, expires = PUBLIC_ADDRESS_CACHE
+    if cached and time.monotonic() < expires:
+        return cached
+    if not discover:
+        return None
+    with PUBLIC_ADDRESS_LOCK:
+        cached, expires = PUBLIC_ADDRESS_CACHE
+        if cached and time.monotonic() < expires:
+            return cached
+        try:
+            # Resolve the server's outbound public IPv4 only on explicit copy.
+            with urllib.request.urlopen("https://api.ipify.org", timeout=3) as response:
+                address = ipaddress.ip_address(response.read(128).decode("ascii").strip())
+            if address.version != 4 or not address.is_global:
+                raise ValueError("The lookup did not return a public IPv4 address")
+        except (OSError, ValueError, UnicodeError) as exc:
+            raise RuntimeError(
+                "Could not determine the public IP. Set CS2_PUBLIC_ADDRESS in .env "
+                "and recreate the panel, then copy again."
+            ) from exc
+        PUBLIC_ADDRESS_CACHE = (str(address), time.monotonic() + 600)
+        return str(address)
+
+
+def connection_endpoint(*, discover: bool = False) -> dict:
+    address = public_connection_address(discover=discover)
+    return {
+        "ip": address or urlsplit("//" + request.host).hostname or "127.0.0.1",
+        "port": RCON_PORT,
+        "resolved": bool(address),
+    }
+
+
+@app.post("/api/v3/server/connection")
+@require_auth
+def api_connection_command():
+    try:
+        endpoint = connection_endpoint(discover=True)
+        address = endpoint["ip"]
+        if ":" in address:
+            address = f"[{address}]"
+        command = f"connect {address}:{endpoint['port']}"
+        secret = load_secrets()
+        if secret.get("password_enabled"):
+            password = validate_server_password(secret.get("server_password"))
+            command += f'; password "{password}"'
+        # Sent only on explicit owner request, never in status polling or audit.
+        return jsonify(ok=True, command=command, endpoint=endpoint)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    except RuntimeError as exc:
+        return jsonify(ok=False, error=str(exc)), 502
+
+
 @app.get("/")
 @require_auth
 def index():
@@ -1283,7 +1363,7 @@ def api_status():
             "allowed_maps": ALLOWED_MAPS,
             "rcon_available": bool(RCON_PASSWORD),
             "timestamps": STATE_TIMESTAMPS,
-            "endpoint": {"ip": os.environ.get("CS2_PUBLIC_ADDRESS") or urlsplit("//" + request.host).hostname or "127.0.0.1", "port": RCON_PORT},
+            "endpoint": connection_endpoint(),
             "versions": manager_versions(),
             "installation": installation_status(__import__(__name__)),
             "maintenance_active": __import__("maintenance_guard").MAINTENANCE_LOCK.locked(),

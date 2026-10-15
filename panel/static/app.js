@@ -105,7 +105,9 @@ function activeMeta() {
   return state?.mode_meta?.[activeMode()] || {};
 }
 function endpoint() {
-  return state ? `${state.endpoint.ip}:${state.endpoint.port}` : "";
+  if (!state) return "";
+  const address = state.endpoint.ip;
+  return `${address.includes(":") ? "[" + address + "]" : address}:${state.endpoint.port}`;
 }
 function formatFor(mode, settings) {
   return (state?.mode_meta?.[mode]?.formats || []).find(
@@ -187,13 +189,43 @@ async function run(operation, success) {
   }
 }
 
-async function copy(text) {
+async function copy(text, sensitive = false) {
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const focused = document.activeElement;
+      const buffer = document.createElement("textarea");
+      buffer.className = "clipboard-buffer";
+      buffer.value = text;
+      buffer.setAttribute("aria-hidden", "true");
+      document.body.append(buffer);
+      try {
+        buffer.select();
+        if (!document.execCommand("copy"))
+          throw new Error("Clipboard unavailable");
+      } finally {
+        buffer.remove();
+        focused?.focus({ preventScroll: true });
+      }
+    }
     message("Copied to clipboard.", "success");
   } catch {
+    if (sensitive)
+      throw new Error(
+        "Could not copy the connection command. Allow clipboard access and try again.",
+      );
     message(`Copy this value: ${text}`);
   }
+}
+
+async function copyConnection() {
+  const result = await api("server/connection", { method: "POST" });
+  if (state) {
+    state.endpoint = result.endpoint;
+    renderStatus();
+  }
+  await copy(result.command, true);
 }
 
 function renderStatus() {
@@ -225,8 +257,15 @@ function renderStatus() {
     "status-dot " +
     (ready ? "online" : running || maintenance ? "starting" : "");
   $("endpoint").textContent = endpoint();
-  $("copyEndpoint").textContent = endpoint();
-  $("connectCommand").textContent = "connect " + endpoint();
+  $("copyEndpoint").textContent = state.endpoint.resolved
+    ? endpoint()
+    : "Detect public IP & copy";
+  $("connectCommand").textContent =
+    "connect " +
+    (state.endpoint.resolved
+      ? endpoint()
+      : `<public-ip>:${state.endpoint.port}`) +
+    (state.password.enabled ? '; password "••••"' : "");
   $("activeMode").textContent = label;
   $("activeMap").textContent = running
     ? mapLabel(settings.map_pool?.[0])
@@ -846,8 +885,8 @@ document.addEventListener("click", async (event) => {
       await refresh();
     } else if (["start", "stop", "restart"].includes(action))
       await serverAction(action);
-    else if (action === "copy-endpoint") await copy(endpoint());
-    else if (action === "copy-connect") await copy("connect " + endpoint());
+    else if (["copy-endpoint", "copy-connect"].includes(action))
+      await copyConnection();
     else if (action === "select-mode") await selectMode(button.dataset.mode);
     else if (action === "configure-mode") {
       await selectMode(button.dataset.mode);

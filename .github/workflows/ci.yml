@@ -234,6 +234,7 @@ jobs:
           docker run -d --name panel-preview -p 127.0.0.1:8080:8080 \
             -e PANEL_PASSWORD="$PANEL_PASSWORD" -e PANEL_DATA_DIR=/tmp/state \
             -e GAME_CONTAINER=cs2-validation-stopped \
+            -e CS2_PUBLIC_ADDRESS=198.51.100.42 \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD/modes:/modes:ro" -v "$PWD:/project:ro" \
             cs2-manager-panel:validation
@@ -253,10 +254,52 @@ jobs:
             httpCredentials: { username: 'admin', password: process.env.PANEL_PASSWORD },
           });
           const page = await context.newPage();
+          await context.grantPermissions(['clipboard-read', 'clipboard-write']);
           const errors = [];
           page.on('pageerror', error => errors.push(error.message));
           await page.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
           await page.waitForFunction(() => document.querySelector('#stateBadge').textContent === 'Stopped');
+          await page.evaluate(() => { window.ciClipboard = navigator.clipboard; });
+          const copied = async action => {
+            await page.evaluate(() => { document.querySelector('#message').textContent = ''; });
+            await page.locator('[data-action="' + action + '"]').click();
+            await page.waitForFunction(() => document.querySelector('#message').textContent.includes('Copied to clipboard'));
+            return page.evaluate(() => window.ciClipboard.readText());
+          };
+          if (await copied('copy-endpoint') !== 'connect 198.51.100.42:27015') {
+            throw new Error('Public connection command is incorrect');
+          }
+          await page.evaluate(async () => {
+            const response = await fetch('/api/v3/server/password-policy', {
+              method: 'PUT', headers: {'Content-Type': 'application/json', 'X-CS2-Panel': '1'},
+              body: JSON.stringify({action: 'set', password: 'CI join password'}),
+            });
+            if (!response.ok) throw new Error('Could not set join password');
+          });
+          if (await copied('copy-connect') !== 'connect 198.51.100.42:27015; password "CI join password"') {
+            throw new Error('Private connection command is incorrect');
+          }
+          if ((await page.locator('body').innerText()).includes('CI join password')) {
+            throw new Error('Join password leaked into visible UI');
+          }
+          const ordinaryStatus = await page.evaluate(async () => (await fetch('/api/v3/status')).text());
+          if (ordinaryStatus.includes('CI join password')) throw new Error('Join password leaked into status polling');
+          // Exercise the textarea fallback used when the Clipboard API is unavailable.
+          await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true}));
+          if (await copied('copy-endpoint') !== 'connect 198.51.100.42:27015; password "CI join password"') {
+            throw new Error('Fallback clipboard command is incorrect');
+          }
+          if (await page.locator('.clipboard-buffer').count()) throw new Error('Temporary clipboard buffer was retained');
+          await page.evaluate(() => { delete navigator.clipboard; });
+          await page.evaluate(async () => {
+            const response = await fetch('/api/v3/server/password/disable', {
+              method: 'POST', headers: {'Content-Type': 'application/json', 'X-CS2-Panel': '1'}, body: '{}',
+            });
+            if (!response.ok) throw new Error('Could not disable join password');
+          });
+          if (await copied('copy-connect') !== 'connect 198.51.100.42:27015') {
+            throw new Error('Disabled password was included in the connection command');
+          }
           for (const screen of ['dashboard', 'modes', 'console', 'players', 'settings', 'maintenance', 'activity']) {
             await page.goto('http://127.0.0.1:8080/#' + screen);
             await page.waitForSelector('#page-' + screen + ':visible');
