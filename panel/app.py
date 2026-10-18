@@ -183,17 +183,63 @@ def _cmd(key, label, cmd, impact, description, confirm=False, arg_hint=""):
 
 # Commands the panel can send over RCON regardless of the active plugin set.
 # "aliases" limits a group to the game alias of the selected match format.
+# Live changes last until the next start or restart, which re-applies the saved mode.
 SHARED_COMMAND_GROUPS = [
     {
-        "id": "global",
-        "label": "Global commands",
+        "id": "match",
+        "label": "Match",
         "aliases": (),
         "commands": [
-            _cmd("restart_game", "Restart Game", "mp_restartgame 1", "In-game round", "Restarts the game after one second.", True),
+            _cmd("restart_game", "Restart Game", "mp_restartgame", "In-game round", "Restarts the game after the given number of seconds.", True, "<seconds>"),
             _cmd("warmup_end", "End Warmup", "mp_warmup_end", "In-game phase", "Ends warmup and starts the match."),
+            _cmd("warmup_start", "Start Warmup", "mp_warmup_start", "In-game phase", "Returns the server to warmup."),
             _cmd("pause", "Pause Match", "mp_pause_match", "In-game match", "Freezes the match at the next round."),
+            _cmd("unpause", "Unpause Match", "mp_unpause_match", "In-game match", "Resumes a paused match."),
+            _cmd("swap_teams", "Swap Teams", "mp_swapteams", "Players", "Swaps both teams and restarts the round.", True),
+            _cmd("scramble_teams", "Scramble Teams", "mp_scrambleteams", "Players", "Shuffles players between teams and restarts the round.", True),
+            _cmd("change_map", "Change Map", "changelevel", "Server", "Loads another map. Players reconnect automatically.", True, "<map>"),
+        ],
+    },
+    {
+        "id": "rules",
+        "label": "Round rules",
+        "aliases": (),
+        "commands": [
+            _cmd("freezetime", "Freeze Time", "mp_freezetime", "In-game round", "Seconds players are frozen at round start.", False, "<seconds>"),
+            _cmd("roundtime", "Round Time", "mp_roundtime", "In-game round", "Round length in minutes.", False, "<minutes>"),
+            _cmd("roundtime_defuse", "Round Time (Defuse)", "mp_roundtime_defuse", "In-game round", "Round length in minutes on bomb maps.", False, "<minutes>"),
+            _cmd("buytime", "Buy Time", "mp_buytime", "In-game round", "Seconds the buy menu stays open.", False, "<seconds>"),
+            _cmd("buy_anywhere", "Buy Anywhere", "mp_buy_anywhere", "In-game round", "Allow buying outside buy zones.", False, "<0 or 1>"),
+            _cmd("maxrounds", "Max Rounds", "mp_maxrounds", "In-game match", "Rounds played before the match ends.", False, "<rounds>"),
+            _cmd("startmoney", "Start Money", "mp_startmoney", "In-game round", "Money each player starts with.", False, "<amount>"),
+            _cmd("maxmoney", "Max Money", "mp_maxmoney", "In-game round", "Maximum money a player can hold.", False, "<amount>"),
+            _cmd("c4timer", "C4 Timer", "mp_c4timer", "In-game round", "Seconds until the planted bomb explodes.", False, "<seconds>"),
+            _cmd("warmuptime", "Warmup Time", "mp_warmuptime", "In-game phase", "Warmup length in seconds.", False, "<seconds>"),
+            _cmd("friendlyfire", "Friendly Fire", "mp_friendlyfire", "In-game round", "Allow damage to teammates.", False, "<0 or 1>"),
+            _cmd("autoteambalance", "Auto Team Balance", "mp_autoteambalance", "Players", "Balance teams automatically.", False, "<0 or 1>"),
+            _cmd("limitteams", "Limit Teams", "mp_limitteams", "Players", "Maximum player difference between teams (0 = off).", False, "<count>"),
+        ],
+    },
+    {
+        "id": "bots",
+        "label": "Bots",
+        "aliases": (),
+        "commands": [
             _cmd("bot_add", "Add Bot", "bot_add", "Players", "Adds one bot to the smaller team."),
+            _cmd("bot_add_t", "Add T Bot", "bot_add_t", "Players", "Adds one Terrorist bot."),
+            _cmd("bot_add_ct", "Add CT Bot", "bot_add_ct", "Players", "Adds one Counter-Terrorist bot."),
             _cmd("bot_kick", "Kick All Bots", "bot_kick", "Players", "Removes every bot.", True),
+            _cmd("bot_quota", "Bot Quota", "bot_quota", "Players", "Number of bots kept on the server.", False, "<count>"),
+            _cmd("bot_difficulty", "Bot Difficulty", "bot_difficulty", "Players", "0 easy, 1 normal, 2 hard, 3 expert.", False, "<0 to 3>"),
+        ],
+    },
+    {
+        "id": "server",
+        "label": "Server",
+        "aliases": (),
+        "commands": [
+            _cmd("status", "Status", "status", "Read-only", "Shows the map, players and connection details."),
+            _cmd("say", "Say", "say", "Chat", "Sends a chat message to every player.", False, "<message>"),
         ],
     },
 ]
@@ -2007,13 +2053,16 @@ def api_visibility_set():
 
 
 LOG_SOURCES = {
-    "game": {"label": "Game"},
-    "docker": {"label": "Docker / container"},
+    "game": {"label": "Game server"},
+    "events": {"label": "Game events"},
+    "plugin": {"label": "Plugins (filtered)"},
+    "docker": {"label": "Game container (Docker)"},
     "panel": {"label": "Panel"},
     "updater": {"label": "SteamCMD / Updater"},
     "audit": {"label": "Audit"},
-    "plugin": {"label": "Plugins (filtered)"},
 }
+# CS2 echoes logged game events (connects, kills, chat, rounds) as "L MM/DD/YYYY - HH:MM:SS: ...".
+GAME_EVENT_LINE_RE = re.compile(r"^(?:\S+\s)?L \d{2}/\d{2}/\d{4} - \d{2}:\d{2}:\d{2}: ")
 
 
 @app.get("/api/v3/logs/sources")
@@ -2044,14 +2093,15 @@ def api_logs():
         container_name = source.split(":", 1)[1]
         if container_name != GAME_CONTAINER:
             return jsonify({"ok": False, "error": "Unknown container"}), 400
-    elif source in ("game", "docker", "plugin"):
+    elif source in ("game", "events", "docker", "plugin"):
         container_name = GAME_CONTAINER
     else:
         return jsonify({"ok": False, "error": "Unknown log source"}), 400
     try:
         container = client.containers.get(container_name)
         container.reload()
-        if container_name == GAME_CONTAINER:
+        # The raw container log stays readable after a stop or crash; game views follow the current session.
+        if container_name == GAME_CONTAINER and source in ("game", "events", "plugin"):
             if container.status != "running" or not selected_runtime_mode():
                 return jsonify({
                     "ok": True,
@@ -2070,7 +2120,11 @@ def api_logs():
         else:
             raw_logs = container.logs(tail=tail, timestamps=True)
         output = redact(raw_logs.decode("utf-8", errors="replace"))
-        if source == "plugin":
+        if source == "game":
+            output = "\n".join(line for line in output.splitlines() if "[runtime-launcher]" not in line)
+        elif source == "events":
+            output = "\n".join(line for line in output.splitlines() if GAME_EVENT_LINE_RE.match(line))
+        elif source == "plugin":
             keep = (
                 "MatchZy", "Metamod", "CounterStrikeSharp", "AutoReady", "Retakes",
                 "Instadefuse", "PanelBridge",
@@ -2091,12 +2145,24 @@ def api_logs():
 @require_auth
 def api_install_server():
     from installation import install_server
-    if (request.get_json(silent=True) or {}).get("confirm") != UPDATER_CONFIRM_PHRASE:
+    payload = request.get_json(silent=True) or {}
+    if payload.get("confirm") != UPDATER_CONFIRM_PHRASE:
         return jsonify({"ok": False, "error": "Owner confirmation required: UPDATE CS2"}), 403
-    return jsonify({
-        "ok": True,
-        "job": start_job("install", lambda job: install_server(__import__(__name__), job)).to_dict(),
-    }), 202
+    start_mode = payload.get("start_mode")
+    if start_mode is not None and start_mode not in MODES:
+        return jsonify({"ok": False, "error": "Unknown mode"}), 400
+
+    def worker(job):
+        install_server(__import__(__name__), job)
+        if start_mode:
+            # Dashboard Start on a fresh panel: install first, then launch the requested mode.
+            job.set(step=f"Start {MODES[start_mode]['label']}", percent=98)
+            _start_mode(start_mode, restart_if_running=False)
+            audit("server.start", "ok", f"mode={start_mode}", target=start_mode)
+            job.result = {"installed": True, "game_started": True, "mode": start_mode}
+            job.emit(f"{MODES[start_mode]['label']} is starting.")
+
+    return jsonify({"ok": True, "job": start_job("install", worker).to_dict()}), 202
 
 
 @app.get("/api/v3/maintenance/jobs")

@@ -32,10 +32,12 @@ Setup generates `.env` with random panel and RCON passwords if the file is absen
 
 1. Open [http://127.0.0.1:8080](http://127.0.0.1:8080).
 2. Log in using `PANEL_USERNAME` and `PANEL_PASSWORD` from `.env`.
-3. Open **Maintenance > Install server** and confirm. The background job builds the game and updater images, prepares permissions, downloads or reuses Steam files, installs the pinned Metamod and CounterStrikeSharp versions, activates Metamod and creates a stopped game container. Watch its stages and output in the job log. The first game download can take a while.
-4. If a download fails, the panel remains available. Resolve the connection problem and press **Install server** again; existing Steam files are reused. The game stays stopped after installation or failure.
-5. Open **Game modes**, choose **FaceIt** or **Retakes**, set the name and map pool, then press **Save & start**.
-6. Wait for **Online**, then use the connection command shown on the dashboard.
+3. Optionally open **Game modes**, choose **FaceIt** or **Retakes**, and set the name and map pool.
+4. Press **Start** on the dashboard and confirm. On a new panel this first runs the installation job: it builds the game and updater images, prepares permissions, downloads or reuses Steam files, installs the pinned Metamod and CounterStrikeSharp versions, activates Metamod and creates the game container, then starts the last used mode (FaceIt on a new panel). The status badge shows progress; **Maintenance** shows the stages and output. The first game download can take a while. **Maintenance > Install server** installs without starting the game.
+5. If a download fails, the panel remains available. Resolve the connection problem and press **Start** or **Install server** again; existing Steam files are reused.
+6. Wait for **Online**, then copy the connection command shown next to the server controls.
+
+Start, Restart and Stop always act on the current mode: Restart and the next Start keep the last mode and its saved settings. To switch modes, use **Game modes > Save & start**. **Info** expands resource usage, server details and plugin health. The dashboard shows connected players (kick and ban), an RCON console with a list of common commands, and the in-game server log; Docker container logs and panel activity are under **Maintenance**.
 
 The game service uses the `game` Compose profile, so `docker compose up -d --build` starts only the panel by default. Use the setup script at least once before installing through the panel: it records the resolved service definitions under `server/state/runtime/compose-runtime.json`. Re-run setup after changing `.env`, `compose.yml` or Compose overrides so deferred installation uses the current configuration. This local configuration contains secrets and must not be committed or shared.
 

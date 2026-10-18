@@ -13,12 +13,23 @@ const icon = (name) =>
   `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const names = {
   dashboard: "Dashboard",
-  console: "Console",
-  players: "Players",
   modes: "Game modes",
   settings: "Server settings",
   maintenance: "Maintenance",
-  activity: "Activity log",
+};
+// Console and Players moved into the dashboard, Activity into Maintenance.
+const pageAliases = {
+  console: "dashboard",
+  players: "dashboard",
+  activity: "maintenance",
+};
+const jobLabels = {
+  install: "Installing",
+  update: "Updating",
+  validate: "Validating",
+  "repair-metamod": "Repairing Metamod",
+  restore: "Restoring",
+  backup: "Backing up",
 };
 const mapNames = {
   de_dust2: "Dust II",
@@ -42,21 +53,33 @@ const timeLabel = (iso) =>
       })
     : "-";
 const dateLabel = (iso) => (iso ? new Date(iso).toLocaleString() : "-");
+const CONSOLE_HINT = "Live changes last until the next start or restart.";
+const OVERVIEW_KEY = "cs2-panel-overview-open";
+const DOCKER_TIME_RE = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.\d+)?Z ?/;
+const GAME_EVENT_PREFIX_RE = /^L \d\d\/\d\d\/\d{4} - \d\d:\d\d:\d\d: /;
 let state = null;
 let selectedMode = null;
 let draft = {};
 let savedDraft = {};
 let players = [];
+let playersSignature = "";
 let page = "dashboard";
 let busy = false;
 let refreshing = false;
 let connected = false;
 let liveMap = null;
 let selectedJob = null;
+let maintenanceJob = null;
 let lastHealth = 0;
-let lastActivity = 0;
+let logPaused = false;
 const cpuHistory = [];
 let commandCatalog = [];
+let catalogSignature = "";
+const consoleEntries = [];
+let overviewOpen = false;
+try {
+  overviewOpen = localStorage.getItem(OVERVIEW_KEY) === "1";
+} catch {}
 
 async function api(path, { method = "GET", body, ...options } = {}) {
   const mutation = method !== "GET";
@@ -104,6 +127,15 @@ function activeMode() {
 function activeMeta() {
   return state?.mode_meta?.[activeMode()] || {};
 }
+// Start always resumes the running or last used mode; a fresh panel falls back to the first mode.
+function startMode() {
+  if (!state) return null;
+  return (
+    [state.active?.mode, state.server.last_mode, state.mode_order[0]].find(
+      (mode) => mode && state.modes[mode],
+    ) || null
+  );
+}
 function endpoint() {
   if (!state) return "";
   const address = state.endpoint.ip;
@@ -113,6 +145,9 @@ function formatFor(mode, settings) {
   return (state?.mode_meta?.[mode]?.formats || []).find(
     (f) => f.key === settings?.format,
   );
+}
+function atEnd(element) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 32;
 }
 
 async function confirmAction(title, detail, accept = "Continue") {
@@ -143,11 +178,13 @@ function lockButtons() {
         "refresh",
         "menu",
         "close-menu",
+        "toggle-info",
         "copy-connect",
         "copy-endpoint",
         "refresh-activity",
         "refresh-players",
         "refresh-jobs",
+        "refresh-container-logs",
         "view-job",
         "reset-draft",
       ].includes(button.dataset.action);
@@ -164,11 +201,12 @@ function lockButtons() {
       )
         button.disabled = true;
     });
-  $("startButton").disabled =
-    !ready || !installed || !!state?.active || !selectedMode;
+  // Start also installs the server first when needed, so it does not require an installation.
+  $("startButton").disabled = !ready || !!state?.active || !startMode();
   $("restartButton").disabled = !ready || !state?.active || !activeMode();
   $("stopButton").disabled = !ready || !state?.active;
   $("consoleSend").disabled = !ready || !state?.active;
+  $("commandPicker").disabled = !state?.active;
 }
 
 async function run(operation, success) {
@@ -228,12 +266,21 @@ async function copyConnection() {
   await copy(result.command, true);
 }
 
+function renderOverview() {
+  $("serverOverview").hidden = !overviewOpen;
+  $("infoButton").setAttribute("aria-expanded", String(overviewOpen));
+  $("infoButton").classList.toggle("active", overviewOpen);
+}
+
 function renderStatus() {
   const running = !!state.active;
   const ready = state.operational_state === "Ready";
   const maintenance = state.maintenance_active;
+  const job = maintenance ? maintenanceJob : null;
   const status = maintenance
-    ? "Maintenance"
+    ? job
+      ? `${jobLabels[job.type] || "Maintenance"} · ${job.percent}%`
+      : "Maintenance"
     : ready
       ? "Online"
       : state.operational_state === "UnknownMode"
@@ -244,15 +291,19 @@ function renderStatus() {
   const tone =
     maintenance || (running && !ready) ? "amber" : ready ? "green" : "neutral";
   const mode = activeMode();
-  const settings = state.modes[mode || selectedMode] || {};
-  const format = formatFor(mode || selectedMode, settings);
+  const nextMode = startMode();
+  const nextLabel = state.mode_meta[nextMode]?.label;
+  const settings = state.modes[mode || nextMode] || {};
+  const format = formatFor(mode || nextMode, settings);
   const label = activeMeta().label || "No active mode";
+  const installation = state.installation || {};
   $("serverName").textContent =
     (running ? settings.hostname : state.server.hostname) ||
     "CS2 Dedicated Server";
   $("sideServer").textContent = $("serverName").textContent;
   $("stateBadge").textContent = status;
   $("stateBadge").className = "badge " + tone;
+  $("stateBadge").title = job?.step || "";
   $("sideDot").className =
     "status-dot " +
     (ready ? "online" : running || maintenance ? "starting" : "");
@@ -260,17 +311,27 @@ function renderStatus() {
   $("copyEndpoint").textContent = state.endpoint.resolved
     ? endpoint()
     : "Detect public IP & copy";
+  $("connectBox").hidden = !running;
   $("connectCommand").textContent =
     "connect " +
     (state.endpoint.resolved
       ? endpoint()
       : `<public-ip>:${state.endpoint.port}`) +
     (state.password.enabled ? '; password "••••"' : "");
-  $("activeMode").textContent = label;
+  $("activeMode").textContent = running
+    ? label
+    : nextLabel
+      ? `${nextLabel} · ${state.server.last_mode ? "last used" : "default"}`
+      : "No mode";
+  $("startButton").title = nextLabel
+    ? `${installation.ready ? "Start" : "Install and start"} ${nextLabel}`
+    : "";
   $("activeMap").textContent = running
-    ? mapLabel(settings.map_pool?.[0])
+    ? liveMap
+      ? mapLabel(liveMap)
+      : mapLabel(settings.map_pool?.[0])
     : "No map loaded";
-  $("infoStatus").innerHTML = `<span class="badge ${tone}">${status}</span>`;
+  $("infoStatus").innerHTML = `<span class="badge ${tone}">${esc(status)}</span>`;
   $("infoContainer").textContent = state.containers[0]?.name || "-";
   $("infoAccess").textContent =
     state.visibility === "private" ? "Private · password protected" : "Public";
@@ -308,11 +369,6 @@ function renderStatus() {
     : "Idle";
   $("maintenanceBadge").className =
     "badge " + (maintenance ? "amber" : "neutral");
-  const installation = state.installation || {};
-  $("installationNotice").hidden = installation.ready === true;
-  $("installationNoticeDetail").textContent = maintenance
-    ? "Setup is running. Follow its progress and download output in Maintenance."
-    : "Your panel is ready. Complete server installation in Maintenance before starting a game.";
   $("installationBadge").textContent = installation.ready
     ? "Installed"
     : installation.game_files
@@ -322,10 +378,11 @@ function renderStatus() {
     "badge " + (installation.ready ? "green" : "amber");
   $("installationDetail").textContent = installation.ready
     ? "Your server is installed. You can repair the installation here; existing game files are reused and the game is left stopped."
-    : "Install CS2, Metamod and CounterStrikeSharp, then choose FaceIt or Retakes. Downloads start only when you press Install server. Failed downloads can be retried here while the panel stays available.";
+    : "Install CS2, Metamod and CounterStrikeSharp. Pressing Start on the dashboard does this automatically and then starts the game. Failed downloads can be retried here while the panel stays available.";
   $("installServerButton").textContent = installation.ready
     ? "Repair installation"
     : "Install server";
+  renderOverview();
   updateUptime();
   lockButtons();
 }
@@ -524,16 +581,45 @@ async function saveMode(start = false) {
   );
 }
 
+async function startServer() {
+  const mode = startMode();
+  if (!mode) return;
+  const label = state.mode_meta[mode]?.label || mode;
+  if (state.installation?.ready !== true) {
+    if (
+      !(await confirmAction(
+        "Install and start the server?",
+        `CS2 is not installed yet. The panel downloads the game with SteamCMD, installs Metamod and CounterStrikeSharp, then starts ${label}.\n\nThe first download can take a while. The panel stays available and the status badge shows progress.`,
+        "Install & start",
+      ))
+    )
+      return;
+    await run(async () => {
+      const result = await api("maintenance/install", {
+        method: "POST",
+        body: { confirm: "UPDATE CS2", start_mode: mode },
+      });
+      selectedJob = result.job.id;
+    }, `Installing the server. ${label} starts automatically when it finishes.`);
+    return;
+  }
+  await run(
+    () => api("server/start", { method: "POST", body: { mode } }),
+    `Starting ${label}. Watch the status for readiness.`,
+  );
+  lastHealth = 0;
+}
+
 async function serverAction(action) {
   if (!state) return;
   if (action === "start") {
-    await saveMode(true);
+    await startServer();
     return;
   }
   const detail =
     action === "stop"
       ? "The game process will stop and connected players will be disconnected."
-      : "The game process will restart. Connected players will be disconnected and the saved settings will be applied.";
+      : "The game process will restart in the same mode. Connected players will be disconnected and the saved settings will be applied.";
   if (
     !(await confirmAction(
       action === "stop" ? "Stop the server?" : "Restart the server?",
@@ -549,52 +635,69 @@ async function serverAction(action) {
   lastHealth = 0;
 }
 
+async function loadMaintenanceProgress() {
+  const result = await api("maintenance/jobs");
+  maintenanceJob =
+    (result.jobs || []).find((job) =>
+      ["Running", "Queued"].includes(job.status),
+    ) || null;
+  renderStatus();
+}
+
 async function loadCommands() {
   const result = await api("commands");
-  commandCatalog = result.groups || [];
-  $("commandGroups").innerHTML = !state.active
-    ? '<p class="empty">Start the server to use commands.</p>'
-    : commandCatalog
-        .map(
-          (group) =>
-            `<div><h4>${esc(group.label)}</h4><div class="command-buttons">${group.commands.map((command) => `<button class="button" data-action="command" data-command="${esc(command.cmd)}" data-hint="${esc(command.arg_hint || "")}" data-confirm="${command.confirm ? "1" : "0"}" title="${esc(command.description)}">${esc(command.label)}${command.arg_hint ? "..." : ""}</button>`).join("")}</div></div>`,
-        )
-        .join("");
-  const quickKeys =
-    activeMode() === "faceit"
-      ? ["start", "pause", "unpause", "end"]
-      : ["force_a", "force_b", "force_auto", "scramble"];
-  let quick = commandCatalog
-    .flatMap((group) => group.commands)
-    .filter((cmd) => quickKeys.includes(cmd.key))
-    .slice(0, 4);
-  if (!quick.length)
-    quick = commandCatalog
-      .flatMap((group) => group.commands)
-      .filter((cmd) => !cmd.arg_hint)
-      .slice(0, 4);
-  $("quickActions").innerHTML = state.active
-    ? quick
-        .map(
-          (command) =>
-            `<button class="button" data-action="command" data-command="${esc(command.cmd)}" data-hint="${esc(command.arg_hint || "")}" data-confirm="${command.confirm ? "1" : "0"}">${icon("modes")}${esc(command.label)}</button>`,
-        )
-        .join("")
-    : '<p class="empty">Start a game mode to see its controls.</p>';
-  const pool = state.modes[activeMode()]?.map_pool || [];
-  $("mapSwitch").innerHTML = state.active
-    ? pool
-        .map(
-          (map) =>
-            `<button class="button" data-action="map" data-map="${esc(map)}">${icon("map")}${esc(mapLabel(map))}</button>`,
-        )
-        .join("")
-    : "";
-  lockButtons();
+  const groups = result.groups || [];
+  const pool = state.active ? state.modes[activeMode()]?.map_pool || [] : [];
+  // Rebuilding the list while it is open would close it, so only rebuild on change.
+  const signature = JSON.stringify([groups, pool]);
+  if (signature === catalogSignature) return;
+  catalogSignature = signature;
+  commandCatalog = groups;
+  const option = (command) =>
+    `<option value="${esc(command.cmd)}" data-hint="${esc(command.arg_hint || "")}" data-description="${esc(command.description)}">${esc(command.label)} · ${esc(command.cmd)}${command.arg_hint ? " " + esc(command.arg_hint) : ""}</option>`;
+  $("commandPicker").innerHTML =
+    '<option value="">Commands</option>' +
+    groups
+      .map(
+        (group) =>
+          `<optgroup label="${esc(group.label)}">${group.commands.map(option).join("")}</optgroup>`,
+      )
+      .join("") +
+    (pool.length
+      ? `<optgroup label="Change map">${pool.map((map) => `<option value="changelevel ${esc(map)}" data-hint="" data-description="Loads ${esc(mapLabel(map))}. Players reconnect automatically.">${esc(mapLabel(map))} · changelevel ${esc(map)}</option>`).join("")}</optgroup>`
+      : "");
+}
+
+function pickCommand() {
+  const picker = $("commandPicker");
+  const option = picker.selectedOptions[0];
+  picker.value = "";
+  if (!option?.value) return;
+  const hint = option.dataset.hint;
+  const input = $("consoleInput");
+  input.value = option.value + (hint ? " " : "");
+  $("consoleHint").textContent =
+    `${option.value}${hint ? " " + hint : ""} · ${option.dataset.description || ""} ${hint ? "Add the value, then press Enter." : "Press Enter to send."}`;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function appendConsole(command, output, failed = false) {
+  consoleEntries.push({ command, output, failed });
+  if (consoleEntries.length > 40) consoleEntries.shift();
+  const box = $("commandOutput");
+  box.innerHTML = consoleEntries
+    .map(
+      (entry) =>
+        `<span class="console-command">&gt; ${esc(entry.command)}</span>\n${entry.failed ? `<span class="console-error">${esc(entry.output)}</span>` : esc(entry.output)}`,
+    )
+    .join("\n\n");
+  box.scrollTop = box.scrollHeight;
 }
 
 async function sendCommand(command, needsConfirm = false) {
-  if (!command.trim()) return;
+  command = command.trim();
+  if (!command) return;
   if (
     needsConfirm &&
     !(await confirmAction(
@@ -605,58 +708,91 @@ async function sendCommand(command, needsConfirm = false) {
   )
     return;
   await run(async () => {
-    const result = await api("console/command", {
-      method: "POST",
-      body: { command: command.trim() },
-    });
-    $("commandOutput").textContent =
-      `> ${result.command}\n${result.output || "(No output)"}`;
-    $("commandOutput").hidden = false;
-    $("consoleInput").value = "";
-    if (page !== "console")
-      message("Command sent: " + result.command, "success");
+    try {
+      const result = await api("console/command", {
+        method: "POST",
+        body: { command },
+      });
+      appendConsole(result.command, result.output || "(No output)");
+      $("consoleInput").value = "";
+      $("consoleHint").textContent = CONSOLE_HINT;
+    } catch (error) {
+      appendConsole(command, error.message, true);
+    }
   });
 }
 
-async function loadLogs() {
-  if ($("pauseLogs").checked) return;
+function formatLog(text) {
+  return String(text || "")
+    .split("\n")
+    .map((line) => {
+      const match = line.match(DOCKER_TIME_RE);
+      if (!match) return line;
+      const time = new Date(match[1] + "Z").toLocaleTimeString([], {
+        hourCycle: "h23",
+      });
+      return `${time}  ${line.slice(match[0].length).replace(GAME_EVENT_PREFIX_RE, "")}`;
+    })
+    .join("\n")
+    .trim();
+}
+
+function renderLogState() {
+  $("logState").textContent = logPaused
+    ? "Paused · scroll to the end to resume"
+    : "Live";
+  $("logState").classList.toggle("paused", logPaused);
+}
+
+async function loadLogs(force = false) {
+  // Scrolling up pauses updates so the lines being read do not move.
+  if (logPaused && !force) return;
+  const source = $("logSource").value;
   const result = await api(
-    `logs/stream?source=${encodeURIComponent($("logSource").value)}&tail=300`,
+    `logs/stream?source=${encodeURIComponent(source)}&tail=${source === "game" ? 300 : 1000}`,
   );
   const log = $("logs");
   log.textContent =
-    result.logs ||
-    (state?.active
-      ? "Waiting for game output..."
-      : "The game server is stopped. Select a mode and start it to see game logs.");
-  if ($("followLogs").checked) log.scrollTop = log.scrollHeight;
+    (result.status === "running" && formatLog(result.logs)) ||
+    (result.status === "not-created"
+      ? "The server is not installed yet. Press Start to install and run it."
+      : !state?.active
+      ? "The game server is stopped. Press Start to see its log."
+      : source === "events"
+        ? "No game events yet. Connections, kills, chat and rounds appear here."
+        : "Waiting for game output...");
+  log.scrollTop = log.scrollHeight;
+  logPaused = false;
+  renderLogState();
 }
 
 async function loadPlayers() {
   const result = await api("players");
-  players = result.players || [];
-  $("playersNote").textContent =
-    result.note ||
-    (result.source === "status"
-      ? "Basic player information from CS2 status. Team and Steam ID details require PanelBridge."
-      : "Player information is refreshed while this page is open.");
-  $("playerCount").textContent = players.length;
+  const next = result.players || [];
+  $("playersNote").textContent = !state?.active
+    ? ""
+    : result.note ||
+      (result.source === "status"
+        ? "Basic information from CS2 status. Team and Steam ID details need PanelBridge."
+        : "");
+  $("playerCount").textContent = next.length;
+  // Re-rendering replaces the row buttons, so skip it when nothing changed.
+  const signature = JSON.stringify([next, !!state?.active]);
+  if (signature === playersSignature) return;
+  playersSignature = signature;
+  players = next;
   renderPlayers();
 }
 
 function renderPlayers() {
-  const filter = $("playerSearch").value.toLowerCase();
-  const visible = players.filter((player) =>
-    player.name.toLowerCase().includes(filter),
-  );
-  $("playersBody").innerHTML = visible.length
-    ? visible
+  $("playersBody").innerHTML = players.length
+    ? players
         .map(
           (player) =>
-            `<tr><td><div class="player-name"><span class="player-avatar">${esc(player.name.charAt(0).toUpperCase())}</span><span>${esc(player.name)} ${player.bot ? '<span class="badge neutral">BOT</span>' : ""}</span></div></td><td><span class="badge ${player.team === 3 ? "violet" : player.team === 2 ? "amber" : "neutral"}">${esc(player.team_label)}</span></td><td>${player.ping != null ? `${player.ping} ms` : "-"}</td><td class="steam-id">${esc(player.steamid64 || "-")}</td><td><div class="row-actions"><button class="button small" data-action="player" data-kind="kick" data-userid="${player.userid}" data-name="${esc(player.name)}">Kick</button>${!player.bot ? `<button class="button small danger" data-action="player" data-kind="ban" data-userid="${player.userid}" data-name="${esc(player.name)}">Ban</button>` : ""}</div></td></tr>`,
+            `<tr><td><div class="player-name"><span class="player-avatar">${esc(player.name.charAt(0).toUpperCase())}</span><span><span>${esc(player.name)} ${player.bot ? '<span class="badge neutral">BOT</span>' : ""}</span>${player.steamid64 ? `<small class="steam-id">${esc(player.steamid64)}</small>` : ""}</span></div></td><td><span class="badge ${player.team === 3 ? "violet" : player.team === 2 ? "amber" : "neutral"}">${esc(player.team_label)}</span></td><td>${player.ping != null ? `${player.ping} ms` : "-"}</td><td><div class="row-actions"><button class="button small" data-action="player" data-kind="kick" data-userid="${player.userid}" data-name="${esc(player.name)}">Kick</button>${!player.bot ? `<button class="button small danger" data-action="player" data-kind="ban" data-userid="${player.userid}" data-name="${esc(player.name)}">Ban</button>` : ""}</div></td></tr>`,
         )
         .join("")
-    : `<tr><td colspan="5" class="empty">${filter ? "No players match your search." : "No connected players."}</td></tr>`;
+    : `<tr><td colspan="4" class="empty">${state?.active ? "No connected players." : "The server is stopped."}</td></tr>`;
   lockButtons();
 }
 
@@ -688,15 +824,6 @@ function renderVersions() {
 async function loadActivity() {
   const result = await api("audit");
   const items = (result.items || []).slice().reverse();
-  $("recentActivity").innerHTML = items.length
-    ? items
-        .slice(0, 3)
-        .map(
-          (item) =>
-            `<div class="activity-row"><span class="activity-marker">${icon("activity")}</span><span>${esc(item.action)}${item.target ? " · " + esc(state.mode_meta[item.target]?.label || item.target) : ""}</span><span class="badge ${["ok", "succeeded"].includes(item.result) ? "green" : "amber"}">${esc(item.result)}</span><span class="activity-time">${timeLabel(item.time)}</span></div>`,
-        )
-        .join("")
-    : '<p class="empty">No activity yet. Server actions will appear here.</p>';
   $("auditBody").innerHTML = items.length
     ? items
         .map(
@@ -707,10 +834,22 @@ async function loadActivity() {
     : '<tr><td colspan="5" class="empty">No actions recorded today.</td></tr>';
 }
 
+async function loadContainerLogs(force = false) {
+  const box = $("containerLogs");
+  if (!force && !atEnd(box)) return;
+  const result = await api(
+    `logs/stream?source=${encodeURIComponent($("containerLogSource").value)}&tail=400`,
+  );
+  box.textContent = result.logs || "No output from this container yet.";
+  box.scrollTop = box.scrollHeight;
+}
+
 async function loadMaintenance() {
   const results = await Promise.allSettled([
     api("maintenance/backups"),
     api("maintenance/jobs"),
+    loadContainerLogs(),
+    loadActivity(),
   ]);
   for (let index = 0; index < results.length; index++) {
     const result = results[index];
@@ -725,7 +864,7 @@ async function loadMaintenance() {
             )
             .join("")
         : '<p class="empty">No configuration backups yet.</p>';
-    } else {
+    } else if (index === 1) {
       const jobs = result.value.jobs || [];
       $("jobsList").innerHTML = jobs.length
         ? jobs
@@ -786,6 +925,7 @@ async function refresh() {
     const previousMode = activeMode();
     state = await api("status");
     if (previousMode !== activeMode() || !state.active) liveMap = null;
+    if (!state.maintenance_active) maintenanceJob = null;
     connected = true;
     if (!selectedMode || !state.modes[selectedMode])
       loadDraft(
@@ -798,23 +938,16 @@ async function refresh() {
       "Updated " + timeLabel(new Date().toISOString());
     $("syncState").className = "sync-state";
     const work = [];
-    if (page === "dashboard" || previousMode !== activeMode())
+    if (state.maintenance_active) work.push(loadMaintenanceProgress());
+    if (overviewOpen || previousMode !== activeMode())
       work.push(api("metrics").then((result) => renderMetrics(result.stats)));
     if (Date.now() - lastHealth > 20000 || previousMode !== activeMode()) {
       work.push(api("health").then(renderHealth));
       lastHealth = Date.now();
     }
-    if (page === "dashboard" || page === "console") work.push(loadCommands());
-    if (page === "console") work.push(loadLogs());
-    if (page === "players") work.push(loadPlayers());
+    if (page === "dashboard")
+      work.push(loadCommands(), loadPlayers(), loadLogs());
     if (page === "maintenance") work.push(loadMaintenance());
-    if (
-      page === "activity" ||
-      (page === "dashboard" && Date.now() - lastActivity > 20000)
-    ) {
-      work.push(loadActivity());
-      lastActivity = Date.now();
-    }
     const results = await Promise.allSettled(work);
     const failure = results.find((result) => result.status === "rejected");
     if (failure) {
@@ -842,7 +975,11 @@ async function refresh() {
 }
 
 function navigate() {
-  const next = location.hash.slice(1) || "dashboard";
+  const requested = location.hash.slice(1) || "dashboard";
+  if (Object.hasOwn(pageAliases, requested)) {
+    history.replaceState(null, "", "#" + pageAliases[requested]);
+  }
+  const next = pageAliases[requested] || requested;
   page = Object.hasOwn(names, next) ? next : "dashboard";
   document
     .querySelectorAll(".page")
@@ -859,10 +996,8 @@ function navigate() {
   document.body.classList.remove("sidebar-open");
   if (state) {
     const loader = {
-      console: () => Promise.all([loadCommands(), loadLogs()]),
-      players: loadPlayers,
+      dashboard: () => Promise.all([loadCommands(), loadPlayers(), loadLogs()]),
       maintenance: loadMaintenance,
-      activity: loadActivity,
     };
     if (loader[page])
       loader[page]().catch((error) => message(error.message, "error"));
@@ -881,11 +1016,18 @@ document.addEventListener("click", async (event) => {
       document.body.classList.remove("sidebar-open");
     else if (action === "refresh") {
       lastHealth = 0;
-      lastActivity = 0;
       await refresh();
     } else if (["start", "stop", "restart"].includes(action))
       await serverAction(action);
-    else if (["copy-endpoint", "copy-connect"].includes(action))
+    else if (action === "toggle-info") {
+      overviewOpen = !overviewOpen;
+      try {
+        localStorage.setItem(OVERVIEW_KEY, overviewOpen ? "1" : "0");
+      } catch {}
+      renderOverview();
+      if (overviewOpen && state)
+        renderMetrics((await api("metrics")).stats);
+    } else if (["copy-endpoint", "copy-connect"].includes(action))
       await copyConnection();
     else if (action === "select-mode") await selectMode(button.dataset.mode);
     else if (action === "configure-mode") {
@@ -903,35 +1045,7 @@ document.addEventListener("click", async (event) => {
       loadDraft(selectedMode);
       $("validationMsg").textContent = "";
     } else if (action === "start-mode") await saveMode(true);
-    else if (action === "command") {
-      if (button.dataset.hint) {
-        location.hash = "console";
-        $("consoleInput").value = button.dataset.command + " ";
-        $("consoleInput").focus();
-        message("Complete the command argument: " + button.dataset.hint);
-      } else
-        await sendCommand(
-          button.dataset.command,
-          button.dataset.confirm === "1",
-        );
-    } else if (action === "map") {
-      if (
-        await confirmAction(
-          "Switch map?",
-          `Load ${mapLabel(button.dataset.map)}? Players will be disconnected during the map change.`,
-          "Switch map",
-        )
-      )
-        await run(
-          () =>
-            api("server/map", {
-              method: "POST",
-              body: { map: button.dataset.map },
-            }),
-          "Map change requested.",
-        );
-      lastHealth = 0;
-    } else if (action === "player") {
+    else if (action === "player") {
       const ban = button.dataset.kind === "ban";
       if (
         await confirmAction(
@@ -950,6 +1064,7 @@ document.addEventListener("click", async (event) => {
         );
     } else if (action === "refresh-players") await loadPlayers();
     else if (action === "refresh-activity") await loadActivity();
+    else if (action === "refresh-container-logs") await loadContainerLogs(true);
     else if (action === "refresh-jobs") await loadMaintenance();
     else if (action === "view-job") await loadJob(button.dataset.job);
     else if (action === "maintenance") await maintenance(button.dataset.kind);
@@ -994,7 +1109,6 @@ document.addEventListener("input", (event) => {
     draft[event.target.dataset.field] = event.target.value;
     updateDraftFlag();
   }
-  if (event.target.id === "playerSearch") renderPlayers();
 });
 document.addEventListener("change", (event) => {
   const map = event.target.dataset.map;
@@ -1005,8 +1119,18 @@ document.addEventListener("change", (event) => {
     renderMapPool();
     updateDraftFlag();
   }
+  if (event.target.id === "commandPicker") pickCommand();
   if (event.target.id === "logSource")
-    loadLogs().catch((error) => message(error.message, "error"));
+    loadLogs(true).catch((error) => message(error.message, "error"));
+  if (event.target.id === "containerLogSource")
+    loadContainerLogs(true).catch((error) => message(error.message, "error"));
+});
+$("logs").addEventListener("scroll", () => {
+  const paused = !atEnd($("logs"));
+  if (paused === logPaused) return;
+  logPaused = paused;
+  renderLogState();
+  if (!paused) loadLogs().catch((error) => message(error.message, "error"));
 });
 $("modeForm").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -1058,6 +1182,7 @@ window.addEventListener("beforeunload", (event) => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refresh();
 });
+renderOverview();
 navigate();
 refresh();
 setInterval(refresh, 6000);
