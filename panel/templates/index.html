@@ -104,6 +104,9 @@
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5l3 2" />
       </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="M6 6l12 12M18 6 6 18" />
+      </symbol>
       <symbol id="i-info" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 11v6m0-9.5h.01" />
@@ -139,9 +142,6 @@
         <p class="nav-label">CONFIGURATION</p>
         <a class="nav-link" href="#modes"
           ><svg class="icon"><use href="#i-modes" /></svg>Game modes</a
-        >
-        <a class="nav-link" href="#settings"
-          ><svg class="icon"><use href="#i-settings" /></svg>Server settings</a
         >
         <p class="nav-label">MANAGEMENT</p>
         <a class="nav-link" href="#maintenance"
@@ -181,43 +181,42 @@
         </div>
       </header>
       <main>
-        <section class="server-banner" aria-label="Server status">
-          <div class="server-identity">
-            <span class="server-emblem"
-              ><svg class="icon"><use href="#i-server" /></svg
-            ></span>
-            <div>
-              <div class="title-line">
-                <h1 id="serverName">CS2 Dedicated Server</h1>
-                <span class="badge neutral" id="stateBadge">Connecting</span>
-              </div>
-              <div class="server-subtitle">
-                <span
-                  ><svg class="icon"><use href="#i-globe" /></svg
-                  ><span id="endpoint">-</span></span
-                ><span
-                  ><svg class="icon"><use href="#i-modes" /></svg
-                  ><span id="activeMode">No active mode</span></span
-                ><span
-                  ><svg class="icon"><use href="#i-map" /></svg
-                  ><span id="activeMap">-</span></span
-                >
-              </div>
-            </div>
-          </div>
-          <div class="server-controls">
-            <div class="connect-box" id="connectBox" hidden>
-              <span class="mini-label">CONNECT FROM CS2</span>
+        <div
+          class="message"
+          id="message"
+          role="status"
+          aria-live="polite"
+          title="Dismiss"
+          hidden
+        ></div>
+
+        <section
+          class="page dashboard-grid"
+          id="page-dashboard"
+          aria-label="Dashboard"
+        >
+          <article class="card control-card" aria-label="Server actions">
+            <div class="server-identity">
+              <span class="server-emblem"
+                ><svg class="icon"><use href="#i-server" /></svg
+              ></span>
               <div>
-                <code id="connectCommand">connect -</code
-                ><button
-                  class="icon-button"
-                  data-action="copy-connect"
-                  title="Copy connection command"
-                  aria-label="Copy connection command with the enabled join password"
-                >
-                  <svg class="icon"><use href="#i-copy" /></svg>
-                </button>
+                <div class="title-line">
+                  <h1 id="serverName">CS2 Dedicated Server</h1>
+                  <span class="badge neutral" id="stateBadge">Connecting</span>
+                </div>
+                <div class="server-subtitle">
+                  <span
+                    ><svg class="icon"><use href="#i-globe" /></svg
+                    ><span id="endpoint">-</span></span
+                  ><span
+                    ><svg class="icon"><use href="#i-modes" /></svg
+                    ><span id="activeMode">No active mode</span></span
+                  ><span
+                    ><svg class="icon"><use href="#i-map" /></svg
+                    ><span id="activeMap">-</span></span
+                  >
+                </div>
               </div>
             </div>
             <div class="server-actions">
@@ -245,252 +244,153 @@
               ><button
                 class="button"
                 id="infoButton"
-                data-action="toggle-info"
-                aria-expanded="false"
-                aria-controls="serverOverview"
+                data-action="open-info"
+                aria-haspopup="dialog"
+                aria-controls="infoDialog"
               >
                 <svg class="icon"><use href="#i-info" /></svg>Info
               </button>
             </div>
-          </div>
-        </section>
-        <div
-          class="message"
-          id="message"
-          role="status"
-          aria-live="polite"
-          hidden
-        ></div>
-
-        <section
-          class="server-overview"
-          id="serverOverview"
-          aria-label="Server overview"
-          hidden
-        >
-          <div class="metric-grid">
-            <article class="card metric">
-              <div>
-                <p>CPU usage</p>
-                <strong id="cpuValue">-</strong
-                ><small id="cpuNote">Waiting for the server</small>
+            <button
+              class="connect-row"
+              id="connectBox"
+              data-action="copy-connect"
+              title="Copy connection command"
+              aria-label="Copy connection command with the enabled join password"
+              hidden
+            >
+              <code id="connectCommand">connect -</code
+              ><svg class="icon"><use href="#i-copy" /></svg>
+            </button>
+            <form class="access-form" id="accessForm">
+              <div class="access-label">
+                <label class="field-label" for="lobbyPassword"
+                  >Join password</label
+                ><span class="badge neutral" id="accessBadge">Public</span>
               </div>
-              <span class="metric-icon"
-                ><svg class="icon"><use href="#i-cpu" /></svg></span
-              ><svg
-                class="sparkline"
-                viewBox="0 0 200 32"
-                preserveAspectRatio="none"
-                aria-label="Recent CPU usage"
-              >
-                <polyline id="cpuLine" points="" />
-              </svg>
-            </article>
-            <article class="card metric">
-              <div>
-                <p>Memory usage</p>
-                <strong id="memoryValue">-</strong
-                ><small id="memoryNote">Waiting for the server</small>
-              </div>
-              <span class="metric-icon"
-                ><svg class="icon"><use href="#i-memory" /></svg></span
-              ><progress
-                id="memoryBar"
-                max="100"
-                value="0"
-                aria-label="Memory usage"
-              ></progress>
-            </article>
-            <article class="card metric">
-              <div>
-                <p>Game disk</p>
-                <strong id="diskValue">-</strong
-                ><small id="diskNote">Filesystem containing the game</small>
-              </div>
-              <span class="metric-icon"
-                ><svg class="icon"><use href="#i-disk" /></svg></span
-              ><progress
-                id="diskBar"
-                max="100"
-                value="0"
-                aria-label="Filesystem usage"
-              ></progress>
-            </article>
-          </div>
-          <div class="overview-grid">
-            <article class="card">
-              <div class="card-heading">
-                <h3>Server information</h3>
-                <svg class="icon muted"><use href="#i-server" /></svg>
-              </div>
-              <dl class="info-list">
-                <div>
-                  <dt>Status</dt>
-                  <dd id="infoStatus">-</dd>
-                </div>
-                <div>
-                  <dt>Uptime</dt>
-                  <dd id="uptime">-</dd>
-                </div>
-                <div>
-                  <dt>Connection address</dt>
-                  <dd>
-                    <button
-                      class="text-button mono"
-                      id="copyEndpoint"
-                      data-action="copy-endpoint"
-                      title="Copy CS2 connection command, including the enabled join password"
-                    >
-                      -
-                    </button>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Players</dt>
-                  <dd id="infoPlayers">-</dd>
-                </div>
-                <div>
-                  <dt>Lobby access</dt>
-                  <dd id="infoAccess">-</dd>
-                </div>
-                <div>
-                  <dt>Game container</dt>
-                  <dd class="mono" id="infoContainer">-</dd>
-                </div>
-              </dl>
-            </article>
-            <article class="card mode-overview">
-              <div class="card-heading">
-                <h3>Game mode</h3>
-                <a class="text-link" href="#modes"
-                  >Configure<svg class="icon"><use href="#i-arrow" /></svg
-                ></a>
-              </div>
-              <div class="mode-visual">
-                <span class="visual-lines"></span
-                ><span class="mode-monogram" id="modeMonogram"
-                  >CS<span>2</span></span
-                ><span class="mode-visual-tag" id="modeVisualTag"
-                  >YOUR DEDICATED SERVER</span
-                >
-              </div>
-              <div class="mode-overview-bottom">
-                <div>
-                  <h3 id="overviewMode">Choose your game</h3>
-                  <p id="overviewModeDetail">
-                    FaceIt competitive or Retakes practice.
-                  </p>
-                </div>
-                <span class="badge violet" id="formatBadge">2 modes</span>
-              </div>
-              <div class="mode-pills" id="dashboardModePills"></div>
-            </article>
-            <article class="card">
-              <div class="card-heading">
-                <h3>Plugin health</h3>
-                <span class="badge neutral" id="healthSummary">Waiting</span>
-              </div>
-              <div id="pluginHealth" class="plugin-list">
-                <p class="empty">Start the server to check its plugins.</p>
-              </div>
-              <p class="card-footnote">
-                Checks use the running server, including its RCON connection.
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <section class="page" id="page-dashboard" aria-label="Dashboard">
-          <div class="live-grid">
-            <article class="card players-card">
-              <div class="card-heading">
-                <h3>
-                  Players <span class="heading-count" id="playerCount">0</span>
-                </h3>
-                <button
-                  class="icon-button"
-                  data-action="refresh-players"
-                  title="Refresh players"
-                  aria-label="Refresh players"
-                >
-                  <svg class="icon"><use href="#i-refresh" /></svg>
-                </button>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Team</th>
-                      <th>Ping</th>
-                      <th class="align-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="playersBody">
-                    <tr>
-                      <td colspan="4" class="empty">No connected players.</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p id="playersNote" class="card-footnote"></p>
-            </article>
-            <article class="card console-card rcon-card">
-              <div class="card-heading">
-                <h3><span class="terminal-dot"></span>RCON console</h3>
-                <span class="badge violet" id="consoleTarget"
-                  >No active mode</span
-                >
-              </div>
-              <pre
-                class="terminal rcon-output"
-                id="commandOutput"
-                aria-live="polite"
-                tabindex="0"
-              >
-Pick a command or type one, then press Enter.</pre
-              >
-              <form class="console-form" id="consoleForm">
-                <select id="commandPicker" aria-label="Common commands">
-                  <option value="">Commands</option></select
-                ><span class="prompt-mark">&gt;</span
-                ><input
-                  id="consoleInput"
-                  maxlength="256"
-                  autocomplete="off"
-                  spellcheck="false"
-                  aria-label="RCON command"
-                  aria-describedby="consoleHint"
-                  placeholder="status"
+              <div class="access-row">
+                <input
+                  type="password"
+                  id="lobbyPassword"
+                  autocomplete="new-password"
+                  maxlength="64"
+                  placeholder="Empty · anyone can join"
+                  aria-describedby="passwordHint"
                 /><button
-                  class="button primary"
-                  id="consoleSend"
                   type="submit"
+                  class="button primary"
+                  id="accessApply"
                   disabled
                 >
-                  Send<svg class="icon"><use href="#i-arrow" /></svg>
+                  Apply
                 </button>
-              </form>
-              <p class="console-hint" id="consoleHint">
-                Live changes last until the next start or restart.
+              </div>
+              <p class="hint" id="passwordHint">
+                Empty is public, filled is private. Applies live without a
+                restart.
               </p>
-            </article>
-          </div>
+            </form>
+          </article>
+          <article class="card players-card">
+            <div class="card-heading">
+              <h3>
+                Players <span class="heading-count" id="playerCount">0</span>
+              </h3>
+              <button
+                class="icon-button"
+                data-action="refresh-players"
+                title="Refresh players"
+                aria-label="Refresh players"
+              >
+                <svg class="icon"><use href="#i-refresh" /></svg>
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Team</th>
+                    <th>Ping</th>
+                    <th class="align-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="playersBody">
+                  <tr>
+                    <td colspan="4" class="empty">No connected players.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p id="playersNote" class="card-footnote"></p>
+          </article>
           <article class="card console-card log-card">
             <div class="card-heading">
               <h3><span class="terminal-dot"></span>Server log</h3>
               <div class="inline-controls">
-                <span class="log-state" id="logState">Live</span
-                ><select id="logSource" aria-label="Log view">
+                <select id="logSource" aria-label="Log view">
                   <option value="game">All output</option>
                   <option value="events">Game events</option>
-                  <option value="plugin">Plugins</option>
-                </select>
+                  <option value="plugin">Plugins</option></select
+                ><button
+                  class="icon-button"
+                  data-action="open-logs"
+                  title="Open full log"
+                  aria-label="Open full log"
+                  aria-haspopup="dialog"
+                >
+                  <svg class="icon"><use href="#i-arrow" /></svg>
+                </button>
               </div>
             </div>
-            <pre class="terminal" id="logs" tabindex="0">
+            <pre
+              class="terminal log-preview"
+              id="logs"
+              data-action="open-logs"
+              title="Open full log"
+            >
 Waiting for server output...</pre
             >
+          </article>
+          <article class="card console-card rcon-card">
+            <div class="card-heading">
+              <h3><span class="terminal-dot"></span>RCON console</h3>
+              <span class="badge violet" id="consoleTarget"
+                >No active mode</span
+              >
+            </div>
+            <pre
+              class="terminal rcon-output"
+              id="commandOutput"
+              aria-live="polite"
+              tabindex="0"
+            >
+Pick a command or type one, then press Enter.</pre
+            >
+            <form class="console-form" id="consoleForm">
+              <select id="commandPicker" aria-label="Common commands">
+                <option value="">Commands</option></select
+              ><span class="prompt-mark">&gt;</span
+              ><input
+                id="consoleInput"
+                maxlength="256"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="RCON command"
+                aria-describedby="consoleHint"
+                placeholder="status"
+              /><button
+                class="button primary"
+                id="consoleSend"
+                type="submit"
+                disabled
+              >
+                Send<svg class="icon"><use href="#i-arrow" /></svg>
+              </button>
+            </form>
+            <p class="console-hint" id="consoleHint">
+              Live changes last until the next start or restart.
+            </p>
           </article>
         </section>
 
@@ -504,171 +404,81 @@ Waiting for server output...</pre
             <div>
               <p class="eyebrow">CONFIGURATION</p>
               <h2 id="modesTitle">Game modes</h2>
-              <p>One server. Choose the game you want to play.</p>
+              <p>
+                Pick a mode and customise it before launch. Live tweaks belong
+                in the RCON console.
+              </p>
             </div>
-            <span class="badge violet">2 available</span>
           </div>
-          <div class="mode-selector" id="modeSelector"></div>
           <article class="card mode-editor">
-            <div class="card-heading">
-              <div>
-                <h3 id="setupTitle">Mode configuration</h3>
-                <p id="modePolicy" class="hint"></p>
-              </div>
-              <span class="badge amber" id="unsavedFlag" hidden
-                >Unsaved changes</span
-              >
-            </div>
-            <form id="modeForm">
-              <div id="commonForm" class="form-grid"></div>
-              <div class="form-block" id="formatBlock">
-                <div class="block-heading">
-                  <h4>Match format</h4>
-                  <span class="hint">Applies on restart</span>
-                </div>
-                <div class="format-options" id="formatRow"></div>
-              </div>
-              <div class="form-block">
-                <div class="block-heading">
-                  <h4>Map pool</h4>
-                  <span class="badge neutral" id="poolCount">0 maps</span>
-                </div>
-                <div class="map-grid" id="mapGrid"></div>
-                <p class="hint">
-                  Select the maps you want to play. Use the flag to choose the
-                  starting map.
-                </p>
-              </div>
-              <p class="validation" id="validationMsg" role="status"></p>
-              <div class="editor-footer">
-                <span class="hint" id="saveHint"
-                  >Settings are saved separately for each mode.</span
-                >
-                <div>
-                  <button
-                    class="button"
-                    data-action="reset-draft"
-                    type="button"
-                  >
-                    Discard changes</button
-                  ><button
-                    class="button primary"
-                    type="submit"
-                    id="saveModeButton"
-                  >
-                    Save settings</button
-                  ><button
-                    class="button success"
-                    data-action="start-mode"
-                    id="startModeButton"
-                    type="button"
-                  >
-                    <svg class="icon"><use href="#i-play" /></svg>Save &amp;
-                    start
-                  </button>
-                </div>
-              </div>
-            </form>
-          </article>
-        </section>
-
-        <section
-          class="page"
-          id="page-settings"
-          hidden
-          aria-labelledby="settingsTitle"
-        >
-          <div class="page-heading">
-            <div>
-              <p class="eyebrow">CONFIGURATION</p>
-              <h2 id="settingsTitle">Server settings</h2>
-              <p>Control who can join your lobby.</p>
-            </div>
-          </div>
-          <div class="settings-grid">
-            <article class="card">
+            <div
+              class="mode-tabs"
+              id="modeSelector"
+              role="tablist"
+              aria-label="Game modes"
+            ></div>
+            <div class="mode-panel" id="modePanel" role="tabpanel">
               <div class="card-heading">
-                <h3>Lobby access</h3>
-                <svg class="icon muted"><use href="#i-shield" /></svg>
-              </div>
-              <form id="accessForm">
-                <p class="hint">
-                  A private lobby requires a password to connect.
-                </p>
-                <div class="access-options">
-                  <label
-                    ><input
-                      type="radio"
-                      name="visibility"
-                      value="public"
-                      checked
-                    /><span
-                      ><strong>Public</strong
-                      ><small>Anyone can connect</small></span
-                    ></label
-                  ><label
-                    ><input
-                      type="radio"
-                      name="visibility"
-                      value="private"
-                    /><span
-                      ><strong>Private</strong
-                      ><small>Password protected</small></span
-                    ></label
-                  >
+                <div>
+                  <h3 id="setupTitle">Mode configuration</h3>
+                  <p id="modePolicy" class="hint"></p>
                 </div>
-                <label class="field-label" for="lobbyPassword"
-                  >Lobby password</label
-                ><input
-                  type="password"
-                  id="lobbyPassword"
-                  autocomplete="new-password"
-                  maxlength="64"
-                  placeholder="Enter a new password"
-                />
-                <p class="hint" id="passwordHint">
-                  Passwords are never displayed in the panel.
-                </p>
-                <div class="form-actions">
-                  <button type="submit" class="button primary">
-                    Save access settings
-                  </button>
+                <span class="badge amber" id="unsavedFlag" hidden
+                  >Unsaved changes</span
+                >
+              </div>
+              <form id="modeForm">
+                <div id="commonForm" class="form-grid"></div>
+                <div class="form-block" id="formatBlock">
+                  <div class="block-heading">
+                    <h4>Match format</h4>
+                    <span class="hint">Requires a restart</span>
+                  </div>
+                  <div class="format-options" id="formatRow"></div>
+                </div>
+                <div class="form-block">
+                  <div class="block-heading">
+                    <h4>Map pool</h4>
+                    <span class="badge neutral" id="poolCount">0 maps</span>
+                  </div>
+                  <div class="map-grid" id="mapGrid"></div>
+                  <p class="hint">
+                    Select the maps you want to play. Use the flag to choose the
+                    starting map.
+                  </p>
+                </div>
+                <p class="validation" id="validationMsg" role="status"></p>
+                <div class="editor-footer">
+                  <span class="hint" id="saveHint"
+                    >Settings are saved separately for each mode.</span
+                  >
+                  <div>
+                    <button
+                      class="button"
+                      data-action="reset-draft"
+                      type="button"
+                    >
+                      Discard changes</button
+                    ><button
+                      class="button primary"
+                      type="submit"
+                      id="saveModeButton"
+                    >
+                      Save settings</button
+                    ><button
+                      class="button success"
+                      data-action="start-mode"
+                      id="startModeButton"
+                      type="button"
+                    >
+                      <svg class="icon"><use href="#i-play" /></svg
+                      ><span id="startModeLabel">Save &amp; start</span>
+                    </button>
+                  </div>
                 </div>
               </form>
-            </article>
-            <article class="card">
-              <div class="card-heading">
-                <h3>Server details</h3>
-                <svg class="icon muted"><use href="#i-globe" /></svg>
-              </div>
-              <dl class="info-list">
-                <div>
-                  <dt>Connection address</dt>
-                  <dd id="settingsEndpoint">-</dd>
-                </div>
-                <div>
-                  <dt>Server port</dt>
-                  <dd id="settingsPort">-</dd>
-                </div>
-                <div>
-                  <dt>Active preset</dt>
-                  <dd id="settingsMode">-</dd>
-                </div>
-                <div>
-                  <dt>Management</dt>
-                  <dd>Docker Compose</dd>
-                </div>
-              </dl>
-              <div class="info-callout">
-                <svg class="icon"><use href="#i-settings" /></svg>
-                <p>
-                  Change the server name and map pool in
-                  <a href="#modes">Game modes</a>. Network ports, Steam token
-                  and owner credentials are configured in <code>.env</code>.
-                </p>
-              </div>
-            </article>
-          </div>
+            </div>
+          </article>
         </section>
 
         <section
@@ -857,6 +667,168 @@ Loading container logs...</pre
         </footer>
       </main>
     </div>
+    <dialog
+      class="wide-dialog"
+      id="infoDialog"
+      aria-labelledby="infoTitle"
+    >
+      <div class="dialog-heading">
+        <h2 id="infoTitle">Server overview</h2>
+        <button
+          class="icon-button"
+          data-action="close-dialog"
+          aria-label="Close server overview"
+        >
+          <svg class="icon"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="metric-grid">
+        <article class="card metric">
+          <div>
+            <p>CPU usage</p>
+            <strong id="cpuValue">-</strong
+            ><small id="cpuNote">Waiting for the server</small>
+          </div>
+          <span class="metric-icon"
+            ><svg class="icon"><use href="#i-cpu" /></svg></span
+          ><svg
+            class="sparkline"
+            viewBox="0 0 200 32"
+            preserveAspectRatio="none"
+            aria-label="Recent CPU usage"
+          >
+            <polyline id="cpuLine" points="" />
+          </svg>
+        </article>
+        <article class="card metric">
+          <div>
+            <p>Memory usage</p>
+            <strong id="memoryValue">-</strong
+            ><small id="memoryNote">Waiting for the server</small>
+          </div>
+          <span class="metric-icon"
+            ><svg class="icon"><use href="#i-memory" /></svg></span
+          ><progress
+            id="memoryBar"
+            max="100"
+            value="0"
+            aria-label="Memory usage"
+          ></progress>
+        </article>
+        <article class="card metric">
+          <div>
+            <p>Game disk</p>
+            <strong id="diskValue">-</strong
+            ><small id="diskNote">Filesystem containing the game</small>
+          </div>
+          <span class="metric-icon"
+            ><svg class="icon"><use href="#i-disk" /></svg></span
+          ><progress
+            id="diskBar"
+            max="100"
+            value="0"
+            aria-label="Filesystem usage"
+          ></progress>
+        </article>
+      </div>
+      <div class="overview-grid">
+        <article class="card">
+          <div class="card-heading">
+            <h3>Server information</h3>
+            <svg class="icon muted"><use href="#i-server" /></svg>
+          </div>
+          <dl class="info-list">
+            <div>
+              <dt>Status</dt>
+              <dd id="infoStatus">-</dd>
+            </div>
+            <div>
+              <dt>Uptime</dt>
+              <dd id="uptime">-</dd>
+            </div>
+            <div>
+              <dt>Connection address</dt>
+              <dd>
+                <button
+                  class="text-button mono"
+                  id="copyEndpoint"
+                  data-action="copy-endpoint"
+                  title="Copy CS2 connection command, including the enabled join password"
+                >
+                  -
+                </button>
+              </dd>
+            </div>
+            <div>
+              <dt>Players</dt>
+              <dd id="infoPlayers">-</dd>
+            </div>
+            <div>
+              <dt>Lobby access</dt>
+              <dd id="infoAccess">-</dd>
+            </div>
+            <div>
+              <dt>Game container</dt>
+              <dd class="mono" id="infoContainer">-</dd>
+            </div>
+          </dl>
+        </article>
+        <article class="card mode-overview">
+          <div class="card-heading">
+            <h3>Game mode</h3>
+            <a class="text-link" href="#modes"
+              >Configure<svg class="icon"><use href="#i-arrow" /></svg
+            ></a>
+          </div>
+          <div class="mode-visual">
+            <span class="visual-lines"></span
+            ><span class="mode-monogram" id="modeMonogram"
+              >CS<span>2</span></span
+            ><span class="mode-visual-tag" id="modeVisualTag"
+              >YOUR DEDICATED SERVER</span
+            >
+          </div>
+          <div class="mode-overview-bottom">
+            <div>
+              <h3 id="overviewMode">Choose your game</h3>
+              <p id="overviewModeDetail">
+                FaceIt competitive or Retakes practice.
+              </p>
+            </div>
+            <span class="badge violet" id="formatBadge">2 modes</span>
+          </div>
+          <div class="mode-pills" id="dashboardModePills"></div>
+        </article>
+        <article class="card">
+          <div class="card-heading">
+            <h3>Plugin health</h3>
+            <span class="badge neutral" id="healthSummary">Waiting</span>
+          </div>
+          <div id="pluginHealth" class="plugin-list">
+            <p class="empty">Start the server to check its plugins.</p>
+          </div>
+          <p class="card-footnote">
+            Checks use the running server, including its RCON connection.
+          </p>
+        </article>
+      </div>
+    </dialog>
+    <dialog class="wide-dialog" id="logDialog" aria-labelledby="logTitle">
+      <div class="dialog-heading">
+        <h2 id="logTitle"><span class="terminal-dot"></span>Server log</h2>
+        <div class="inline-controls">
+          <span class="log-state" id="logState">Live</span
+          ><button
+            class="icon-button"
+            data-action="close-dialog"
+            aria-label="Close server log"
+          >
+            <svg class="icon"><use href="#i-close" /></svg>
+          </button>
+        </div>
+      </div>
+      <pre class="terminal log-full" id="logsFull" tabindex="0"></pre>
+    </dialog>
     <dialog id="confirmDialog" aria-labelledby="confirmTitle">
       <form method="dialog">
         <span class="dialog-symbol"
@@ -866,6 +838,7 @@ Loading container logs...</pre
         <p id="confirmDetail"></p>
         <div class="dialog-actions">
           <button class="button" value="cancel">Cancel</button
+          ><button class="button" id="confirmAlt" value="alt" hidden></button
           ><button class="button primary" id="confirmAccept" value="confirm">
             Continue
           </button>

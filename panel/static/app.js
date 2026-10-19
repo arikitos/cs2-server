@@ -14,13 +14,13 @@ const icon = (name) =>
 const names = {
   dashboard: "Dashboard",
   modes: "Game modes",
-  settings: "Server settings",
   maintenance: "Maintenance",
 };
-// Console and Players moved into the dashboard, Activity into Maintenance.
+// Console, Players and lobby access moved into the dashboard, Activity into Maintenance.
 const pageAliases = {
   console: "dashboard",
   players: "dashboard",
+  settings: "dashboard",
   activity: "maintenance",
 };
 const jobLabels = {
@@ -54,7 +54,8 @@ const timeLabel = (iso) =>
     : "-";
 const dateLabel = (iso) => (iso ? new Date(iso).toLocaleString() : "-");
 const CONSOLE_HINT = "Live changes last until the next start or restart.";
-const OVERVIEW_KEY = "cs2-panel-overview-open";
+// Stands in for a stored join password, which the status API never returns.
+const PASSWORD_MASK = "•".repeat(8);
 const DOCKER_TIME_RE = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.\d+)?Z ?/;
 const GAME_EVENT_PREFIX_RE = /^L \d\d\/\d\d\/\d{4} - \d\d:\d\d:\d\d: /;
 let state = null;
@@ -76,10 +77,7 @@ const cpuHistory = [];
 let commandCatalog = [];
 let catalogSignature = "";
 const consoleEntries = [];
-let overviewOpen = false;
-try {
-  overviewOpen = localStorage.getItem(OVERVIEW_KEY) === "1";
-} catch {}
+let messageTimer = null;
 
 async function api(path, { method = "GET", body, ...options } = {}) {
   const mutation = method !== "GET";
@@ -109,10 +107,14 @@ async function api(path, { method = "GET", body, ...options } = {}) {
   return result;
 }
 
+// Messages float above the layout so the dashboard grid never shifts.
 function message(text, type = "info") {
+  clearTimeout(messageTimer);
   $("message").textContent = text;
   $("message").dataset.type = type;
   $("message").hidden = !text;
+  if (text && type === "success")
+    messageTimer = setTimeout(() => ($("message").hidden = true), 5000);
 }
 
 function dirty() {
@@ -150,20 +152,25 @@ function atEnd(element) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 32;
 }
 
-async function confirmAction(title, detail, accept = "Continue") {
+// Resolves to "confirm", "alt" (only when an alternative label is given) or "cancel".
+async function chooseAction(title, detail, accept = "Continue", alternative = "") {
   const dialog = $("confirmDialog");
   $("confirmTitle").textContent = title;
   $("confirmDetail").textContent = detail;
   $("confirmAccept").textContent = accept;
+  $("confirmAlt").textContent = alternative;
+  $("confirmAlt").hidden = !alternative;
   dialog.returnValue = "cancel";
   dialog.showModal();
   return new Promise((resolve) =>
-    dialog.addEventListener(
-      "close",
-      () => resolve(dialog.returnValue === "confirm"),
-      { once: true },
-    ),
+    dialog.addEventListener("close", () => resolve(dialog.returnValue), {
+      once: true,
+    }),
   );
+}
+
+async function confirmAction(title, detail, accept = "Continue") {
+  return (await chooseAction(title, detail, accept)) === "confirm";
 }
 
 function lockButtons() {
@@ -171,14 +178,14 @@ function lockButtons() {
   const installed = state?.installation?.ready === true;
   document
     .querySelectorAll(
-      "button[data-action]:not(.icon-button):not(.sidebar-shade), #saveModeButton, #consoleSend, #accessForm button",
+      "button[data-action]:not(.icon-button):not(.sidebar-shade), #saveModeButton, #consoleSend",
     )
     .forEach((button) => {
       const harmless = [
         "refresh",
         "menu",
         "close-menu",
-        "toggle-info",
+        "open-info",
         "copy-connect",
         "copy-endpoint",
         "refresh-activity",
@@ -207,6 +214,13 @@ function lockButtons() {
   $("stopButton").disabled = !ready || !state?.active;
   $("consoleSend").disabled = !ready || !state?.active;
   $("commandPicker").disabled = !state?.active;
+  $("accessApply").disabled = !ready || !accessChanged();
+  // Launching restarts a running server, so name exactly what the button does.
+  $("startModeLabel").textContent = !state?.active
+    ? "Save & start"
+    : selectedMode === activeMode()
+      ? "Save & restart"
+      : "Save & switch";
 }
 
 async function run(operation, success) {
@@ -266,10 +280,8 @@ async function copyConnection() {
   await copy(result.command, true);
 }
 
-function renderOverview() {
-  $("serverOverview").hidden = !overviewOpen;
-  $("infoButton").setAttribute("aria-expanded", String(overviewOpen));
-  $("infoButton").classList.toggle("active", overviewOpen);
+function overviewOpen() {
+  return $("infoDialog").open;
 }
 
 function renderStatus() {
@@ -336,9 +348,6 @@ function renderStatus() {
   $("infoAccess").textContent =
     state.visibility === "private" ? "Private · password protected" : "Public";
   $("consoleTarget").textContent = label;
-  $("settingsEndpoint").textContent = endpoint();
-  $("settingsPort").textContent = state.endpoint.port;
-  $("settingsMode").textContent = label;
   $("overviewMode").textContent = running ? label : "Ready for your next game";
   $("overviewModeDetail").textContent = running
     ? activeMeta().implementation
@@ -382,7 +391,6 @@ function renderStatus() {
   $("installServerButton").textContent = installation.ready
     ? "Repair installation"
     : "Install server";
-  renderOverview();
   updateUptime();
   lockButtons();
 }
@@ -507,9 +515,10 @@ function renderModeEditor() {
   $("modeSelector").innerHTML = state.mode_order
     .map(
       (id) =>
-        `<button class="mode-choice ${id === selectedMode ? "selected" : ""}" data-action="select-mode" data-mode="${esc(id)}"><span>${icon(id === "faceit" ? "shield" : "modes")}</span><span><strong>${esc(state.mode_meta[id].label)}</strong><small>${esc(state.mode_meta[id].implementation)}</small></span>${id === activeMode() ? '<span class="badge green">Active</span>' : ""}</button>`,
+        `<button type="button" class="mode-tab ${id === selectedMode ? "selected" : ""}" role="tab" id="mode-tab-${esc(id)}" aria-selected="${id === selectedMode}" aria-controls="modePanel" data-action="select-mode" data-mode="${esc(id)}"><span class="mode-tab-icon">${icon(id === "faceit" ? "shield" : "modes")}</span><span class="mode-tab-text"><strong>${esc(state.mode_meta[id].label)}</strong><small>${esc(state.mode_meta[id].implementation)}</small></span>${id === activeMode() ? '<span class="badge green">Running</span>' : ""}</button>`,
     )
     .join("");
+  $("modePanel").setAttribute("aria-labelledby", "mode-tab-" + selectedMode);
   $("setupTitle").textContent = `${meta.label} configuration`;
   $("modePolicy").textContent = meta.panel?.note || "";
   $("commonForm").innerHTML = controls.includes("identity")
@@ -541,10 +550,10 @@ function renderMapPool() {
 
 function updateDraftFlag() {
   $("unsavedFlag").hidden = !dirty();
-  const changedFormat = draft.format !== savedDraft.format;
-  $("saveHint").textContent = changedFormat
-    ? "Changing the format requires a server restart."
-    : "Saved settings apply on the next start or restart.";
+  $("saveHint").textContent =
+    selectedMode === activeMode()
+      ? "This mode is running. Saving asks before restarting the server."
+      : "Saved settings apply when this mode starts.";
 }
 
 async function saveMode(start = false) {
@@ -553,7 +562,17 @@ async function saveMode(start = false) {
     $("validationMsg").textContent = "Select at least one map.";
     return;
   }
-  if (
+  // Saved settings only reach a running mode through a restart; never do that silently.
+  if (!start && dirty() && state.active && selectedMode === activeMode()) {
+    const choice = await chooseAction(
+      "Restart to apply changes?",
+      `${selectedMeta().label} is running. Saved settings take effect after a restart, which disconnects connected players.\n\nSave only keeps the server running; the changes apply on the next start or restart.`,
+      "Save & restart",
+      "Save only",
+    );
+    if (choice === "cancel") return;
+    if (choice === "confirm") start = true;
+  } else if (
     start &&
     state.active &&
     !(await confirmAction(
@@ -745,14 +764,11 @@ function renderLogState() {
 }
 
 async function loadLogs(force = false) {
-  // Scrolling up pauses updates so the lines being read do not move.
-  if (logPaused && !force) return;
   const source = $("logSource").value;
   const result = await api(
     `logs/stream?source=${encodeURIComponent(source)}&tail=${source === "game" ? 300 : 1000}`,
   );
-  const log = $("logs");
-  log.textContent =
+  const text =
     (result.status === "running" && formatLog(result.logs)) ||
     (result.status === "not-created"
       ? "The server is not installed yet. Press Start to install and run it."
@@ -761,9 +777,27 @@ async function loadLogs(force = false) {
       : source === "events"
         ? "No game events yet. Connections, kills, chat and rounds appear here."
         : "Waiting for game output...");
-  log.scrollTop = log.scrollHeight;
+  // The dashboard preview always follows the newest lines.
+  const preview = $("logs");
+  preview.textContent = text;
+  preview.scrollTop = preview.scrollHeight;
+  // Scrolling up in the full log pauses it so the lines being read do not move.
+  if (logPaused && !force) return;
+  const full = $("logsFull");
+  full.textContent = text;
+  full.scrollTop = full.scrollHeight;
   logPaused = false;
   renderLogState();
+}
+
+function openLogs() {
+  const full = $("logsFull");
+  full.textContent = $("logs").textContent;
+  logPaused = false;
+  renderLogState();
+  $("logDialog").showModal();
+  full.scrollTop = full.scrollHeight;
+  full.focus({ preventScroll: true });
 }
 
 async function loadPlayers() {
@@ -796,14 +830,50 @@ function renderPlayers() {
   lockButtons();
 }
 
+// The password field is the access switch: empty means public, filled means private.
+function accessChanged() {
+  const input = $("lobbyPassword");
+  return input.value !== (input.dataset.saved ?? "");
+}
+
 function renderAccess() {
-  if (document.activeElement?.closest("#accessForm")) return;
-  document
-    .querySelectorAll('input[name="visibility"]')
-    .forEach((input) => (input.checked = input.value === state.visibility));
-  $("passwordHint").textContent = state.password.has_password
-    ? "A password is stored. Leave blank to keep it."
-    : "Set a password before switching to private access.";
+  const input = $("lobbyPassword");
+  const value = state.visibility === "private" ? PASSWORD_MASK : "";
+  // Never overwrite a password the owner is still typing.
+  if (!accessChanged() || input.dataset.saved === undefined) input.value = value;
+  input.dataset.saved = value;
+  const visibility = (accessChanged() ? input.value : value) ? "private" : "public";
+  $("accessBadge").textContent =
+    (visibility === "private" ? "Private" : "Public") +
+    (accessChanged() ? " · not applied" : "");
+  $("accessBadge").className =
+    "badge " +
+    (accessChanged() ? "amber" : visibility === "private" ? "violet" : "neutral");
+  lockButtons();
+}
+
+async function applyAccess() {
+  const input = $("lobbyPassword");
+  const password = input.value;
+  if (!accessChanged()) return;
+  if (password.includes("•")) {
+    message("Type the complete new password, or clear the field.", "error");
+    return;
+  }
+  await run(
+    async () => {
+      await api("server/visibility", {
+        method: "PUT",
+        body: password
+          ? { visibility: "private", password }
+          : { visibility: "public" },
+      });
+      input.value = input.dataset.saved = password ? PASSWORD_MASK : "";
+    },
+    password
+      ? "Join password set. The server is private."
+      : "Join password removed. The server is public.",
+  );
 }
 
 function renderVersions() {
@@ -939,7 +1009,7 @@ async function refresh() {
     $("syncState").className = "sync-state";
     const work = [];
     if (state.maintenance_active) work.push(loadMaintenanceProgress());
-    if (overviewOpen || previousMode !== activeMode())
+    if (overviewOpen() || previousMode !== activeMode())
       work.push(api("metrics").then((result) => renderMetrics(result.stats)));
     if (Date.now() - lastHealth > 20000 || previousMode !== activeMode()) {
       work.push(api("health").then(renderHealth));
@@ -990,6 +1060,8 @@ function navigate() {
     if (active) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
+  ["infoDialog", "logDialog"].forEach((id) => $(id).open && $(id).close());
+  document.body.dataset.page = page;
   window.scrollTo({ top: 0, behavior: "instant" });
   $("pageLabel").textContent = names[page];
   document.title = names[page] + " | CS2 Control";
@@ -1002,7 +1074,6 @@ function navigate() {
     if (loader[page])
       loader[page]().catch((error) => message(error.message, "error"));
     if (page === "modes") renderModeEditor();
-    if (page === "settings") renderAccess();
   }
 }
 
@@ -1019,18 +1090,16 @@ document.addEventListener("click", async (event) => {
       await refresh();
     } else if (["start", "stop", "restart"].includes(action))
       await serverAction(action);
-    else if (action === "toggle-info") {
-      overviewOpen = !overviewOpen;
-      try {
-        localStorage.setItem(OVERVIEW_KEY, overviewOpen ? "1" : "0");
-      } catch {}
-      renderOverview();
-      if (overviewOpen && state)
-        renderMetrics((await api("metrics")).stats);
-    } else if (["copy-endpoint", "copy-connect"].includes(action))
+    else if (action === "open-info") {
+      $("infoDialog").showModal();
+      if (state) renderMetrics((await api("metrics")).stats);
+    } else if (action === "open-logs") openLogs();
+    else if (action === "close-dialog") button.closest("dialog").close();
+    else if (["copy-endpoint", "copy-connect"].includes(action))
       await copyConnection();
     else if (action === "select-mode") await selectMode(button.dataset.mode);
     else if (action === "configure-mode") {
+      $("infoDialog").close();
       await selectMode(button.dataset.mode);
       location.hash = "modes";
     } else if (action === "format") {
@@ -1109,6 +1178,7 @@ document.addEventListener("input", (event) => {
     draft[event.target.dataset.field] = event.target.value;
     updateDraftFlag();
   }
+  if (event.target.id === "lobbyPassword" && state) renderAccess();
 });
 document.addEventListener("change", (event) => {
   const map = event.target.dataset.map;
@@ -1125,8 +1195,8 @@ document.addEventListener("change", (event) => {
   if (event.target.id === "containerLogSource")
     loadContainerLogs(true).catch((error) => message(error.message, "error"));
 });
-$("logs").addEventListener("scroll", () => {
-  const paused = !atEnd($("logs"));
+$("logsFull").addEventListener("scroll", () => {
+  const paused = !atEnd($("logsFull"));
   if (paused === logPaused) return;
   logPaused = paused;
   renderLogState();
@@ -1154,24 +1224,26 @@ $("consoleForm").addEventListener("submit", (event) => {
       ),
   ).catch((error) => message(error.message, "error"));
 });
-$("accessForm").addEventListener("submit", async (event) => {
+$("accessForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  const visibility = document.querySelector(
-    "input[name=visibility]:checked",
-  ).value;
-  const password = $("lobbyPassword").value;
-  if (visibility === "private" && !password && !state?.password.has_password) {
-    message("Set a lobby password before enabling private access.", "error");
-    return;
-  }
-  await run(async () => {
-    await api("server/visibility", {
-      method: "PUT",
-      body: { visibility, ...(password ? { password } : {}) },
-    });
-    $("lobbyPassword").value = "";
-  }, "Lobby access updated.");
+  applyAccess().catch((error) => message(error.message, "error"));
 });
+// The mask is a placeholder for the stored password: edit it as a whole, never partially.
+$("lobbyPassword").addEventListener("focus", (event) => {
+  if (event.target.value === PASSWORD_MASK)
+    setTimeout(() => event.target.select());
+});
+$("lobbyPassword").addEventListener("keydown", (event) => {
+  if (
+    event.target.value === PASSWORD_MASK &&
+    ["Backspace", "Delete"].includes(event.key)
+  ) {
+    event.preventDefault();
+    event.target.value = "";
+    if (state) renderAccess();
+  }
+});
+$("message").addEventListener("click", () => message(""));
 window.addEventListener("hashchange", navigate);
 window.addEventListener("beforeunload", (event) => {
   if (dirty()) {
@@ -1182,7 +1254,6 @@ window.addEventListener("beforeunload", (event) => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refresh();
 });
-renderOverview();
 navigate();
 refresh();
 setInterval(refresh, 6000);
